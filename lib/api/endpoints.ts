@@ -8,7 +8,6 @@ import type {
   PaginatedExercises,
   PatchExercisePayload,
   ProgressSummary,
-  Role,
   TodayResponse,
   Workout,
   WorkoutDetail,
@@ -16,8 +15,8 @@ import type {
 } from '../types';
 
 export const authApi = {
-  login: (role: Role, pin: string) =>
-    api.post<LoginResponse>('/auth/login', { role, pin }),
+  // Login por PIN: o backend identifica o usuário e devolve o papel dele.
+  login: (pin: string) => api.post<LoginResponse>('/auth/login', { pin }),
   logout: () => api.post<{ ok: boolean }>('/auth/logout'),
 };
 

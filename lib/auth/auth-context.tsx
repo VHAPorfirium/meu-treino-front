@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from 'react';
 import { useRouter } from 'next/navigation';
-import type { AuthUser, Role } from '../types';
+import type { AuthUser } from '../types';
 import { authApi } from '../api/endpoints';
 import {
   clearSession,
@@ -20,7 +20,7 @@ import {
 interface AuthContextValue {
   user: AuthUser | null;
   loading: boolean;
-  login: (role: Role, pin: string) => Promise<void>;
+  login: (pin: string) => Promise<void>;
   logout: () => void;
 }
 
@@ -36,8 +36,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setLoading(false);
   }, []);
 
-  async function login(role: Role, pin: string) {
-    const res = await authApi.login(role, pin); // backend seta o cookie httpOnly
+  async function login(pin: string) {
+    const res = await authApi.login(pin); // backend identifica pelo PIN e seta o cookie httpOnly
     const authUser: AuthUser = {
       userId: res.user.id,
       role: res.user.role,
