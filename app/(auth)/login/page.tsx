@@ -1,13 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import type { Role } from '@/lib/types';
 import { useAuth } from '@/lib/auth/auth-context';
 import { ApiError } from '@/lib/api/client';
 
 export default function LoginPage() {
   const { login } = useAuth();
-  const [role, setRole] = useState<Role>('TRAINEE');
   const [pin, setPin] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -29,7 +27,7 @@ export default function LoginPage() {
     setBusy(true);
     setError(null);
     try {
-      await login(role, pin);
+      await login(pin);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'Não foi possível entrar');
       setPin('');
@@ -50,24 +48,7 @@ export default function LoginPage() {
         <p className="mt-1.5 text-[15px] text-muted2">Digite seu PIN para entrar</p>
       </div>
 
-      <div className="mt-7 flex w-full max-w-xs rounded-full bg-chip p-1">
-        {(['TRAINEE', 'ADMIN'] as Role[]).map((r) => (
-          <button
-            key={r}
-            onClick={() => {
-              setRole(r);
-              setError(null);
-            }}
-            className={`flex-1 rounded-full py-2.5 text-sm font-extrabold transition ${
-              role === r ? 'bg-ink text-white' : 'text-muted'
-            }`}
-          >
-            {r === 'TRAINEE' ? 'Aluna' : 'Admin'}
-          </button>
-        ))}
-      </div>
-
-      <div className="mt-9 flex gap-4">
+      <div className="mt-10 flex gap-4">
         {Array.from({ length: 4 }).map((_, i) => (
           <span
             key={i}
