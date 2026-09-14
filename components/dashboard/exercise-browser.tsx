@@ -4,9 +4,16 @@ import { useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
 import type { Exercise, MuscleGroup } from '@/lib/types';
 import { exercisesApi, muscleGroupsApi } from '@/lib/api/endpoints';
+import { ApiError } from '@/lib/api/client';
 
 const STRIPE =
   'repeating-linear-gradient(135deg,#EFE7DC 0 6px,#E5DBCE 6px 12px)';
+
+function errorMessage(e: unknown): string {
+  return e instanceof ApiError
+    ? `${e.message} (HTTP ${e.status})`
+    : 'Falha de rede — verifique sua conexão.';
+}
 
 export function ExerciseBrowser({
   onPick,
@@ -19,10 +26,16 @@ export function ExerciseBrowser({
   const [debounced, setDebounced] = useState('');
   const [items, setItems] = useState<Exercise[]>([]);
   const [loading, setLoading] = useState(false);
+  // Erro real da requisição — antes era engolido e virava "Nada encontrado".
+  const [error, setError] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0); // incrementa pra "tentar de novo"
 
   useEffect(() => {
-    muscleGroupsApi.list().then(setGroups).catch(() => {});
-  }, []);
+    muscleGroupsApi
+      .list()
+      .then(setGroups)
+      .catch((e) => setError(errorMessage(e)));
+  }, [attempt]);
 
   useEffect(() => {
     const t = setTimeout(() => setDebounced(search), 350);
@@ -31,12 +44,16 @@ export function ExerciseBrowser({
 
   useEffect(() => {
     setLoading(true);
+    setError(null);
     exercisesApi
       .list({ muscleGroup: group || undefined, search: debounced || undefined })
       .then((r) => setItems(r.items))
-      .catch(() => setItems([]))
+      .catch((e) => {
+        setItems([]);
+        setError(errorMessage(e));
+      })
       .finally(() => setLoading(false));
-  }, [group, debounced]);
+  }, [group, debounced, attempt]);
 
   const chips = useMemo(
     () => [{ id: '', name: '', displayName: 'Todos', exerciseCount: 0 }, ...groups],
@@ -67,6 +84,21 @@ export function ExerciseBrowser({
       </div>
 
       {loading && <p className="py-6 text-center text-muted2">Carregando…</p>}
+
+      {!loading && error && (
+        <div className="my-4 rounded-2xl border border-line bg-card p-4 text-center">
+          <p className="text-sm font-extrabold text-brand">
+            Não foi possível carregar o catálogo.
+          </p>
+          <p className="mt-1 text-xs font-semibold text-muted2">{error}</p>
+          <button
+            onClick={() => setAttempt((n) => n + 1)}
+            className="mt-3 rounded-full bg-ink px-4 py-2 text-xs font-bold text-white"
+          >
+            Tentar de novo
+          </button>
+        </div>
+      )}
 
       {onPick ? (
         <div className="space-y-2">
@@ -123,7 +155,7 @@ export function ExerciseBrowser({
         </div>
       )}
 
-      {!loading && items.length === 0 && (
+      {!loading && !error && items.length === 0 && (
         <p className="py-8 text-center text-muted2">Nada encontrado.</p>
       )}
     </div>
