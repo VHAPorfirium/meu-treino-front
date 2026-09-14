@@ -1,7 +1,8 @@
-// Service worker mínimo — cacheia o app shell p/ abrir offline.
-// Chamadas à API NÃO são cacheadas (dados sempre frescos quando há rede).
-const CACHE = 'meu-treino-v1';
-const APP_SHELL = ['/', '/login', '/manifest.webmanifest', '/icons/icon-192.png'];
+// Service worker — cacheia o app shell p/ abrir offline + recebe Web Push (E6).
+// Chamadas à API NÃO são cacheadas nem interceptadas: a fila offline (E5) vive na página
+// (lib/offline/queue.ts), porque Safari/iOS não tem Background Sync.
+const CACHE = 'meu-treino-v2';
+const APP_SHELL = ['/', '/login', '/treino', '/manifest.webmanifest', '/icons/icon-192.png'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -46,5 +47,40 @@ self.addEventListener('fetch', (event) => {
   // estáticos: cache-first
   event.respondWith(
     caches.match(request).then((cached) => cached || fetch(request)),
+  );
+});
+
+// ── Web Push (E6) ─────────────────────────────────────────────────────────────
+// payload: { title, body, url }
+self.addEventListener('push', (event) => {
+  let data = { title: 'Ritmo', body: '', url: '/treino' };
+  try {
+    data = { ...data, ...event.data.json() };
+  } catch {
+    /* payload vazio/inválido → usa defaults */
+  }
+  event.waitUntil(
+    self.registration.showNotification(data.title, {
+      body: data.body,
+      icon: '/icons/icon-192.png',
+      badge: '/icons/icon-192.png',
+      data: { url: data.url },
+      vibrate: [120, 60, 120],
+    }),
+  );
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const url = (event.notification.data && event.notification.data.url) || '/treino';
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
+      const existing = list.find((c) => 'focus' in c);
+      if (existing) {
+        existing.navigate(url);
+        return existing.focus();
+      }
+      return self.clients.openWindow(url);
+    }),
   );
 });

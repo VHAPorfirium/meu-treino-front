@@ -12,7 +12,10 @@ export default function TraineeLayout({ children }: { children: ReactNode }) {
         <BottomNav
           items={[
             { href: '/treino', label: 'Treino', icon: '🏋️' },
+            { href: '/treino/meus', label: 'Meus', icon: '📋' },
             { href: '/treino/historico', label: 'Histórico', icon: '📅' },
+            { href: '/treino/recados', label: 'Recados', icon: '📝' },
+            { href: '/treino/fotos', label: 'Fotos', icon: '📷' },
           ]}
         />
       </div>
