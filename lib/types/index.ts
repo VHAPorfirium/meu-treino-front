@@ -12,6 +12,13 @@ export interface LoginResponse {
   user: { id: string; name: string; role: Role };
 }
 
+/** Usuário resumido (sem dados sensíveis) — GET /users */
+export interface UserSummary {
+  id: string;
+  name: string;
+  role: Role;
+}
+
 export interface MuscleGroup {
   id: string;
   name: string;
@@ -59,6 +66,13 @@ export interface TodayExercise {
   alternatives: AlternativeExercise[];
 }
 
+/** E4 — uma série executada. */
+export interface SetLog {
+  setNumber: number;
+  weight: number | null;
+  reps: number | null;
+}
+
 export interface WorkoutExerciseLog {
   id: string;
   workoutExerciseId: string;
@@ -67,6 +81,7 @@ export interface WorkoutExerciseLog {
   loadUsed: number | null;
   setsCompleted: number | null;
   note: string | null;
+  sets?: SetLog[];
 }
 
 export interface WorkoutLog {
@@ -80,12 +95,19 @@ export interface WorkoutLog {
 
 export interface TodayResponse {
   workoutLog: WorkoutLog | null;
+  /** true = não havia treino marcado pra hoje; este é um treino "sugerido" (E1.1) */
+  isFallback?: boolean;
   workout: {
     id: string;
     name: string;
     dayOfWeek: number | null;
     exercises: TodayExercise[];
   } | null;
+}
+
+export interface Assignee {
+  id: string;
+  name: string;
 }
 
 export interface Workout {
@@ -95,6 +117,7 @@ export interface Workout {
   active: boolean;
   createdAt: string;
   _count?: { exercises: number };
+  assignees?: Assignee[];
 }
 
 export interface WorkoutExerciseItem {
@@ -109,6 +132,13 @@ export interface WorkoutExerciseItem {
 
 export interface WorkoutDetail extends Workout {
   exercises: WorkoutExerciseItem[];
+  assignees: Assignee[];
+}
+
+export interface SetLogInput {
+  setNumber: number;
+  weight?: number;
+  reps?: number;
 }
 
 export interface PatchExercisePayload {
@@ -117,6 +147,8 @@ export interface PatchExercisePayload {
   loadUsed?: number;
   setsCompleted?: number;
   note?: string;
+  /** E4 — substitui todas as séries do exercício nesta sessão (idempotente) */
+  sets?: SetLogInput[];
 }
 
 export interface ProgressSummary {
@@ -154,7 +186,29 @@ export interface HistoryEntry {
     loadUsed: number | null;
     setsCompleted: number | null;
     note: string | null;
+    sets?: SetLog[];
     workoutExercise: { exercise: { name: string } };
     actualExercise: { id: string; name: string } | null;
   }[];
+}
+
+/** E6 — recado do personal pra aluna */
+export interface TrainerNote {
+  id: string;
+  fromId: string;
+  toId: string;
+  text: string;
+  readAt: string | null;
+  createdAt: string;
+  from: { id: string; name: string };
+}
+
+/** E6 — foto de progresso (URL assinada, expira em ~1h) */
+export interface ProgressPhoto {
+  id: string;
+  userId: string;
+  path: string;
+  takenAt: string;
+  note: string | null;
+  url: string | null;
 }

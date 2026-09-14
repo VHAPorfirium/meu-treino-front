@@ -10,6 +10,7 @@ const NAV = [
   { href: '/dashboard/exercicios', label: 'Catálogo', icon: '💪' },
   { href: '/dashboard/historico', label: 'Histórico', icon: '🗓️' },
   { href: '/dashboard/evolucao', label: 'Evolução', icon: '📈' },
+  { href: '/dashboard/alunos', label: 'Alunos', icon: '🧑‍🤝‍🧑' },
 ];
 
 function isActive(pathname: string, href: string) {
