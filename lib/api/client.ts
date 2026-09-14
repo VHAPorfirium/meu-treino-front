@@ -1,4 +1,12 @@
-const BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000/api';
+import { clearSession } from '../auth/storage';
+
+/**
+ * A API é chamada no MESMO domínio do app (/api). O Next proxia até o backend
+ * (ver `rewrites` em next.config.mjs). Assim o cookie httpOnly de sessão é
+ * first-party e funciona em todo navegador — inclusive iOS/Safari, que bloqueia
+ * cookie de terceiro entre domínios diferentes (Vercel ↔ Render).
+ */
+const BASE = '/api';
 
 export class ApiError extends Error {
   constructor(
@@ -6,6 +14,19 @@ export class ApiError extends Error {
     message: string,
   ) {
     super(message);
+  }
+}
+
+/**
+ * Sessão inválida/expirada: limpa o usuário local e volta pro login.
+ * Sem isso o app ficava "logado" (roteamento usa o mt_user) com todas as
+ * listas vazias, porque cada chamada protegida falhava em silêncio com 401.
+ */
+function handleUnauthorized() {
+  if (typeof window === 'undefined') return;
+  clearSession();
+  if (!window.location.pathname.startsWith('/login')) {
+    window.location.replace('/login');
   }
 }
 
@@ -33,6 +54,10 @@ async function request<T>(
         : (body?.message ?? msg);
     } catch {
       /* ignore */
+    }
+    // 401 fora do login = sessão caiu → desloga. (No login, 401 é só "PIN errado".)
+    if (res.status === 401 && !path.startsWith('/auth/login')) {
+      handleUnauthorized();
     }
     throw new ApiError(res.status, msg);
   }
