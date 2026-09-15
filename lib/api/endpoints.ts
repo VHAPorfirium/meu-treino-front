@@ -1,4 +1,5 @@
 import { api } from './client';
+import { TTL_CATALOGO, lembrar } from './cache-modulo';
 import type {
   AddExerciseBatchItem,
   AlternativeExercise,
@@ -50,15 +51,18 @@ export const exercisesApi = {
     const qs = q.toString();
     return api.get<PaginatedExercises>(`/exercises${qs ? `?${qs}` : ''}`);
   },
-  /** equipamentos distintos do catálogo (alimenta o filtro) */
-  equipment: () => api.get<string[]>('/exercises/equipment'),
+  /** equipamentos distintos do catálogo (alimenta o filtro) — cacheado no módulo */
+  equipment: () =>
+    lembrar('ex:equip', TTL_CATALOGO, () => api.get<string[]>('/exercises/equipment')),
   get: (id: string) => api.get<Exercise>(`/exercises/${id}`),
   alternatives: (id: string) =>
     api.get<AlternativeExercise[]>(`/exercises/${id}/alternatives`),
 };
 
 export const muscleGroupsApi = {
-  list: () => api.get<MuscleGroup[]>('/muscle-groups'),
+  // cacheado no módulo: era refeito a cada montagem do ExerciseBrowser
+  list: () =>
+    lembrar('mg:list', TTL_CATALOGO, () => api.get<MuscleGroup[]>('/muscle-groups')),
 };
 
 export const workoutsApi = {

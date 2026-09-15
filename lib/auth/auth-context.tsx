@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from 'react';
 import { useRouter } from 'next/navigation';
+import { limpar as limparCache } from '../api/cache-modulo';
 import type { AuthUser } from '../types';
 import { authApi } from '../api/endpoints';
 import {
@@ -51,6 +52,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function logout() {
     await authApi.logout().catch(() => {}); // limpa o cookie httpOnly no backend
     clearSession();
+    limparCache(); // nada de um usuário sobrevive à sessão do outro
     setUser(null);
     router.replace('/login');
   }

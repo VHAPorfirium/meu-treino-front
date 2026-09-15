@@ -1,4 +1,5 @@
 import { clearSession } from '../auth/storage';
+import { limpar as limparCache } from './cache-modulo';
 
 /**
  * A API é chamada no MESMO domínio do app (/api). O Next proxia até o backend
@@ -25,6 +26,7 @@ export class ApiError extends Error {
 function handleUnauthorized() {
   if (typeof window === 'undefined') return;
   clearSession();
+  limparCache(); // sessão caiu: o cache da aba vai junto
   if (!window.location.pathname.startsWith('/login')) {
     window.location.replace('/login');
   }
