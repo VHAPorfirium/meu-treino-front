@@ -48,11 +48,19 @@ export interface AlternativeExercise {
   thumbnailUrl: string | null;
 }
 
+/**
+ * Página do catálogo. `total`/`totalPages` são calculados COM os filtros aplicados,
+ * e `page` volta já ajustada ao intervalo válido — dá pra navegar por todos os
+ * 1.324 exercícios sem perder nenhum.
+ */
 export interface PaginatedExercises {
   items: Exercise[];
   total: number;
   page: number;
   pageSize: number;
+  totalPages: number;
+  hasPrev: boolean;
+  hasNext: boolean;
 }
 
 export interface TodayExercise {
