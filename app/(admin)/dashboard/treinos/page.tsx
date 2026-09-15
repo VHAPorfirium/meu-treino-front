@@ -42,8 +42,14 @@ export default function TreinosPage() {
       setName('');
       setDay('');
       setCreating(false);
-      await refresh();
-      await openDetail(w.id); // já abre pra configurar destinatários/exercícios
+      // o treino JÁ foi criado aqui. Se a recarga da lista falhar, a mensagem
+      // tem que falar de recarga — dizer "não foi possível criar" era mentira.
+      try {
+        await refresh();
+        await openDetail(w.id); // já abre pra configurar destinatários/exercícios
+      } catch (e) {
+        setError(msg(e, 'Treino criado, mas não foi possível recarregar a lista'));
+      }
     } catch (e) {
       setError(msg(e, 'Não foi possível criar'));
     }
@@ -156,7 +162,7 @@ export default function TreinosPage() {
           </div>
         ))}
 
-        {workouts.length === 0 && !creating && (
+        {workouts.length === 0 && !creating && !error && (
           <p className="py-10 text-center text-muted2">Nenhum treino criado ainda.</p>
         )}
       </div>
