@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { ProgressSummary } from '@/lib/types';
 import { workoutLogsApi } from '@/lib/api/endpoints';
 import { PageHead } from '@/components/dashboard/page-head';
+import { FiltroAluno, useNomeAluno } from '@/components/dashboard/filtro-aluno';
 import { BarChart, LineChart } from '@/components/dashboard/charts';
 
 function shortDate(iso: string) {
@@ -18,15 +19,27 @@ export default function EvolucaoPage() {
   const [error, setError] = useState<string | null>(null);
   const [exercise, setExercise] = useState('');
 
+  // '' = todos os alunos somados
+  const [alunoId, setAlunoId] = useState('');
+  const nomeAluno = useNomeAluno(alunoId);
+
   useEffect(() => {
+    let cancelado = false;
+    setData(null);
+    setError(null);
     workoutLogsApi
-      .progress()
+      .progress(alunoId || undefined)
       .then((d) => {
+        if (cancelado) return;
         setData(d);
-        if (d.loadProgression[0]) setExercise(d.loadProgression[0].exercise);
+        // o catálogo de exercícios muda por aluno — reancora a seleção do gráfico
+        setExercise(d.loadProgression?.[0]?.exercise ?? '');
       })
-      .catch(() => setError('Não foi possível carregar a evolução.'));
-  }, []);
+      .catch(() => !cancelado && setError('Não foi possível carregar a evolução.'));
+    return () => {
+      cancelado = true;
+    };
+  }, [alunoId]);
 
   const freqBars = useMemo(
     () =>
@@ -47,8 +60,13 @@ export default function EvolucaoPage() {
 
   return (
     <>
-      <PageHead eyebrow="Acompanhamento" title="Evolução" />
+      <PageHead
+        eyebrow="Acompanhamento"
+        title={nomeAluno ? `Evolução · ${nomeAluno.split(' ')[0]}` : 'Evolução'}
+      />
       <div className="mx-auto max-w-6xl space-y-5 p-6 md:p-8">
+        <FiltroAluno value={alunoId} onChange={setAlunoId} />
+
         {error && <p className="text-brand">{error}</p>}
         {!data && !error && <p className="text-muted2">Carregando…</p>}
 

@@ -131,7 +131,11 @@ export const workoutLogsApi = {
     api.patch<WorkoutLog>(`/workout-logs/${logId}/complete`),
   history: () => api.get<HistoryEntry[]>('/workout-logs/history'),
   myHistory: () => api.get<HistoryEntry[]>('/workout-logs/my-history'),
-  progress: () => api.get<ProgressSummary>('/workout-logs/progress-summary'),
+  /** Sem `userId` = agregado de todos os alunos; com `userId` = só aquele aluno. */
+  progress: (userId?: string) =>
+    api.get<ProgressSummary>(
+      `/workout-logs/progress-summary${userId ? `?userId=${encodeURIComponent(userId)}` : ''}`,
+    ),
 };
 
 // E6 — recados do personal

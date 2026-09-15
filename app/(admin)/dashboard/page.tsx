@@ -5,21 +5,36 @@ import Link from 'next/link';
 import type { ProgressSummary } from '@/lib/types';
 import { workoutLogsApi } from '@/lib/api/endpoints';
 import { PageHead } from '@/components/dashboard/page-head';
+import { FiltroAluno, useNomeAluno } from '@/components/dashboard/filtro-aluno';
 
 export default function DashboardHome() {
   const [data, setData] = useState<ProgressSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [exercise, setExercise] = useState('');
 
+  // '' = todos os alunos juntos (agregado)
+  const [alunoId, setAlunoId] = useState('');
+  const nomeAluno = useNomeAluno(alunoId);
+
   useEffect(() => {
+    let cancelado = false;
+    setData(null);
+    setError(null);
     workoutLogsApi
-      .progress()
+      .progress(alunoId || undefined)
       .then((d) => {
+        if (cancelado) return;
         setData(d);
-        if (d.loadProgression?.[0]) setExercise(d.loadProgression[0].exercise);
+        // o catálogo de exercícios muda por aluno — reancora a seleção do gráfico
+        setExercise(d.loadProgression?.[0]?.exercise ?? '');
       })
-      .catch(() => setError('Não foi possível carregar o resumo.'));
-  }, []);
+      .catch(() => !cancelado && setError('Não foi possível carregar o resumo.'));
+    return () => {
+      cancelado = true;
+    };
+  }, [alunoId]);
+
+
 
   // valores seguros (não quebra se a API vier num formato antigo/parcial)
   const sessions = data?.sessions ?? { last30days: 0, delta: 0, target: 16 };
@@ -51,7 +66,9 @@ export default function DashboardHome() {
     <>
       <PageHead
         eyebrow="Acompanhamento"
-        title="Evolução da aluna"
+        title={
+          nomeAluno ? `Evolução · ${nomeAluno.split(' ')[0]}` : 'Evolução dos alunos'
+        }
         actions={
           <Link
             href="/dashboard/treinos"
@@ -63,6 +80,9 @@ export default function DashboardHome() {
       />
 
       <div className="mx-auto max-w-6xl space-y-5 p-6 md:p-8">
+        {/* filtro por aluno — '' mostra todo mundo somado */}
+        <FiltroAluno value={alunoId} onChange={setAlunoId} />
+
         {error && <p className="text-brand">{error}</p>}
         {!data && !error && <p className="text-muted2">Carregando…</p>}
 
