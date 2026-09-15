@@ -1,7 +1,14 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import type { Exercise, Workout, WorkoutDetail, WorkoutExerciseItem } from '@/lib/types';
+import type {
+  ConfigExercicio,
+  Exercise,
+  ExercicioSelecionado,
+  Workout,
+  WorkoutDetail,
+  WorkoutExerciseItem,
+} from '@/lib/types';
 import { workoutsApi } from '@/lib/api/endpoints';
 import { ApiError } from '@/lib/api/client';
 import { PageHead } from '@/components/dashboard/page-head';
@@ -375,6 +382,18 @@ function DayChip({
   );
 }
 
+/** Defaults do painel inline: quem só quer marcar vários não precisa digitar nada. */
+const CONFIG_PADRAO: ConfigExercicio = { sets: '3', reps: '10-12', rest: '60' };
+
+/**
+ * Picker de exercícios com **seleção múltipla** (E7).
+ *
+ * Antes: escolher um exercício trocava a tela inteira pelo formulário de
+ * séries/reps, e voltar zerava filtro, busca e página — montar um treino de 8
+ * exercícios eram 8 idas e voltas. Agora a configuração abre embaixo do próprio
+ * card, a seleção mora aqui (não na lista), então atravessa páginas e filtros, e
+ * tudo entra de uma vez num único POST transacional.
+ */
 function AddExerciseModal({
   workout,
   onClose,
@@ -384,25 +403,51 @@ function AddExerciseModal({
   onClose: () => void;
   onAdded: () => void;
 }) {
-  const [picked, setPicked] = useState<Exercise | null>(null);
-  const [sets, setSets] = useState('3');
-  const [reps, setReps] = useState('10-12');
-  const [rest, setRest] = useState('60');
+  const [selecionados, setSelecionados] = useState<Map<string, ExercicioSelecionado>>(
+    () => new Map(),
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function confirm() {
-    if (!picked) return;
+  const onToggle = useCallback((ex: Exercise) => {
+    setSelecionados((atual) => {
+      const proximo = new Map(atual);
+      if (proximo.has(ex.id)) proximo.delete(ex.id);
+      else proximo.set(ex.id, { exercise: ex, config: { ...CONFIG_PADRAO } });
+      return proximo;
+    });
+  }, []);
+
+  const onConfig = useCallback((exerciseId: string, patch: Partial<ConfigExercicio>) => {
+    setSelecionados((atual) => {
+      const item = atual.get(exerciseId);
+      if (!item) return atual;
+      const proximo = new Map(atual);
+      proximo.set(exerciseId, { ...item, config: { ...item.config, ...patch } });
+      return proximo;
+    });
+  }, []);
+
+  // Map preserva ordem de inserção → a ordem no treino é a ordem em que o admin marcou
+  const escolhidos = Array.from(selecionados.values());
+
+  async function confirmar() {
+    if (escolhidos.length === 0) return;
     setBusy(true);
     setError(null);
     try {
-      await workoutsApi.addExercise(workout.id, {
-        exerciseId: picked.id,
-        order: workout.exercises.length + 1,
-        sets: Number(sets) || 3,
-        reps: reps || '10-12',
-        restSeconds: rest ? Number(rest) : undefined,
-      });
+      await workoutsApi.addExercisesBatch(
+        workout.id,
+        escolhidos.map(({ exercise, config }) => {
+          const rest = Number(config.rest);
+          return {
+            exerciseId: exercise.id,
+            sets: Number(config.sets) > 0 ? Number(config.sets) : 3,
+            reps: config.reps.trim() || '10-12',
+            restSeconds: Number.isFinite(rest) && rest >= 0 ? rest : undefined,
+          };
+        }),
+      );
       onAdded();
     } catch (e) {
       setError(msg(e, 'Não foi possível adicionar'));
@@ -413,11 +458,9 @@ function AddExerciseModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-ink/55 md:items-center">
-      <div className="max-h-[88vh] w-full max-w-lg overflow-y-auto rounded-t-3xl bg-paper p-5 md:rounded-3xl">
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="font-display text-[22px] font-extrabold">
-            {picked ? 'Configurar' : 'Escolher exercício'}
-          </h2>
+      <div className="flex max-h-[88vh] w-full max-w-lg flex-col rounded-t-3xl bg-paper md:rounded-3xl">
+        <div className="flex shrink-0 items-center justify-between px-5 pb-3 pt-5">
+          <h2 className="font-display text-[22px] font-extrabold">Escolher exercícios</h2>
           <button
             onClick={onClose}
             className="rounded-full bg-chip px-3 py-1.5 text-xs font-bold text-muted"
@@ -426,59 +469,46 @@ function AddExerciseModal({
           </button>
         </div>
 
-        {!picked && <ExerciseBrowser onPick={setPicked} />}
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-4">
+          <ExerciseBrowser selecao={{ itens: selecionados, onToggle, onConfig }} />
+        </div>
 
-        {picked && (
-          <div className="space-y-4">
-            <p className="capitalize font-extrabold text-ink">{picked.name}</p>
-            <div className="grid grid-cols-3 gap-2">
-              <NumField label="Séries" value={sets} onChange={setSets} />
-              <NumField label="Reps" value={reps} onChange={setReps} text />
-              <NumField label="Descanso (s)" value={rest} onChange={setRest} />
+        {/* barra fixa: a seleção continua visível mesmo com a lista rolada ou filtrada */}
+        <div className="shrink-0 space-y-2.5 rounded-b-3xl border-t border-line bg-paper p-4">
+          {escolhidos.length > 0 && (
+            <div className="flex max-h-20 flex-wrap gap-1.5 overflow-y-auto">
+              {escolhidos.map(({ exercise }) => (
+                <button
+                  key={exercise.id}
+                  onClick={() => onToggle(exercise)}
+                  title="Remover da seleção"
+                  className="flex max-w-full items-center gap-1 rounded-full bg-chip px-2.5 py-1 text-[11px] font-bold capitalize text-ink"
+                >
+                  <span className="truncate">{exercise.name}</span>
+                  <span className="text-muted2">×</span>
+                </button>
+              ))}
             </div>
-            {error && <p className="text-sm font-semibold text-brand">{error}</p>}
-            <div className="flex gap-2">
-              <button
-                onClick={() => setPicked(null)}
-                className="flex-1 rounded-xl border-2 border-ink py-2.5 text-sm font-extrabold"
-              >
-                Voltar
-              </button>
-              <button
-                onClick={confirm}
-                disabled={busy}
-                className="flex-1 rounded-xl bg-brand py-2.5 text-sm font-extrabold text-white disabled:opacity-50"
-              >
-                {busy ? 'Adicionando…' : 'Adicionar'}
-              </button>
-            </div>
+          )}
+
+          {error && <p className="text-sm font-semibold text-brand">{error}</p>}
+
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-muted2">
+              {escolhidos.length === 0
+                ? 'Nenhum selecionado'
+                : `${escolhidos.length} selecionado${escolhidos.length > 1 ? 's' : ''}`}
+            </span>
+            <button
+              onClick={confirmar}
+              disabled={busy || escolhidos.length === 0}
+              className="ml-auto rounded-xl bg-brand px-5 py-2.5 text-sm font-extrabold text-white shadow-brand disabled:opacity-50"
+            >
+              {busy ? 'Adicionando…' : 'Adicionar ao treino'}
+            </button>
           </div>
-        )}
+        </div>
       </div>
     </div>
-  );
-}
-
-function NumField({
-  label,
-  value,
-  onChange,
-  text,
-}: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  text?: boolean;
-}) {
-  return (
-    <label className="text-[11px] font-extrabold uppercase tracking-wide text-muted2">
-      {label}
-      <input
-        inputMode={text ? 'text' : 'numeric'}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="mt-1 w-full rounded-xl border border-line2 bg-white px-3 py-2 text-center text-base font-extrabold text-ink"
-      />
-    </label>
   );
 }

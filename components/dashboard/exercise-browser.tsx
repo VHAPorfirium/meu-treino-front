@@ -2,7 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
-import type { Exercise, MuscleGroup, PaginatedExercises } from '@/lib/types';
+import type {
+  ConfigExercicio,
+  Exercise,
+  ExercicioSelecionado,
+  MuscleGroup,
+  PaginatedExercises,
+} from '@/lib/types';
 import { exercisesApi, muscleGroupsApi } from '@/lib/api/endpoints';
 import { ApiError } from '@/lib/api/client';
 
@@ -19,10 +25,22 @@ function errorMessage(e: unknown): string {
 
 const nf = new Intl.NumberFormat('pt-BR');
 
+/**
+ * Modo de seleção múltipla (E7). Quando presente, cada card vira um toggle e o
+ * painel de séries/reps/descanso abre **embaixo do próprio card**, sem trocar de
+ * tela. A seleção mora fora daqui (no modal), então ela sobrevive a troca de
+ * página, filtro e busca — que é o ponto todo da melhoria.
+ */
+export interface SelecaoMultipla {
+  itens: Map<string, ExercicioSelecionado>;
+  onToggle: (ex: Exercise) => void;
+  onConfig: (exerciseId: string, patch: Partial<ConfigExercicio>) => void;
+}
+
 export function ExerciseBrowser({
-  onPick,
+  selecao,
 }: {
-  onPick?: (ex: Exercise) => void;
+  selecao?: SelecaoMultipla;
 }) {
   const [groups, setGroups] = useState<MuscleGroup[]>([]);
   const [equipments, setEquipments] = useState<string[]>([]);
@@ -205,28 +223,62 @@ export function ExerciseBrowser({
         </div>
       )}
 
-      {onPick ? (
+      {selecao ? (
         <div className="space-y-2">
-          {items.map((ex) => (
-            <div
-              key={ex.id}
-              className="flex items-center gap-3 rounded-2xl border border-line bg-card p-2.5"
-            >
-              <Thumb url={ex.thumbnailUrl} />
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-extrabold capitalize">{ex.name}</p>
-                <p className="text-xs font-semibold capitalize text-muted2">
-                  {ex.target} · {ex.equipment ?? '—'}
-                </p>
-              </div>
-              <button
-                onClick={() => onPick(ex)}
-                className="flex h-8 w-8 items-center justify-center rounded-lg bg-chip text-lg font-extrabold text-ink"
+          {items.map((ex) => {
+            const escolhido = selecao.itens.get(ex.id);
+            return (
+              <div
+                key={ex.id}
+                className={`overflow-hidden rounded-2xl border bg-card transition ${
+                  escolhido ? 'border-brand' : 'border-line'
+                }`}
               >
-                +
-              </button>
-            </div>
-          ))}
+                <button
+                  type="button"
+                  onClick={() => selecao.onToggle(ex)}
+                  aria-pressed={Boolean(escolhido)}
+                  className="flex w-full items-center gap-3 p-2.5 text-left"
+                >
+                  <Thumb url={ex.thumbnailUrl} />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-extrabold capitalize">{ex.name}</p>
+                    <p className="text-xs font-semibold capitalize text-muted2">
+                      {ex.target} · {ex.equipment ?? '—'}
+                    </p>
+                  </div>
+                  <span
+                    className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-lg font-extrabold ${
+                      escolhido ? 'bg-brand text-white' : 'bg-chip text-ink'
+                    }`}
+                  >
+                    {escolhido ? '✓' : '+'}
+                  </span>
+                </button>
+
+                {escolhido && (
+                  <div className="grid grid-cols-3 gap-2 border-t border-line px-2.5 pb-2.5 pt-2">
+                    <CampoConfig
+                      label="Séries"
+                      value={escolhido.config.sets}
+                      onChange={(v) => selecao.onConfig(ex.id, { sets: v })}
+                    />
+                    <CampoConfig
+                      label="Reps"
+                      value={escolhido.config.reps}
+                      onChange={(v) => selecao.onConfig(ex.id, { reps: v })}
+                      texto
+                    />
+                    <CampoConfig
+                      label="Descanso (s)"
+                      value={escolhido.config.rest}
+                      onChange={(v) => selecao.onConfig(ex.id, { rest: v })}
+                    />
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       ) : (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
@@ -359,6 +411,31 @@ function Paginacao({
         »»
       </button>
     </nav>
+  );
+}
+
+/** Campo compacto do painel inline de configuração (E7). */
+function CampoConfig({
+  label,
+  value,
+  onChange,
+  texto,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  texto?: boolean;
+}) {
+  return (
+    <label className="text-[10px] font-extrabold uppercase tracking-wide text-muted2">
+      {label}
+      <input
+        inputMode={texto ? 'text' : 'numeric'}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="mt-1 w-full rounded-lg border border-line2 bg-white px-2 py-1.5 text-center text-sm font-extrabold text-ink"
+      />
+    </label>
   );
 }
 
