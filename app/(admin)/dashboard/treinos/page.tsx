@@ -11,6 +11,7 @@ import type {
 } from '@/lib/types';
 import { workoutsApi } from '@/lib/api/endpoints';
 import { ApiError } from '@/lib/api/client';
+import { descrevePrescricao, modoSugerido } from '@/lib/exercicios/modo';
 import { PageHead } from '@/components/dashboard/page-head';
 import { ExerciseBrowser } from '@/components/dashboard/exercise-browser';
 import { AssigneeSelect } from '@/components/dashboard/assignee-select';
@@ -262,7 +263,13 @@ function WorkoutEditor({
   };
   const updateEx = async (
     weId: string,
-    data: { sets?: number; reps?: string; restSeconds?: number | null },
+    data: {
+      mode?: 'REPS' | 'TIME';
+      sets?: number;
+      reps?: string | null;
+      durationSeconds?: number | null;
+      restSeconds?: number | null;
+    },
   ) => {
     await workoutsApi.updateExercise(detail.id, weId, data);
     await reload();
@@ -383,7 +390,12 @@ function DayChip({
 }
 
 /** Defaults do painel inline: quem só quer marcar vários não precisa digitar nada. */
-const CONFIG_PADRAO: ConfigExercicio = { sets: '3', reps: '10-12', rest: '60' };
+const CONFIG_PADRAO: Omit<ConfigExercicio, 'mode'> = {
+  sets: '3',
+  reps: '10-12',
+  minutes: '20',
+  rest: '60',
+};
 
 /**
  * Picker de exercícios com **seleção múltipla** (E7).
@@ -413,7 +425,12 @@ function AddExerciseModal({
     setSelecionados((atual) => {
       const proximo = new Map(atual);
       if (proximo.has(ex.id)) proximo.delete(ex.id);
-      else proximo.set(ex.id, { exercise: ex, config: { ...CONFIG_PADRAO } });
+      else
+        proximo.set(ex.id, {
+          exercise: ex,
+          // E10 — cardio já entra medido em tempo; o admin pode trocar no painel
+          config: { ...CONFIG_PADRAO, mode: modoSugerido(ex) },
+        });
       return proximo;
     });
   }, []);
@@ -440,11 +457,23 @@ function AddExerciseModal({
         workout.id,
         escolhidos.map(({ exercise, config }) => {
           const rest = Number(config.rest);
+          const restSeconds = Number.isFinite(rest) && rest >= 0 ? rest : undefined;
+
+          if (config.mode === 'TIME') {
+            const min = Number(config.minutes);
+            return {
+              exerciseId: exercise.id,
+              mode: 'TIME' as const,
+              durationSeconds: Math.round((min > 0 ? min : 20) * 60),
+              restSeconds,
+            };
+          }
           return {
             exerciseId: exercise.id,
+            mode: 'REPS' as const,
             sets: Number(config.sets) > 0 ? Number(config.sets) : 3,
             reps: config.reps.trim() || '10-12',
-            restSeconds: Number.isFinite(rest) && rest >= 0 ? rest : undefined,
+            restSeconds,
           };
         }),
       );

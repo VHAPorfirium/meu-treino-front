@@ -257,23 +257,56 @@ export function ExerciseBrowser({
                 </button>
 
                 {escolhido && (
-                  <div className="grid grid-cols-3 gap-2 border-t border-line px-2.5 pb-2.5 pt-2">
-                    <CampoConfig
-                      label="Séries"
-                      value={escolhido.config.sets}
-                      onChange={(v) => selecao.onConfig(ex.id, { sets: v })}
-                    />
-                    <CampoConfig
-                      label="Reps"
-                      value={escolhido.config.reps}
-                      onChange={(v) => selecao.onConfig(ex.id, { reps: v })}
-                      texto
-                    />
-                    <CampoConfig
-                      label="Descanso (s)"
-                      value={escolhido.config.rest}
-                      onChange={(v) => selecao.onConfig(ex.id, { rest: v })}
-                    />
+                  <div className="space-y-2 border-t border-line px-2.5 pb-2.5 pt-2">
+                    {escolhido.config.mode === 'TIME' ? (
+                      // E10 — cardio (e prancha, alongamento): o que importa é o tempo
+                      <div className="grid grid-cols-2 gap-2">
+                        <CampoConfig
+                          label="Minutos"
+                          value={escolhido.config.minutes}
+                          onChange={(v) => selecao.onConfig(ex.id, { minutes: v })}
+                        />
+                        <CampoConfig
+                          label="Descanso (s)"
+                          value={escolhido.config.rest}
+                          onChange={(v) => selecao.onConfig(ex.id, { rest: v })}
+                        />
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-3 gap-2">
+                        <CampoConfig
+                          label="Séries"
+                          value={escolhido.config.sets}
+                          onChange={(v) => selecao.onConfig(ex.id, { sets: v })}
+                        />
+                        <CampoConfig
+                          label="Reps"
+                          value={escolhido.config.reps}
+                          onChange={(v) => selecao.onConfig(ex.id, { reps: v })}
+                          texto
+                        />
+                        <CampoConfig
+                          label="Descanso (s)"
+                          value={escolhido.config.rest}
+                          onChange={(v) => selecao.onConfig(ex.id, { rest: v })}
+                        />
+                      </div>
+                    )}
+
+                    {/* o grupo muscular só SUGERE o modo — prancha é abdômen e é por tempo */}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        selecao.onConfig(ex.id, {
+                          mode: escolhido.config.mode === 'TIME' ? 'REPS' : 'TIME',
+                        })
+                      }
+                      className="text-[11px] font-bold text-muted2 underline"
+                    >
+                      {escolhido.config.mode === 'TIME'
+                        ? 'medir por séries e repetições'
+                        : 'medir por tempo'}
+                    </button>
                   </div>
                 )}
               </div>

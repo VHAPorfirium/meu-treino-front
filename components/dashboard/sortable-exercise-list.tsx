@@ -17,7 +17,8 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import type { WorkoutExerciseItem } from '@/lib/types';
+import type { ExerciseMode, WorkoutExerciseItem } from '@/lib/types';
+import { descrevePrescricao } from '@/lib/exercicios/modo';
 
 /**
  * E1 + E2 — lista de exercícios do treino: arrastar pra reordenar, editar inline
@@ -33,7 +34,13 @@ export function SortableExerciseList({
   onReorder: (ordered: WorkoutExerciseItem[]) => Promise<void>;
   onUpdate: (
     weId: string,
-    data: { sets?: number; reps?: string; restSeconds?: number | null },
+    data: {
+      mode?: ExerciseMode;
+      sets?: number;
+      reps?: string | null;
+      durationSeconds?: number | null;
+      restSeconds?: number | null;
+    },
   ) => Promise<void>;
   onRemove: (weId: string) => Promise<void>;
 }) {
@@ -76,8 +83,12 @@ function Row({
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: item.id });
   const [editing, setEditing] = useState(false);
+  const [mode, setMode] = useState<ExerciseMode>(item.mode);
   const [sets, setSets] = useState(String(item.sets));
-  const [reps, setReps] = useState(item.reps);
+  const [reps, setReps] = useState(item.reps ?? '');
+  const [minutes, setMinutes] = useState(
+    item.durationSeconds != null ? String(Math.round(item.durationSeconds / 60)) : '20',
+  );
   const [rest, setRest] = useState(item.restSeconds != null ? String(item.restSeconds) : '');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -88,11 +99,27 @@ function Row({
     setBusy(true);
     setError(null);
     try {
-      await onUpdate(item.id, {
-        sets: Math.max(1, Number(sets) || item.sets),
-        reps: reps.trim() || item.reps,
-        restSeconds: rest.trim() === '' ? null : Math.max(0, Number(rest) || 0),
-      });
+      const restSeconds = rest.trim() === '' ? null : Math.max(0, Number(rest) || 0);
+      // E10 — os dois modos são exclusivos: TIME zera `reps`, REPS zera a duração,
+      // pra não deixar no banco uma linha do tipo "3 × 10 durante 20 min".
+      await onUpdate(
+        item.id,
+        mode === 'TIME'
+          ? {
+              mode,
+              sets: 1,
+              reps: null,
+              durationSeconds: Math.round(Math.max(1, Number(minutes) || 20) * 60),
+              restSeconds,
+            }
+          : {
+              mode,
+              sets: Math.max(1, Number(sets) || item.sets),
+              reps: reps.trim() || item.reps || '10-12',
+              durationSeconds: null,
+              restSeconds,
+            },
+      );
       setEditing(false);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Não foi possível salvar');
@@ -138,7 +165,7 @@ function Row({
         {!editing && (
           <>
             <span className="shrink-0 font-extrabold text-muted2">
-              {item.sets}×{item.reps}
+              {descrevePrescricao(item)}
               {item.restSeconds != null ? ` · ${item.restSeconds}s` : ''}
             </span>
             <button
@@ -162,24 +189,42 @@ function Row({
       </div>
 
       {editing && (
-        <div className="mt-2 grid grid-cols-[1fr_1fr_1fr_auto_auto] items-end gap-2 pl-8">
-          <Field label="Séries" value={sets} onChange={setSets} />
-          <Field label="Reps" value={reps} onChange={setReps} text />
-          <Field label="Desc. (s)" value={rest} onChange={setRest} />
+        <div className="mt-2 pl-8">
+          <div className="grid grid-cols-[1fr_1fr_1fr_auto_auto] items-end gap-2">
+            {mode === 'TIME' ? (
+              <>
+                <Field label="Minutos" value={minutes} onChange={setMinutes} />
+                <span />
+              </>
+            ) : (
+              <>
+                <Field label="Séries" value={sets} onChange={setSets} />
+                <Field label="Reps" value={reps} onChange={setReps} text />
+              </>
+            )}
+            <Field label="Desc. (s)" value={rest} onChange={setRest} />
+            <button
+              type="button"
+              onClick={() => setEditing(false)}
+              className="rounded-lg border-2 border-ink px-3 py-1.5 text-xs font-extrabold"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              onClick={save}
+              disabled={busy}
+              className="rounded-lg bg-brand px-3 py-1.5 text-xs font-extrabold text-white disabled:opacity-50"
+            >
+              {busy ? '…' : 'Salvar'}
+            </button>
+          </div>
           <button
             type="button"
-            onClick={() => setEditing(false)}
-            className="rounded-lg border-2 border-ink px-3 py-1.5 text-xs font-extrabold"
+            onClick={() => setMode((m) => (m === 'TIME' ? 'REPS' : 'TIME'))}
+            className="mt-1.5 text-[11px] font-bold text-muted2 underline"
           >
-            Cancelar
-          </button>
-          <button
-            type="button"
-            onClick={save}
-            disabled={busy}
-            className="rounded-lg bg-brand px-3 py-1.5 text-xs font-extrabold text-white disabled:opacity-50"
-          >
-            {busy ? '…' : 'Salvar'}
+            {mode === 'TIME' ? 'medir por séries e repetições' : 'medir por tempo'}
           </button>
         </div>
       )}

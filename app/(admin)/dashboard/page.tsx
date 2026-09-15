@@ -46,6 +46,7 @@ export default function DashboardHome() {
   };
   const streak = data?.streak ?? { current: 0, best: 0 };
   const cargaTotal = data?.cargaTotal ?? { current: 0, deltaPct: 0 };
+  const cardio = data?.cardio ?? { minutes: 0, deltaPct: 0 };
   const heatmap = data?.heatmap ?? [];
   const ranking = data?.ranking ?? [];
   const recentNotes = data?.recentNotes ?? [];
@@ -88,7 +89,7 @@ export default function DashboardHome() {
 
         {data && (
           <>
-            <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+            <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
               <StatCard
                 label="Frequência 30d"
                 value={sessions.last30days}
@@ -112,6 +113,15 @@ export default function DashboardHome() {
                 label="Carga total"
                 value={`${cargaTotal.deltaPct >= 0 ? '+' : ''}${cargaTotal.deltaPct}%`}
                 hint={`volume · ${cargaTotal.current} kg (30d)`}
+              />
+              {/* E10 — cardio não tem carga, então some do volume. Métrica própria. */}
+              <StatCard
+                label="Cardio 30d"
+                value={cardio.minutes}
+                unit="min"
+                delta={cardio.deltaPct}
+                deltaSuffix="%"
+                hint="exercícios por tempo"
               />
             </div>
 

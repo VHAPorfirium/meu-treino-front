@@ -9,10 +9,13 @@ import { useEffect, useRef, useState } from 'react';
  */
 export function RestTimer({
   seconds,
+  label = 'Descanso',
   onDone,
   onClose,
 }: {
   seconds: number;
+  /** E10 — o mesmo cronômetro serve pro descanso e pro bloco de cardio. */
+  label?: string;
   onDone?: () => void;
   onClose: () => void;
 }) {
@@ -58,8 +61,8 @@ export function RestTimer({
     <div className="fixed inset-x-0 bottom-0 z-40 mx-auto max-w-md p-3 pb-[max(env(safe-area-inset-bottom),12px)]">
       <div className="rounded-3xl border border-line bg-ink p-4 text-white shadow-2xl">
         <div className="flex items-center justify-between">
-          <p className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-white/60">
-            Descanso
+          <p className="truncate text-[11px] font-extrabold uppercase tracking-[0.18em] text-white/60">
+            {label}
           </p>
           <button
             onClick={onClose}
