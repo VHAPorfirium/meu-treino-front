@@ -3,6 +3,7 @@ import { TTL_CATALOGO, lembrar } from './cache-modulo';
 import type {
   AddExerciseBatchItem,
   AlternativeExercise,
+  EquipamentoOpcao,
   ExerciseMode,
   Exercise,
   HistoryEntry,
@@ -51,9 +52,14 @@ export const exercisesApi = {
     const qs = q.toString();
     return api.get<PaginatedExercises>(`/exercises${qs ? `?${qs}` : ''}`);
   },
-  /** equipamentos distintos do catálogo (alimenta o filtro) — cacheado no módulo */
+  /**
+   * Equipamentos distintos do catálogo (alimenta o filtro) — cacheado no módulo.
+   * E11: `valor` (inglês) é o que vai no filtro, `rotulo` é o que aparece.
+   */
   equipment: () =>
-    lembrar('ex:equip', TTL_CATALOGO, () => api.get<string[]>('/exercises/equipment')),
+    lembrar('ex:equip', TTL_CATALOGO, () =>
+      api.get<EquipamentoOpcao[]>('/exercises/equipment'),
+    ),
   get: (id: string) => api.get<Exercise>(`/exercises/${id}`),
   alternatives: (id: string) =>
     api.get<AlternativeExercise[]>(`/exercises/${id}/alternatives`),

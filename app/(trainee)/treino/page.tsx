@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import type {
   PatchExercisePayload,
@@ -11,6 +11,14 @@ import type {
 import { notesApi, workoutLogsApi, workoutsApi } from '@/lib/api/endpoints';
 import { ApiError } from '@/lib/api/client';
 import { enqueueAndSend, flush, onPendingChange, wireAutoFlush } from '@/lib/offline/queue';
+import {
+  carregarRascunho,
+  descartarRascunho,
+  salvarExercicio,
+  salvarTimer,
+  type RascunhoExercicio,
+} from '@/lib/offline/rascunho';
+import { useWakeLock } from '@/lib/hooks/use-wake-lock';
 import { AppHeader } from '@/components/layout/app-header';
 import { Button } from '@/components/ui/button';
 import { ExerciseCard } from '@/components/workout/exercise-card';
@@ -43,7 +51,12 @@ export default function TreinoPage() {
   const [busy, setBusy] = useState(false);
   const [pendingOps, setPendingOps] = useState(0);
   const [pendingWe, setPendingWe] = useState<Set<string>>(new Set());
-  const [timer, setTimer] = useState<{ seconds: number; label: string } | null>(null);
+  const [timer, setTimer] = useState<
+    { seconds: number; label: string; terminaEm?: number } | null
+  >(null);
+  // E13 — o que ela digitou e o app morreu antes de salvar
+  const [rascunhos, setRascunhos] = useState<Record<string, RascunhoExercicio>>({});
+  const [rascunhoPronto, setRascunhoPronto] = useState(false);
   const [unreadNotes, setUnreadNotes] = useState(0);
 
   const load = useCallback(async () => {
@@ -79,6 +92,61 @@ export default function TreinoPage() {
       off();
     };
   }, [load]);
+
+  /**
+   * E13 — ao (re)montar com uma sessão aberta, recupera o rascunho: o que foi
+   * digitado sem salvar e o descanso que estava correndo. O timer é retomado
+   * pelo **instante absoluto**, então volta com o tempo certo, não do zero.
+   */
+  useEffect(() => {
+    // sem sessão aberta não há rascunho a recuperar — libera a lista na hora
+    if (!log?.id || log.completed) {
+      setRascunhoPronto(true);
+      return;
+    }
+    let cancelado = false;
+    void carregarRascunho(log.id).then((r) => {
+      if (cancelado || !r) {
+        setRascunhoPronto(true);
+        return;
+      }
+      setRascunhos(r.exercicios ?? {});
+      if (r.timerTerminaEm && r.timerTerminaEm > Date.now()) {
+        setTimer({
+          seconds: Math.ceil((r.timerTerminaEm - Date.now()) / 1000),
+          label: r.timerRotulo ?? 'Descanso',
+          terminaEm: r.timerTerminaEm,
+        });
+      }
+      setRascunhoPronto(true);
+    });
+    return () => {
+      cancelado = true;
+    };
+  }, [log?.id, log?.completed]);
+
+  // E13 — grava cada digitação com atraso; a tela não pode esperar o IndexedDB
+  const gravar = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendente = useRef<Record<string, RascunhoExercicio>>({});
+  const onRascunho = useCallback(
+    (weId: string, dados: RascunhoExercicio) => {
+      const logId = log?.id;
+      if (!logId) return;
+      pendente.current[weId] = { ...pendente.current[weId], ...dados };
+      if (gravar.current) clearTimeout(gravar.current);
+      gravar.current = setTimeout(() => {
+        const lote = pendente.current;
+        pendente.current = {};
+        for (const [id, d] of Object.entries(lote)) {
+          void salvarExercicio(logId, id, d);
+        }
+      }, 400);
+    },
+    [log?.id],
+  );
+
+  // mantém a tela acesa durante o treino: ataca a CAUSA de o iOS matar o app
+  useWakeLock(Boolean(log) && !log?.completed);
 
   const logMap = useMemo(() => {
     const m: Record<string, WorkoutExerciseLog> = {};
@@ -164,6 +232,9 @@ export default function TreinoPage() {
       }
       const done = await workoutLogsApi.complete(log.id);
       setLog({ ...log, completed: done.completed });
+      await descartarRascunho(); // E13 — sessão fechada, rascunho não ressuscita
+      setRascunhos({});
+      setTimer(null);
       // recarrega pra pegar `status` e `proximaLiberacao` do servidor (E9)
       await load();
     } catch (e) {
@@ -265,7 +336,9 @@ export default function TreinoPage() {
           </Button>
         )}
 
-        {workout?.exercises.map((item) => (
+        {/* espera o rascunho: o card lê o que foi digitado só ao montar (E13) */}
+        {rascunhoPronto &&
+          workout?.exercises.map((item) => (
           <ExerciseCard
             key={item.id}
             item={item}
@@ -273,9 +346,11 @@ export default function TreinoPage() {
             disabled={concluidoHoje}
             pending={pendingWe.has(item.id)}
             onPatch={handlePatch}
-            onTimer={(s, label) => s && s > 0 && setTimer({ seconds: s, label })}
-          />
-        ))}
+            rascunho={rascunhos[item.id]}
+            onRascunho={onRascunho}
+              onTimer={(s, label) => s && s > 0 && setTimer({ seconds: s, label })}
+            />
+          ))}
 
         {workout && log && !concluidoHoje && (
           <div className="pt-1">
@@ -298,7 +373,12 @@ export default function TreinoPage() {
         <RestTimer
           seconds={timer.seconds}
           label={timer.label}
-          onClose={() => setTimer(null)}
+          terminaEm={timer.terminaEm}
+          onAlvo={(t) => log && void salvarTimer(log.id, t, timer.label)}
+          onClose={() => {
+            setTimer(null);
+            if (log) void salvarTimer(log.id, null);
+          }}
         />
       )}
     </>

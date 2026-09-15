@@ -38,3 +38,28 @@ export function descrevePrescricao(item: {
     ? formataDuracao(item.durationSeconds)
     : `${item.sets} × ${item.reps ?? '—'}`;
 }
+
+// ─── E11: rótulos em pt-BR, sempre com fallback pro inglês ───────────────────
+// O catálogo veio em inglês e a tradução é incremental (onda 2 em andamento):
+// cada campo cai no original quando ainda não tem tradução. Nunca mostrar vazio.
+
+type ComTraducao = {
+  name?: string;
+  namePt?: string | null;
+  target?: string;
+  targetPt?: string | null;
+  equipment?: string | null;
+  equipmentPt?: string | null;
+};
+
+export function nomeExercicio(ex: ComTraducao): string {
+  return ex.namePt?.trim() || ex.name || '—';
+}
+
+export function musculoExercicio(ex: ComTraducao): string {
+  return ex.targetPt?.trim() || ex.target || '—';
+}
+
+export function equipamentoExercicio(ex: ComTraducao): string {
+  return ex.equipmentPt?.trim() || ex.equipment || '—';
+}

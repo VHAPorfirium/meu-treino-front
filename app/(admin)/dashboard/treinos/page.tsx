@@ -11,7 +11,7 @@ import type {
 } from '@/lib/types';
 import { workoutsApi } from '@/lib/api/endpoints';
 import { ApiError } from '@/lib/api/client';
-import { descrevePrescricao, modoSugerido } from '@/lib/exercicios/modo';
+import { descrevePrescricao, modoSugerido, nomeExercicio } from '@/lib/exercicios/modo';
 import { PageHead } from '@/components/dashboard/page-head';
 import { ExerciseBrowser } from '@/components/dashboard/exercise-browser';
 import { AssigneeSelect } from '@/components/dashboard/assignee-select';
@@ -513,7 +513,7 @@ function AddExerciseModal({
                   title="Remover da seleção"
                   className="flex max-w-full items-center gap-1 rounded-full bg-chip px-2.5 py-1 text-[11px] font-bold capitalize text-ink"
                 >
-                  <span className="truncate">{exercise.name}</span>
+                  <span className="truncate">{nomeExercicio(exercise)}</span>
                   <span className="text-muted2">×</span>
                 </button>
               ))}

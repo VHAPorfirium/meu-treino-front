@@ -10,16 +10,25 @@ import { useEffect, useRef, useState } from 'react';
 export function RestTimer({
   seconds,
   label = 'Descanso',
+  terminaEm,
+  onAlvo,
   onDone,
   onClose,
 }: {
   seconds: number;
   /** E10 — o mesmo cronômetro serve pro descanso e pro bloco de cardio. */
   label?: string;
+  /**
+   * E13 — instante absoluto do fim, quando o timer está sendo RETOMADO depois de
+   * o app ter sido fechado. Sem isso, voltar pro app reiniciava a contagem.
+   */
+  terminaEm?: number;
+  /** E13 — avisa o alvo atual pra quem persiste o rascunho (muda no +15s/+30s). */
+  onAlvo?: (terminaEm: number | null) => void;
   onDone?: () => void;
   onClose: () => void;
 }) {
-  const [target, setTarget] = useState(() => Date.now() + seconds * 1000);
+  const [target, setTarget] = useState(() => terminaEm ?? Date.now() + seconds * 1000);
   const [left, setLeft] = useState(seconds);
   const firedRef = useRef(false);
 
@@ -47,6 +56,11 @@ export function RestTimer({
       document.removeEventListener('visibilitychange', onVis);
     };
   }, [target, onDone]);
+
+  // avisa o alvo (inicial e a cada +15s/+30s) pra ele ser gravado no rascunho
+  useEffect(() => {
+    onAlvo?.(target);
+  }, [target, onAlvo]);
 
   const add = (s: number) => {
     firedRef.current = false;
