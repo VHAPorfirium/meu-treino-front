@@ -18,7 +18,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import type { ExerciseMode, WorkoutExerciseItem } from '@/lib/types';
-import { descrevePrescricao } from '@/lib/exercicios/modo';
+import { descrevePrescricao, nomeExercicio } from '@/lib/exercicios/modo';
 
 /**
  * E1 + E2 — lista de exercícios do treino: arrastar pra reordenar, editar inline
@@ -129,7 +129,7 @@ function Row({
   }
 
   async function remove() {
-    if (!confirm(`Remover "${item.exercise.name}" do treino?`)) return;
+    if (!confirm(`Remover "${nomeExercicio(item.exercise)}" do treino?`)) return;
     setBusy(true);
     setError(null);
     try {
@@ -160,7 +160,7 @@ function Row({
         </button>
         <span className="w-6 shrink-0 text-center font-extrabold text-muted2">{item.order}</span>
         <span className="min-w-0 flex-1 truncate capitalize font-semibold text-ink2">
-          {item.exercise.name}
+          {nomeExercicio(item.exercise)}
         </span>
         {!editing && (
           <>

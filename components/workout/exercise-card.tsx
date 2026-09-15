@@ -11,7 +11,12 @@ import type {
   WorkoutExerciseLog,
 } from '@/lib/types';
 import { Button } from '@/components/ui/button';
-import { descrevePrescricao } from '@/lib/exercicios/modo';
+import {
+  descrevePrescricao,
+  equipamentoExercicio,
+  nomeExercicio,
+} from '@/lib/exercicios/modo';
+import type { RascunhoExercicio } from '@/lib/offline/rascunho';
 import { StatusBadge, STATUS_COLOR } from '@/components/ui/status-badge';
 import { AlternativesModal } from './alternatives-modal';
 import { SkipModal } from './skip-modal';
@@ -54,6 +59,8 @@ export function ExerciseCard({
   pending,
   onPatch,
   onTimer,
+  rascunho,
+  onRascunho,
 }: {
   item: TodayExercise;
   log?: WorkoutExerciseLog;
@@ -63,19 +70,28 @@ export function ExerciseCard({
   onPatch: (weId: string, payload: PatchExercisePayload) => Promise<void>;
   /** E3/E10 — pede ao pai que abra o cronômetro (descanso ou bloco de cardio) */
   onTimer?: (seconds: number | null, label: string) => void;
+  /** E13 — o que foi digitado e ainda não salvo, recuperado ao voltar pro app */
+  rascunho?: RascunhoExercicio;
+  /** E13 — avisa cada digitação pro pai gravar o rascunho (com atraso) */
+  onRascunho?: (weId: string, dados: RascunhoExercicio) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [showAlts, setShowAlts] = useState(false);
   const [showSkip, setShowSkip] = useState(false);
   const ehTempo = item.mode === 'TIME';
-  const [rows, setRows] = useState<SetRow[]>(() => initialRows(item, log));
+  // E13 — o rascunho vence: ele é mais NOVO que o log (é o que ela digitou e o
+  // app morreu antes de salvar). Sem rascunho, cai no que veio do servidor.
+  const [rows, setRows] = useState<SetRow[]>(
+    () => rascunho?.linhas ?? initialRows(item, log),
+  );
   // E10 — no modo TIME o registro é um bloco de minutos, não uma tabela de séries
   const [minutos, setMinutos] = useState<string>(() => {
+    if (rascunho?.minutos !== undefined) return rascunho.minutos;
     const seg =
       log?.sets?.[0]?.durationSeconds ?? log?.totalSeconds ?? item.durationSeconds;
     return seg ? String(Math.round(seg / 60)) : '';
   });
-  const [note, setNote] = useState(log?.note ?? '');
+  const [note, setNote] = useState(rascunho?.nota ?? log?.note ?? '');
   const [replaced, setReplaced] = useState<AlternativeExercise | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -122,7 +138,11 @@ export function ExerciseCard({
   }
 
   function updateRow(i: number, patch: Partial<SetRow>) {
-    setRows((rs) => rs.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
+    setRows((rs) => {
+      const novo = rs.map((r, idx) => (idx === i ? { ...r, ...patch } : r));
+      onRascunho?.(item.id, { linhas: novo }); // E13
+      return novo;
+    });
   }
 
   /** "Feito ✓" numa série: salva e dispara o timer de descanso. */
@@ -148,7 +168,7 @@ export function ExerciseCard({
           {item.exercise.thumbnailUrl ? (
             <Image
               src={item.exercise.thumbnailUrl}
-              alt={item.exercise.name}
+              alt={nomeExercicio(item.exercise)}
               width={68}
               height={68}
               className="h-[68px] w-[68px] rounded-[14px] bg-white object-cover"
@@ -163,7 +183,7 @@ export function ExerciseCard({
           <div className="flex items-start justify-between gap-2">
             <Link href={`/treino/exercicio/${item.exercise.id}`}>
               <p className="text-[16px] font-extrabold capitalize leading-tight">
-                {item.exercise.name}
+                {nomeExercicio(item.exercise)}
               </p>
             </Link>
             <div className="flex shrink-0 items-center gap-1.5">
@@ -178,7 +198,7 @@ export function ExerciseCard({
           <p className="mt-1 text-[13px] font-semibold text-muted2">
             {descrevePrescricao(item)}
             {item.restSeconds ? ` · ${item.restSeconds}s desc.` : ''}
-            <span className="capitalize"> · {item.exercise.equipment ?? '—'}</span>
+            <span className="capitalize"> · {equipamentoExercicio(item.exercise)}</span>
           </p>
           {replaced && (
             <p className="mt-1 text-xs font-bold text-replace">
@@ -242,7 +262,10 @@ export function ExerciseCard({
                 <input
                   inputMode="numeric"
                   value={minutos}
-                  onChange={(e) => setMinutos(e.target.value)}
+                  onChange={(e) => {
+                    setMinutos(e.target.value);
+                    onRascunho?.(item.id, { minutos: e.target.value }); // E13
+                  }}
                   onBlur={persist}
                   placeholder={
                     item.durationSeconds
@@ -261,7 +284,7 @@ export function ExerciseCard({
                     Math.round((Number(minutos) || 0) * 60) ||
                       item.durationSeconds ||
                       0,
-                    item.exercise.name,
+                    nomeExercicio(item.exercise),
                   )
                 }
                 className="h-[42px] rounded-xl bg-ink px-4 text-sm font-extrabold text-white disabled:opacity-50"
@@ -319,7 +342,13 @@ export function ExerciseCard({
             <div className="flex gap-2 pt-1">
               <button
                 type="button"
-                onClick={() => setRows((rs) => [...rs, { weight: '', reps: '' }])}
+                onClick={() =>
+                  setRows((rs) => {
+                    const novo = [...rs, { weight: '', reps: '' }];
+                    onRascunho?.(item.id, { linhas: novo });
+                    return novo;
+                  })
+                }
                 className="rounded-full bg-chip px-3 py-1.5 text-xs font-bold text-ink"
               >
                 + série
@@ -328,7 +357,11 @@ export function ExerciseCard({
                 <button
                   type="button"
                   onClick={() => {
-                    setRows((rs) => rs.slice(0, -1));
+                    setRows((rs) => {
+                      const novo = rs.slice(0, -1);
+                      onRascunho?.(item.id, { linhas: novo });
+                      return novo;
+                    });
                     setTimeout(persist, 0);
                   }}
                   className="rounded-full bg-chip px-3 py-1.5 text-xs font-bold text-muted"
@@ -343,7 +376,10 @@ export function ExerciseCard({
             Observação
             <textarea
               value={note}
-              onChange={(e) => setNote(e.target.value)}
+              onChange={(e) => {
+                setNote(e.target.value);
+                onRascunho?.(item.id, { nota: e.target.value }); // E13
+              }}
               onBlur={persist}
               rows={2}
               placeholder="ex: senti dor no ombro"
@@ -356,7 +392,7 @@ export function ExerciseCard({
       {showAlts && (
         <AlternativesModal
           exerciseId={item.exercise.id}
-          exerciseName={item.exercise.name}
+          exerciseName={nomeExercicio(item.exercise)}
           onPick={pickAlternative}
           onClose={() => setShowAlts(false)}
         />
@@ -364,7 +400,7 @@ export function ExerciseCard({
 
       {showSkip && (
         <SkipModal
-          exerciseName={item.exercise.name}
+          exerciseName={nomeExercicio(item.exercise)}
           onClose={() => setShowSkip(false)}
           onConfirm={(skipNote) => {
             setNote(skipNote);

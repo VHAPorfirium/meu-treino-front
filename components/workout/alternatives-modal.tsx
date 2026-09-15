@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { equipamentoExercicio, nomeExercicio } from '@/lib/exercicios/modo';
 import Image from 'next/image';
 import type { AlternativeExercise } from '@/lib/types';
 import { exercisesApi } from '@/lib/api/endpoints';
@@ -65,7 +66,7 @@ export function AlternativesModal({
               {alt.thumbnailUrl ? (
                 <Image
                   src={alt.thumbnailUrl}
-                  alt={alt.name}
+                  alt={nomeExercicio(alt)}
                   width={64}
                   height={64}
                   className="h-16 w-16 rounded-[14px] bg-white object-cover"
@@ -79,10 +80,10 @@ export function AlternativesModal({
               )}
               <div className="min-w-0 flex-1">
                 <p className="truncate text-[17px] font-extrabold capitalize leading-tight">
-                  {alt.name}
+                  {nomeExercicio(alt)}
                 </p>
                 <p className="mt-1 text-[13px] font-semibold capitalize text-muted2">
-                  {alt.equipment ?? '—'}
+                  {equipamentoExercicio(alt)}
                 </p>
               </div>
               <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 border-replace text-replace">

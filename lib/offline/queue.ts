@@ -30,15 +30,29 @@ export interface OutboxOp {
 
 const DB_NAME = 'ritmo-offline';
 const STORE = 'outbox';
+/** E13 — rascunho da sessão em andamento (ver `lib/offline/rascunho.ts`). */
+export const STORE_RASCUNHO = 'rascunho';
+const DB_VERSION = 2;
 const MAX_TRIES = 20;
 
 let dbPromise: Promise<IDBPDatabase> | null = null;
-function db() {
+
+/**
+ * Banco local compartilhado. O `upgrade` cria cada store **só se ainda não existir**:
+ * quem já usa o app tem a v1 com o `outbox` cheio, e recriar apagaria a fila
+ * pendente de quem estava offline.
+ */
+export function db() {
   if (typeof indexedDB === 'undefined') return null;
-  dbPromise ??= openDB(DB_NAME, 1, {
+  dbPromise ??= openDB(DB_NAME, DB_VERSION, {
     upgrade(d) {
-      const s = d.createObjectStore(STORE, { keyPath: 'id' });
-      s.createIndex('createdAt', 'createdAt');
+      if (!d.objectStoreNames.contains(STORE)) {
+        const s = d.createObjectStore(STORE, { keyPath: 'id' });
+        s.createIndex('createdAt', 'createdAt');
+      }
+      if (!d.objectStoreNames.contains(STORE_RASCUNHO)) {
+        d.createObjectStore(STORE_RASCUNHO, { keyPath: 'id' });
+      }
     },
   });
   return dbPromise;

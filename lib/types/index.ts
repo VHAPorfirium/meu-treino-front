@@ -23,6 +23,16 @@ export interface UserSummary {
   role: Role;
 }
 
+/**
+ * E11 — opção do filtro de equipamento.
+ * `valor` é o canônico em inglês (é o que vai pro backend); `rotulo` é o que
+ * aparece na tela. Mandar o rótulo quebraria o filtro em silêncio.
+ */
+export interface EquipamentoOpcao {
+  valor: string;
+  rotulo: string;
+}
+
 export interface MuscleGroup {
   id: string;
   name: string;
@@ -34,9 +44,13 @@ export interface Exercise {
   id: string;
   externalId?: string;
   name: string;
+  /** E11 — pt-BR quando existe; o inglês continua em `name` (fallback e busca) */
+  namePt?: string | null;
   target: string;
+  targetPt?: string | null;
   bodyPart: string;
   equipment: string | null;
+  equipmentPt?: string | null;
   gifUrl: string | null;
   thumbnailUrl: string | null;
   instructions: string | null;
@@ -47,7 +61,9 @@ export interface Exercise {
 export interface AlternativeExercise {
   id: string;
   name: string;
+  namePt?: string | null;
   equipment: string | null;
+  equipmentPt?: string | null;
   gifUrl: string | null;
   thumbnailUrl: string | null;
 }

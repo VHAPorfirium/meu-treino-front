@@ -4,11 +4,18 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
 import type {
   ConfigExercicio,
+  EquipamentoOpcao,
   Exercise,
   ExercicioSelecionado,
   MuscleGroup,
   PaginatedExercises,
 } from '@/lib/types';
+import {
+  equipamentoExercicio,
+  musculoExercicio,
+  nomeExercicio,
+} from '@/lib/exercicios/modo';
+import { GifModal } from './gif-modal';
 import { exercisesApi, muscleGroupsApi } from '@/lib/api/endpoints';
 import { ApiError } from '@/lib/api/client';
 
@@ -43,7 +50,7 @@ export function ExerciseBrowser({
   selecao?: SelecaoMultipla;
 }) {
   const [groups, setGroups] = useState<MuscleGroup[]>([]);
-  const [equipments, setEquipments] = useState<string[]>([]);
+  const [equipments, setEquipments] = useState<EquipamentoOpcao[]>([]);
 
   // filtros
   const [group, setGroup] = useState('');
@@ -55,6 +62,8 @@ export function ExerciseBrowser({
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(PAGE_SIZES[0]);
 
+  // E12 — qual exercício está com o GIF aberto (null = nenhum)
+  const [vendoGif, setVendoGif] = useState<Exercise | null>(null);
   const [data, setData] = useState<PaginatedExercises | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -133,7 +142,7 @@ export function ExerciseBrowser({
       <input
         value={search}
         onChange={(e) => setSearch(e.target.value)}
-        placeholder="Buscar por nome, equipamento ou músculo…"
+        placeholder="Buscar em português ou inglês (nome, aparelho, músculo)…"
         className="mb-3 w-full rounded-xl border border-line2 bg-card px-3.5 py-2.5 text-base font-medium text-ink placeholder:text-faint"
       />
 
@@ -161,9 +170,10 @@ export function ExerciseBrowser({
           aria-label="Filtrar por equipamento"
         >
           <option value="">Todos os equipamentos</option>
+          {/* valor em inglês (é o que o filtro casa), rótulo em pt (E11) */}
           {equipments.map((eq) => (
-            <option key={eq} value={eq} className="capitalize">
-              {eq}
+            <option key={eq.valor} value={eq.valor}>
+              {eq.rotulo}
             </option>
           ))}
         </select>
@@ -234,27 +244,49 @@ export function ExerciseBrowser({
                   escolhido ? 'border-brand' : 'border-line'
                 }`}
               >
-                <button
-                  type="button"
-                  onClick={() => selecao.onToggle(ex)}
-                  aria-pressed={Boolean(escolhido)}
-                  className="flex w-full items-center gap-3 p-2.5 text-left"
-                >
-                  <Thumb url={ex.thumbnailUrl} />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-extrabold capitalize">{ex.name}</p>
-                    <p className="text-xs font-semibold capitalize text-muted2">
-                      {ex.target} · {ex.equipment ?? '—'}
-                    </p>
-                  </div>
-                  <span
-                    className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-lg font-extrabold ${
-                      escolhido ? 'bg-brand text-white' : 'bg-chip text-ink'
-                    }`}
+                {/*
+                  E12 — dois alvos de clique separados. Antes o card inteiro era
+                  um <button>; botão dentro de botão é HTML inválido e o clique
+                  interno não funcionaria. Agora: a miniatura abre o GIF, o resto
+                  seleciona. Quem não quer ver o GIF não muda nada no fluxo.
+                */}
+                <div className="flex items-center gap-3 p-2.5">
+                  <button
+                    type="button"
+                    onClick={() => setVendoGif(ex)}
+                    title="Ver o exercício em movimento"
+                    aria-label={`Ver o GIF de ${nomeExercicio(ex)}`}
+                    className="group relative shrink-0 rounded-xl"
                   >
-                    {escolhido ? '✓' : '+'}
-                  </span>
-                </button>
+                    <Thumb url={ex.thumbnailUrl} />
+                    <span className="absolute inset-0 flex items-center justify-center rounded-xl bg-ink/0 text-transparent transition group-hover:bg-ink/55 group-hover:text-white">
+                      ▶
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => selecao.onToggle(ex)}
+                    aria-pressed={Boolean(escolhido)}
+                    className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-extrabold capitalize">
+                        {nomeExercicio(ex)}
+                      </p>
+                      <p className="text-xs font-semibold capitalize text-muted2">
+                        {musculoExercicio(ex)} · {equipamentoExercicio(ex)}
+                      </p>
+                    </div>
+                    <span
+                      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-lg font-extrabold ${
+                        escolhido ? 'bg-brand text-white' : 'bg-chip text-ink'
+                      }`}
+                    >
+                      {escolhido ? '✓' : '+'}
+                    </span>
+                  </button>
+                </div>
 
                 {escolhido && (
                   <div className="space-y-2 border-t border-line px-2.5 pb-2.5 pt-2">
@@ -316,14 +348,17 @@ export function ExerciseBrowser({
       ) : (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
           {items.map((ex) => (
-            <div
+            <button
               key={ex.id}
-              className="overflow-hidden rounded-2xl border border-line bg-card"
+              type="button"
+              onClick={() => setVendoGif(ex)}
+              title="Ver o exercício em movimento"
+              className="overflow-hidden rounded-2xl border border-line bg-card text-left transition hover:border-line2"
             >
               {ex.thumbnailUrl ? (
                 <Image
                   src={ex.thumbnailUrl}
-                  alt={ex.name}
+                  alt={nomeExercicio(ex)}
                   width={200}
                   height={120}
                   className="h-24 w-full bg-white object-cover"
@@ -334,19 +369,23 @@ export function ExerciseBrowser({
               )}
               <div className="p-3">
                 <p className="truncate text-[13px] font-extrabold capitalize leading-tight">
-                  {ex.name}
+                  {nomeExercicio(ex)}
                 </p>
                 <p className="mt-1 text-[11px] font-semibold capitalize text-muted2">
-                  {ex.equipment ?? '—'}
+                  {equipamentoExercicio(ex)}
                 </p>
               </div>
-            </div>
+            </button>
           ))}
         </div>
       )}
 
       {!loading && !error && items.length === 0 && (
         <p className="py-8 text-center text-muted2">Nada encontrado.</p>
+      )}
+
+      {vendoGif && (
+        <GifModal exercise={vendoGif} onClose={() => setVendoGif(null)} />
       )}
 
       {!loading && !error && totalPages > 1 && (

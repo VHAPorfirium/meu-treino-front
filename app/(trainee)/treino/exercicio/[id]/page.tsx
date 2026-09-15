@@ -1,6 +1,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import {
+  equipamentoExercicio,
+  musculoExercicio,
+  nomeExercicio,
+} from '@/lib/exercicios/modo';
 import { useParams, useRouter } from 'next/navigation';
 import Image from 'next/image';
 import type { AlternativeExercise, Exercise } from '@/lib/types';
@@ -51,7 +56,7 @@ export default function ExercicioDetailPage() {
               {ex.gifUrl ? (
                 <Image
                   src={ex.gifUrl}
-                  alt={ex.name}
+                  alt={nomeExercicio(ex)}
                   width={400}
                   height={320}
                   className="h-[240px] w-full object-contain"
@@ -67,16 +72,16 @@ export default function ExercicioDetailPage() {
 
             <div>
               <h1 className="font-display text-[30px] font-extrabold capitalize leading-tight tracking-tight">
-                {ex.name}
+                {nomeExercicio(ex)}
               </h1>
               <p className="mt-1 text-sm font-semibold capitalize text-muted2">
-                {ex.equipment ?? '—'} · {ex.target}
+                {equipamentoExercicio(ex)} · {musculoExercicio(ex)}
               </p>
             </div>
 
             <div className="grid grid-cols-2 gap-2.5">
               <InfoTile label="Grupo" value={ex.bodyPart} />
-              <InfoTile label="Alvo" value={ex.target} />
+              <InfoTile label="Alvo" value={musculoExercicio(ex)} />
             </div>
 
             {ex.instructions && (
@@ -121,7 +126,7 @@ export default function ExercicioDetailPage() {
                           {a.name}
                         </p>
                         <p className="text-xs font-semibold capitalize text-muted2">
-                          {a.equipment ?? '—'}
+                          {equipamentoExercicio(a)}
                         </p>
                       </div>
                     </div>

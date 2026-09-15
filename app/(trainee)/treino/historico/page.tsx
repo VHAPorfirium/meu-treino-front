@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { formataDuracao } from '@/lib/exercicios/modo';
+import { formataDuracao, nomeExercicio } from '@/lib/exercicios/modo';
 import type { HistoryEntry } from '@/lib/types';
 import { workoutLogsApi } from '@/lib/api/endpoints';
 import { AppHeader } from '@/components/layout/app-header';
@@ -109,8 +109,8 @@ export default function HistoricoPage() {
                   >
                     <span className="min-w-0 flex-1 truncate capitalize text-ink2">
                       {x.status === 'REPLACED' && x.actualExercise
-                        ? `${x.workoutExercise.exercise.name} → ${x.actualExercise.name}`
-                        : x.workoutExercise.exercise.name}
+                        ? `${nomeExercicio(x.workoutExercise.exercise)} → ${x.actualExercise.name}`
+                        : nomeExercicio(x.workoutExercise.exercise)}
                       {x.totalSeconds ? (
                         <span className="font-bold text-muted2">
                           {' '}
@@ -135,7 +135,7 @@ export default function HistoricoPage() {
                       >
                         “{x.note}” —{' '}
                         <span className="capitalize">
-                          {x.workoutExercise.exercise.name}
+                          {nomeExercicio(x.workoutExercise.exercise)}
                         </span>
                       </p>
                     ))}
