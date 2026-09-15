@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { formataDuracao } from '@/lib/exercicios/modo';
 import type { HistoryEntry } from '@/lib/types';
 import { workoutLogsApi } from '@/lib/api/endpoints';
 import { AppHeader } from '@/components/layout/app-header';
@@ -110,7 +111,12 @@ export default function HistoricoPage() {
                       {x.status === 'REPLACED' && x.actualExercise
                         ? `${x.workoutExercise.exercise.name} → ${x.actualExercise.name}`
                         : x.workoutExercise.exercise.name}
-                      {x.loadUsed ? (
+                      {x.totalSeconds ? (
+                        <span className="font-bold text-muted2">
+                          {' '}
+                          · {formataDuracao(x.totalSeconds)}
+                        </span>
+                      ) : x.loadUsed ? (
                         <span className="font-bold text-muted2"> · {x.loadUsed}kg</span>
                       ) : null}
                     </span>

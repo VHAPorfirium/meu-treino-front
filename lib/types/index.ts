@@ -1,5 +1,9 @@
 export type Role = 'ADMIN' | 'TRAINEE';
 export type ExerciseStatus = 'DONE' | 'SKIPPED' | 'REPLACED';
+/** E10 — REPS = séries × repetições (+ carga) · TIME = duração (cardio, prancha). */
+export type ExerciseMode = 'REPS' | 'TIME';
+/** Status do treino de hoje (E9). */
+export type StatusDoDia = 'nao_iniciado' | 'em_andamento' | 'concluido';
 
 export interface AuthUser {
   userId: string;
@@ -69,8 +73,11 @@ export interface PaginatedExercises {
  * número na hora de montar o payload.
  */
 export interface ConfigExercicio {
+  mode: ExerciseMode;
   sets: string;
   reps: string;
+  /** E10 — minutos, quando `mode === 'TIME'` */
+  minutes: string;
   rest: string;
 }
 
@@ -82,8 +89,12 @@ export interface ExercicioSelecionado {
 /** Um item do `POST /workouts/:id/exercises/batch`. Sem `order`: quem define é o servidor. */
 export interface AddExerciseBatchItem {
   exerciseId: string;
-  sets: number;
-  reps: string;
+  mode?: ExerciseMode;
+  sets?: number;
+  /** obrigatório no modo REPS */
+  reps?: string;
+  /** obrigatório no modo TIME */
+  durationSeconds?: number;
   restSeconds?: number;
   notes?: string;
 }
@@ -91,8 +102,10 @@ export interface AddExerciseBatchItem {
 export interface TodayExercise {
   id: string; // workoutExerciseId
   order: number;
+  mode: ExerciseMode;
   sets: number;
-  reps: string;
+  reps: string | null; // null no modo TIME
+  durationSeconds: number | null; // preenchido no modo TIME
   restSeconds: number | null;
   notes: string | null;
   exercise: Exercise;
@@ -104,6 +117,8 @@ export interface SetLog {
   setNumber: number;
   weight: number | null;
   reps: number | null;
+  /** E10 — duração executada do bloco, em segundos */
+  durationSeconds?: number | null;
 }
 
 export interface WorkoutExerciseLog {
@@ -113,6 +128,7 @@ export interface WorkoutExerciseLog {
   actualExerciseId: string | null;
   loadUsed: number | null;
   setsCompleted: number | null;
+  totalSeconds?: number | null;
   note: string | null;
   sets?: SetLog[];
 }
@@ -127,9 +143,16 @@ export interface WorkoutLog {
 }
 
 export interface TodayResponse {
+  /** E9 — vem preenchido mesmo quando a sessão já foi CONCLUÍDA. */
   workoutLog: WorkoutLog | null;
   /** true = não havia treino marcado pra hoje; este é um treino "sugerido" (E1.1) */
   isFallback?: boolean;
+  /** E9 — estado da sessão de hoje. */
+  status: StatusDoDia;
+  /** E9 — ISO da conclusão, quando `status === 'concluido'`. */
+  concluidoEm: string | null;
+  /** E9 — 'YYYY-MM-DD' em que o treino volta a liberar. */
+  proximaLiberacao: string | null;
   workout: {
     id: string;
     name: string;
@@ -156,8 +179,10 @@ export interface Workout {
 export interface WorkoutExerciseItem {
   id: string;
   order: number;
+  mode: ExerciseMode;
   sets: number;
-  reps: string;
+  reps: string | null;
+  durationSeconds: number | null;
   restSeconds: number | null;
   notes: string | null;
   exercise: Exercise;
@@ -172,6 +197,8 @@ export interface SetLogInput {
   setNumber: number;
   weight?: number;
   reps?: number;
+  /** E10 — duração do bloco, em segundos */
+  durationSeconds?: number;
 }
 
 export interface PatchExercisePayload {
@@ -179,6 +206,8 @@ export interface PatchExercisePayload {
   actualExerciseId?: string;
   loadUsed?: number;
   setsCompleted?: number;
+  /** E10 — tempo total; derivado de `sets` quando elas vierem */
+  totalSeconds?: number;
   note?: string;
   /** E4 — substitui todas as séries do exercício nesta sessão (idempotente) */
   sets?: SetLogInput[];
@@ -194,6 +223,8 @@ export interface ProgressSummary {
   };
   streak: { current: number; best: number };
   cargaTotal: { current: number; deltaPct: number };
+  /** E10 — minutos de exercício por tempo (cardio) nos últimos 30 dias */
+  cardio: { minutes: number; deltaPct: number };
   heatmap: { date: string; level: number }[];
   ranking: { name: string; type: 'skip' | 'swap'; count: number }[];
   recentNotes: { text: string; exercise: string; date: string }[];
@@ -218,6 +249,7 @@ export interface HistoryEntry {
     status: ExerciseStatus;
     loadUsed: number | null;
     setsCompleted: number | null;
+    totalSeconds?: number | null;
     note: string | null;
     sets?: SetLog[];
     workoutExercise: { exercise: { name: string } };

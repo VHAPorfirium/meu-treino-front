@@ -17,6 +17,17 @@ import { ExerciseCard } from '@/components/workout/exercise-card';
 import { RestTimer } from '@/components/workout/rest-timer';
 import { PushOptIn } from '@/components/layout/push-opt-in';
 
+/** '2026-09-21' -> 'segunda, 21/09' */
+function rotuloData(iso: string): string {
+  const [ano, mes, dia] = iso.split('-').map(Number);
+  const d = new Date(ano, mes - 1, dia);
+  return d.toLocaleDateString('pt-BR', {
+    weekday: 'long',
+    day: '2-digit',
+    month: '2-digit',
+  });
+}
+
 const TODAY_LABEL = () =>
   new Date().toLocaleDateString('pt-BR', {
     weekday: 'long',
@@ -32,7 +43,7 @@ export default function TreinoPage() {
   const [busy, setBusy] = useState(false);
   const [pendingOps, setPendingOps] = useState(0);
   const [pendingWe, setPendingWe] = useState<Set<string>>(new Set());
-  const [rest, setRest] = useState<number | null>(null);
+  const [timer, setTimer] = useState<{ seconds: number; label: string } | null>(null);
   const [unreadNotes, setUnreadNotes] = useState(0);
 
   const load = useCallback(async () => {
@@ -124,11 +135,18 @@ export default function TreinoPage() {
     try {
       await ensureLog();
     } catch (e) {
-      setError(
-        e instanceof ApiError
-          ? e.message
-          : 'Sem conexão — conecte-se pra iniciar o treino.',
-      );
+      // 409 (E9) = já concluído hoje em outro aparelho/aba. Recarrega em vez de
+      // insistir: a fonte da verdade é o servidor.
+      if (e instanceof ApiError && e.status === 409) {
+        setError(e.message);
+        await load();
+      } else {
+        setError(
+          e instanceof ApiError
+            ? e.message
+            : 'Sem conexão — conecte-se pra iniciar o treino.',
+        );
+      }
     } finally {
       setBusy(false);
     }
@@ -146,6 +164,8 @@ export default function TreinoPage() {
       }
       const done = await workoutLogsApi.complete(log.id);
       setLog({ ...log, completed: done.completed });
+      // recarrega pra pegar `status` e `proximaLiberacao` do servidor (E9)
+      await load();
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'Sem conexão — tente finalizar depois.');
     } finally {
@@ -154,6 +174,9 @@ export default function TreinoPage() {
   }
 
   const workout = data?.workout;
+  // E9 — o servidor é quem diz se o treino de hoje já foi concluído. O front não
+  // deduz mais isso da ausência de sessão (era o que fazia o treino "renascer").
+  const concluidoHoje = data?.status === 'concluido';
   const total = workout?.exercises.length ?? 0;
   const marked = log?.exerciseLogs.length ?? 0;
   const pct = total ? Math.round((marked / total) * 100) : 0;
@@ -220,15 +243,23 @@ export default function TreinoPage() {
           </div>
         )}
 
-        {workout && log?.completed && (
+        {workout && concluidoHoje && (
           <div className="rounded-2xl border border-done bg-done-bg p-4 text-center">
             <p className="text-2xl">✅</p>
-            <p className="mt-1 font-extrabold text-done-ink">Treino concluído!</p>
+            <p className="mt-1 font-extrabold text-done-ink">
+              Treino de hoje concluído!
+            </p>
             <p className="text-sm text-muted">Mandou bem 💪</p>
+            {data?.proximaLiberacao && (
+              <p className="mt-2 text-xs font-bold text-muted2">
+                Volta a liberar {rotuloData(data.proximaLiberacao)}
+              </p>
+            )}
           </div>
         )}
 
-        {workout && !log && (
+        {/* só oferece começar quando o servidor diz que ainda não começou */}
+        {workout && data?.status === 'nao_iniciado' && (
           <Button className="w-full py-4 text-[17px]" disabled={busy} onClick={start}>
             {busy ? 'Iniciando…' : 'Iniciar treino'}
           </Button>
@@ -239,14 +270,14 @@ export default function TreinoPage() {
             key={item.id}
             item={item}
             log={logMap[item.id]}
-            disabled={log?.completed}
+            disabled={concluidoHoje}
             pending={pendingWe.has(item.id)}
             onPatch={handlePatch}
-            onSetDone={(s) => s && s > 0 && setRest(s)}
+            onTimer={(s, label) => s && s > 0 && setTimer({ seconds: s, label })}
           />
         ))}
 
-        {workout && log && !log.completed && (
+        {workout && log && !concluidoHoje && (
           <div className="pt-1">
             <Button className="w-full py-4 text-[18px]" disabled={busy} onClick={complete}>
               {busy ? 'Salvando…' : 'Finalizar treino'}
@@ -263,7 +294,13 @@ export default function TreinoPage() {
         {workout && <PushOptIn />}
       </div>
 
-      {rest !== null && <RestTimer seconds={rest} onClose={() => setRest(null)} />}
+      {timer && (
+        <RestTimer
+          seconds={timer.seconds}
+          label={timer.label}
+          onClose={() => setTimer(null)}
+        />
+      )}
     </>
   );
 }

@@ -2,6 +2,7 @@ import { api } from './client';
 import type {
   AddExerciseBatchItem,
   AlternativeExercise,
+  ExerciseMode,
   Exercise,
   HistoryEntry,
   LoginResponse,
@@ -107,8 +108,10 @@ export const workoutsApi = {
     workoutId: string,
     weId: string,
     data: {
+      mode?: ExerciseMode;
       sets?: number;
-      reps?: string;
+      reps?: string | null;
+      durationSeconds?: number | null;
       restSeconds?: number | null;
       notes?: string | null;
     },

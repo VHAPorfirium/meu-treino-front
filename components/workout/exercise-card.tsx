@@ -11,6 +11,7 @@ import type {
   WorkoutExerciseLog,
 } from '@/lib/types';
 import { Button } from '@/components/ui/button';
+import { descrevePrescricao } from '@/lib/exercicios/modo';
 import { StatusBadge, STATUS_COLOR } from '@/components/ui/status-badge';
 import { AlternativesModal } from './alternatives-modal';
 import { SkipModal } from './skip-modal';
@@ -52,7 +53,7 @@ export function ExerciseCard({
   disabled,
   pending,
   onPatch,
-  onSetDone,
+  onTimer,
 }: {
   item: TodayExercise;
   log?: WorkoutExerciseLog;
@@ -60,13 +61,20 @@ export function ExerciseCard({
   /** true = última escrita ficou na fila offline (E5) */
   pending?: boolean;
   onPatch: (weId: string, payload: PatchExercisePayload) => Promise<void>;
-  /** E3 — chamado ao concluir uma série (dispara o timer de descanso no pai) */
-  onSetDone?: (restSeconds: number | null) => void;
+  /** E3/E10 — pede ao pai que abra o cronômetro (descanso ou bloco de cardio) */
+  onTimer?: (seconds: number | null, label: string) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [showAlts, setShowAlts] = useState(false);
   const [showSkip, setShowSkip] = useState(false);
+  const ehTempo = item.mode === 'TIME';
   const [rows, setRows] = useState<SetRow[]>(() => initialRows(item, log));
+  // E10 — no modo TIME o registro é um bloco de minutos, não uma tabela de séries
+  const [minutos, setMinutos] = useState<string>(() => {
+    const seg =
+      log?.sets?.[0]?.durationSeconds ?? log?.totalSeconds ?? item.durationSeconds;
+    return seg ? String(Math.round(seg / 60)) : '';
+  });
   const [note, setNote] = useState(log?.note ?? '');
   const [replaced, setReplaced] = useState<AlternativeExercise | null>(null);
   const [saving, setSaving] = useState(false);
@@ -76,6 +84,14 @@ export function ExerciseCard({
 
   // carga/séries derivadas das linhas (compat) + `sets[]` (E4)
   const common = (): Partial<PatchExercisePayload> => {
+    if (ehTempo) {
+      const seg = Math.round((Number(minutos) || 0) * 60);
+      return {
+        sets: seg > 0 ? [{ setNumber: 1, durationSeconds: seg }] : undefined,
+        totalSeconds: seg > 0 ? seg : undefined,
+        note: note.trim() || undefined,
+      };
+    }
     const sets = toSets(rows);
     const weights = (sets ?? []).map((s) => s.weight).filter((w): w is number => w !== undefined);
     return {
@@ -112,11 +128,12 @@ export function ExerciseCard({
   /** "Feito ✓" numa série: salva e dispara o timer de descanso. */
   function completeSet(i: number) {
     const r = rows[i];
-    if (!r.reps.trim()) updateRow(i, { reps: String(item.reps.split(/[^\d]/)[0] || '') });
+    if (!r.reps.trim())
+      updateRow(i, { reps: String((item.reps ?? '').split(/[^\d]/)[0] || '') });
     // dá um tick pro estado atualizar antes de persistir
     setTimeout(() => {
       void (status ? persist() : mark({ status: 'DONE', ...common() }));
-      onSetDone?.(item.restSeconds);
+      onTimer?.(item.restSeconds, 'Descanso');
     }, 0);
   }
 
@@ -159,7 +176,7 @@ export function ExerciseCard({
             </div>
           </div>
           <p className="mt-1 text-[13px] font-semibold text-muted2">
-            {item.sets} × {item.reps}
+            {descrevePrescricao(item)}
             {item.restSeconds ? ` · ${item.restSeconds}s desc.` : ''}
             <span className="capitalize"> · {item.exercise.equipment ?? '—'}</span>
           </p>
@@ -208,13 +225,54 @@ export function ExerciseCard({
         onClick={() => setOpen((o) => !o)}
         className="w-full border-t border-line py-2 text-xs font-bold text-muted2"
       >
-        {open ? 'Ocultar' : `Séries${filledCount ? ` (${filledCount}/${rows.length})` : ''} / observação`}
+        {open
+          ? 'Ocultar'
+          : ehTempo
+            ? `Tempo${minutos ? ` (${minutos} min)` : ''} / observação`
+            : `Séries${filledCount ? ` (${filledCount}/${rows.length})` : ''} / observação`}
       </button>
 
       {open && (
         <div className="space-y-3 border-t border-line p-3 pl-4">
-          {/* E4 — registro por série */}
-          <div className="space-y-1.5">
+          {/* E10 — cardio/prancha: um bloco de tempo, com cronômetro */}
+          {ehTempo && (
+            <div className="flex items-end gap-2">
+              <label className="flex-1 text-[10px] font-extrabold uppercase tracking-wide text-muted2">
+                Tempo (min)
+                <input
+                  inputMode="numeric"
+                  value={minutos}
+                  onChange={(e) => setMinutos(e.target.value)}
+                  onBlur={persist}
+                  placeholder={
+                    item.durationSeconds
+                      ? String(Math.round(item.durationSeconds / 60))
+                      : 'min'
+                  }
+                  disabled={disabled}
+                  className="mt-1 w-full rounded-xl border-2 border-line2 bg-white px-3 py-2 text-center text-base font-bold text-ink placeholder:font-medium placeholder:text-faint"
+                />
+              </label>
+              <button
+                type="button"
+                disabled={disabled}
+                onClick={() =>
+                  onTimer?.(
+                    Math.round((Number(minutos) || 0) * 60) ||
+                      item.durationSeconds ||
+                      0,
+                    item.exercise.name,
+                  )
+                }
+                className="h-[42px] rounded-xl bg-ink px-4 text-sm font-extrabold text-white disabled:opacity-50"
+              >
+                ▶ Cronômetro
+              </button>
+            </div>
+          )}
+
+          {/* E4 — registro por série (só no modo REPS) */}
+          <div className={`space-y-1.5 ${ehTempo ? 'hidden' : ''}`}>
             <div className="grid grid-cols-[28px_1fr_1fr_44px] gap-2 px-1 text-[10px] font-extrabold uppercase tracking-wide text-muted2">
               <span>#</span>
               <span>Peso (kg)</span>
@@ -238,7 +296,7 @@ export function ExerciseCard({
                   value={r.reps}
                   onChange={(e) => updateRow(i, { reps: e.target.value })}
                   onBlur={persist}
-                  placeholder={item.reps}
+                  placeholder={item.reps ?? ''}
                   disabled={disabled}
                   className="w-full rounded-xl border-2 border-line2 bg-white px-3 py-2 text-center text-base font-bold text-ink placeholder:font-medium placeholder:text-faint"
                 />
