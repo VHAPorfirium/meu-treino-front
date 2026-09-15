@@ -30,14 +30,26 @@ export const usersApi = {
 };
 
 export const exercisesApi = {
-  list: (params: { muscleGroup?: string; search?: string; page?: number } = {}) => {
+  list: (
+    params: {
+      muscleGroup?: string;
+      equipment?: string;
+      search?: string;
+      page?: number;
+      pageSize?: number;
+    } = {},
+  ) => {
     const q = new URLSearchParams();
     if (params.muscleGroup) q.set('muscleGroup', params.muscleGroup);
+    if (params.equipment) q.set('equipment', params.equipment);
     if (params.search) q.set('search', params.search);
     if (params.page) q.set('page', String(params.page));
+    if (params.pageSize) q.set('pageSize', String(params.pageSize));
     const qs = q.toString();
     return api.get<PaginatedExercises>(`/exercises${qs ? `?${qs}` : ''}`);
   },
+  /** equipamentos distintos do catálogo (alimenta o filtro) */
+  equipment: () => api.get<string[]>('/exercises/equipment'),
   get: (id: string) => api.get<Exercise>(`/exercises/${id}`),
   alternatives: (id: string) =>
     api.get<AlternativeExercise[]>(`/exercises/${id}/alternatives`),

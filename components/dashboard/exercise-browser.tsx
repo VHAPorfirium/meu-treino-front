@@ -1,13 +1,15 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
-import type { Exercise, MuscleGroup } from '@/lib/types';
+import type { Exercise, MuscleGroup, PaginatedExercises } from '@/lib/types';
 import { exercisesApi, muscleGroupsApi } from '@/lib/api/endpoints';
 import { ApiError } from '@/lib/api/client';
 
 const STRIPE =
   'repeating-linear-gradient(135deg,#EFE7DC 0 6px,#E5DBCE 6px 12px)';
+
+const PAGE_SIZES = [24, 48, 96, 200];
 
 function errorMessage(e: unknown): string {
   return e instanceof ApiError
@@ -15,61 +17,110 @@ function errorMessage(e: unknown): string {
     : 'Falha de rede — verifique sua conexão.';
 }
 
+const nf = new Intl.NumberFormat('pt-BR');
+
 export function ExerciseBrowser({
   onPick,
 }: {
   onPick?: (ex: Exercise) => void;
 }) {
   const [groups, setGroups] = useState<MuscleGroup[]>([]);
+  const [equipments, setEquipments] = useState<string[]>([]);
+
+  // filtros
   const [group, setGroup] = useState('');
+  const [equipment, setEquipment] = useState('');
   const [search, setSearch] = useState('');
   const [debounced, setDebounced] = useState('');
-  const [items, setItems] = useState<Exercise[]>([]);
-  const [loading, setLoading] = useState(false);
-  // Erro real da requisição — antes era engolido e virava "Nada encontrado".
-  const [error, setError] = useState<string | null>(null);
-  const [attempt, setAttempt] = useState(0); // incrementa pra "tentar de novo"
 
+  // paginação
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(PAGE_SIZES[0]);
+
+  const [data, setData] = useState<PaginatedExercises | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
+
+  // chips de grupo + lista de equipamentos (uma vez)
   useEffect(() => {
-    muscleGroupsApi
-      .list()
-      .then(setGroups)
-      .catch((e) => setError(errorMessage(e)));
+    muscleGroupsApi.list().then(setGroups).catch((e) => setError(errorMessage(e)));
+    exercisesApi.equipment().then(setEquipments).catch(() => {});
   }, [attempt]);
 
+  // debounce da busca
   useEffect(() => {
     const t = setTimeout(() => setDebounced(search), 350);
     return () => clearTimeout(t);
   }, [search]);
 
+  // qualquer mudança de filtro volta pra página 1 (senão você ficaria numa
+  // página que não existe mais no novo recorte e veria lista vazia)
   useEffect(() => {
+    setPage(1);
+  }, [group, equipment, debounced, pageSize]);
+
+  useEffect(() => {
+    let cancelado = false;
     setLoading(true);
     setError(null);
     exercisesApi
-      .list({ muscleGroup: group || undefined, search: debounced || undefined })
-      .then((r) => setItems(r.items))
+      .list({
+        muscleGroup: group || undefined,
+        equipment: equipment || undefined,
+        search: debounced || undefined,
+        page,
+        pageSize,
+      })
+      .then((r) => {
+        if (cancelado) return;
+        setData(r);
+        // o backend ajusta a página ao intervalo válido — refletimos aqui
+        if (r.page !== page) setPage(r.page);
+      })
       .catch((e) => {
-        setItems([]);
+        if (cancelado) return;
+        setData(null);
         setError(errorMessage(e));
       })
-      .finally(() => setLoading(false));
-  }, [group, debounced, attempt]);
+      .finally(() => !cancelado && setLoading(false));
+    return () => {
+      cancelado = true;
+    };
+  }, [group, equipment, debounced, page, pageSize, attempt]);
 
   const chips = useMemo(
     () => [{ id: '', name: '', displayName: 'Todos', exerciseCount: 0 }, ...groups],
     [groups],
   );
 
+  const items = data?.items ?? [];
+  const total = data?.total ?? 0;
+  const totalPages = data?.totalPages ?? 1;
+
+  const irPara = useCallback(
+    (p: number) => {
+      setPage(Math.min(Math.max(1, p), totalPages));
+      if (typeof window !== 'undefined') {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    },
+    [totalPages],
+  );
+
+  const temFiltro = Boolean(group || equipment || debounced);
+
   return (
     <div>
       <input
         value={search}
         onChange={(e) => setSearch(e.target.value)}
-        placeholder="Buscar por nome ou equipamento…"
+        placeholder="Buscar por nome, equipamento ou músculo…"
         className="mb-3 w-full rounded-xl border border-line2 bg-card px-3.5 py-2.5 text-base font-medium text-ink placeholder:text-faint"
       />
 
-      <div className="mb-4 flex flex-wrap gap-2">
+      {/* grupos musculares */}
+      <div className="mb-2 flex flex-wrap gap-2">
         {chips.map((g) => (
           <button
             key={g.id || 'all'}
@@ -81,6 +132,60 @@ export function ExerciseBrowser({
             {g.displayName}
           </button>
         ))}
+      </div>
+
+      {/* equipamento + tamanho da página */}
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <select
+          value={equipment}
+          onChange={(e) => setEquipment(e.target.value)}
+          className="rounded-full border border-line2 bg-card px-3 py-1.5 text-xs font-bold capitalize text-ink"
+          aria-label="Filtrar por equipamento"
+        >
+          <option value="">Todos os equipamentos</option>
+          {equipments.map((eq) => (
+            <option key={eq} value={eq} className="capitalize">
+              {eq}
+            </option>
+          ))}
+        </select>
+
+        <select
+          value={pageSize}
+          onChange={(e) => setPageSize(Number(e.target.value))}
+          className="rounded-full border border-line2 bg-card px-3 py-1.5 text-xs font-bold text-ink"
+          aria-label="Exercícios por página"
+        >
+          {PAGE_SIZES.map((n) => (
+            <option key={n} value={n}>
+              {n} por página
+            </option>
+          ))}
+        </select>
+
+        {temFiltro && (
+          <button
+            onClick={() => {
+              setGroup('');
+              setEquipment('');
+              setSearch('');
+            }}
+            className="rounded-full bg-chip px-3 py-1.5 text-xs font-bold text-muted"
+          >
+            Limpar filtros
+          </button>
+        )}
+
+        {/* contador — deixa explícito que dá pra chegar em todos */}
+        {!loading && !error && (
+          <span className="ml-auto text-xs font-semibold text-muted2">
+            {total === 0
+              ? 'nenhum resultado'
+              : `${nf.format(total)} exercício${total > 1 ? 's' : ''}${
+                  temFiltro ? ' (filtrado)' : ''
+                } · página ${data?.page ?? 1} de ${nf.format(totalPages)}`}
+          </span>
+        )}
       </div>
 
       {loading && <p className="py-6 text-center text-muted2">Carregando…</p>}
@@ -158,7 +263,102 @@ export function ExerciseBrowser({
       {!loading && !error && items.length === 0 && (
         <p className="py-8 text-center text-muted2">Nada encontrado.</p>
       )}
+
+      {!loading && !error && totalPages > 1 && (
+        <Paginacao
+          page={data?.page ?? 1}
+          totalPages={totalPages}
+          onGo={irPara}
+        />
+      )}
     </div>
+  );
+}
+
+/** Controles de página: primeira/anterior · números com reticências · próxima/última. */
+function Paginacao({
+  page,
+  totalPages,
+  onGo,
+}: {
+  page: number;
+  totalPages: number;
+  onGo: (p: number) => void;
+}) {
+  // janela de até 5 números em volta da página atual
+  const numeros = useMemo(() => {
+    const janela = 5;
+    let ini = Math.max(1, page - Math.floor(janela / 2));
+    const fim = Math.min(totalPages, ini + janela - 1);
+    ini = Math.max(1, fim - janela + 1);
+    const out: (number | '…')[] = [];
+    if (ini > 1) out.push(1);
+    if (ini > 2) out.push('…');
+    for (let p = ini; p <= fim; p++) out.push(p);
+    if (fim < totalPages - 1) out.push('…');
+    if (fim < totalPages) out.push(totalPages);
+    return out;
+  }, [page, totalPages]);
+
+  const btn =
+    'min-w-9 rounded-lg px-2.5 py-1.5 text-xs font-extrabold transition disabled:opacity-40';
+
+  return (
+    <nav
+      aria-label="Paginação do catálogo"
+      className="mt-5 flex flex-wrap items-center justify-center gap-1.5"
+    >
+      <button
+        className={`${btn} bg-chip text-ink`}
+        onClick={() => onGo(1)}
+        disabled={page === 1}
+        aria-label="Primeira página"
+      >
+        ««
+      </button>
+      <button
+        className={`${btn} bg-chip text-ink`}
+        onClick={() => onGo(page - 1)}
+        disabled={page === 1}
+      >
+        ‹ Anterior
+      </button>
+
+      {numeros.map((n, i) =>
+        n === '…' ? (
+          <span key={`e${i}`} className="px-1 text-xs text-muted2">
+            …
+          </span>
+        ) : (
+          <button
+            key={n}
+            onClick={() => onGo(n)}
+            aria-current={n === page ? 'page' : undefined}
+            className={`${btn} ${
+              n === page ? 'bg-brand text-white shadow-brand' : 'bg-chip text-ink'
+            }`}
+          >
+            {n}
+          </button>
+        ),
+      )}
+
+      <button
+        className={`${btn} bg-chip text-ink`}
+        onClick={() => onGo(page + 1)}
+        disabled={page === totalPages}
+      >
+        Próxima ›
+      </button>
+      <button
+        className={`${btn} bg-chip text-ink`}
+        onClick={() => onGo(totalPages)}
+        disabled={page === totalPages}
+        aria-label="Última página"
+      >
+        »»
+      </button>
+    </nav>
   );
 }
 
