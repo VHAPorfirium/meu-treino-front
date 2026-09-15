@@ -1,5 +1,6 @@
 import { api } from './client';
 import type {
+  AddExerciseBatchItem,
   AlternativeExercise,
   Exercise,
   HistoryEntry,
@@ -96,6 +97,12 @@ export const workoutsApi = {
       notes?: string;
     },
   ) => api.post(`/workouts/${workoutId}/exercises`, data),
+  /** E7 — N exercícios numa transação; `order` é atribuído pelo servidor. */
+  addExercisesBatch: (workoutId: string, items: AddExerciseBatchItem[]) =>
+    api.post<{ id: string; order: number }[]>(
+      `/workouts/${workoutId}/exercises/batch`,
+      { items },
+    ),
   updateExercise: (
     workoutId: string,
     weId: string,

@@ -63,6 +63,31 @@ export interface PaginatedExercises {
   hasNext: boolean;
 }
 
+/**
+ * E7 — montador em lote. A configuração vive como **string** enquanto o
+ * exercício está selecionado no picker (é o que os inputs manipulam); só vira
+ * número na hora de montar o payload.
+ */
+export interface ConfigExercicio {
+  sets: string;
+  reps: string;
+  rest: string;
+}
+
+export interface ExercicioSelecionado {
+  exercise: Exercise;
+  config: ConfigExercicio;
+}
+
+/** Um item do `POST /workouts/:id/exercises/batch`. Sem `order`: quem define é o servidor. */
+export interface AddExerciseBatchItem {
+  exerciseId: string;
+  sets: number;
+  reps: string;
+  restSeconds?: number;
+  notes?: string;
+}
+
 export interface TodayExercise {
   id: string; // workoutExerciseId
   order: number;
