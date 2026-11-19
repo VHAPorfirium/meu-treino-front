@@ -1,6 +1,7 @@
 import type { Config } from 'tailwindcss';
 
 const config: Config = {
+  darkMode: 'class',
   content: [
     './app/**/*.{ts,tsx}',
     './components/**/*.{ts,tsx}',
@@ -13,38 +14,48 @@ const config: Config = {
         display: ["'Bricolage Grotesque'", 'system-ui', 'sans-serif'],
       },
       colors: {
-        // base papel quente
-        sand: '#E7E1D9', // fundo mais profundo (desktop)
-        paper: '#FBF7F1', // superfície do app
-        card: '#FFFFFF',
-        chip: '#F2ECE4',
-        tableHead: '#F6F0E8',
+        // base semântica (suporta claro/escuro via CSS variables)
+        sand: 'var(--color-sand)',
+        paper: 'var(--color-paper)',
+        card: 'var(--color-card)',
+        chip: 'var(--color-chip)',
+        tableHead: 'var(--color-table-head)',
         // tinta
-        ink: '#191512',
-        ink2: '#33291F',
-        muted: '#5E5348',
-        muted2: '#8A7E72',
-        faint: '#A99C8F',
+        ink: 'var(--color-ink)',
+        ink2: 'var(--color-ink2)',
+        muted: 'var(--color-muted)',
+        muted2: 'var(--color-muted2)',
+        faint: 'var(--color-faint)',
         // linhas
-        line: '#E9E0D6',
-        line2: '#E3DAD0',
-        line3: '#DCD2C6',
-        // marca (só ação principal)
+        line: 'var(--color-line)',
+        line2: 'var(--color-line2)',
+        line3: 'var(--color-line3)',
+        // marca (ação principal)
         brand: {
           DEFAULT: '#EE4E22',
           700: '#C13B14',
         },
         // estados
-        done: { DEFAULT: '#1E7A4F', bg: '#E3F0E7', ink: '#14603C' },
-        skip: { DEFAULT: '#B06E00', bg: '#FBEBD2' },
-        replace: { DEFAULT: '#5B3FBF', bg: '#EAE4FB' },
+        done: {
+          DEFAULT: 'var(--color-done)',
+          bg: 'var(--color-done-bg)',
+          ink: 'var(--color-done-ink)',
+        },
+        skip: {
+          DEFAULT: 'var(--color-skip)',
+          bg: 'var(--color-skip-bg)',
+        },
+        replace: {
+          DEFAULT: 'var(--color-replace)',
+          bg: 'var(--color-replace-bg)',
+        },
       },
       borderRadius: {
         '2xl': '20px',
         '3xl': '28px',
       },
       boxShadow: {
-        soft: '0 24px 48px -30px rgba(25,21,18,.4)',
+        soft: '0 24px 48px -30px rgba(0,0,0,.4)',
         brand: '0 10px 24px -8px rgba(238,78,34,.55)',
       },
     },

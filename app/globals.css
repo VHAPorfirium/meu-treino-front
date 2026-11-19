@@ -3,30 +3,126 @@
 @tailwind utilities;
 
 :root {
-  color-scheme: light;
+  color-scheme: light dark;
+
+  /* Tema Claro (Papel Quente) */
+  --color-sand: #E7E1D9;
+  --color-paper: #FBF7F1;
+  --color-card: #FFFFFF;
+  --color-chip: #F2ECE4;
+  --color-table-head: #F6F0E8;
+
+  --color-ink: #191512;
+  --color-ink2: #33291F;
+  --color-muted: #5E5348;
+  --color-muted2: #8A7E72;
+  --color-faint: #A99C8F;
+
+  --color-line: #E9E0D6;
+  --color-line2: #E3DAD0;
+  --color-line3: #DCD2C6;
+
+  --color-done: #1E7A4F;
+  --color-done-bg: #E3F0E7;
+  --color-done-ink: #14603C;
+
+  --color-skip: #B06E00;
+  --color-skip-bg: #FBEBD2;
+
+  --color-replace: #5B3FBF;
+  --color-replace-bg: #EAE4FB;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not(.light) {
+    /* Tema Escuro / Academia AMOLED */
+    --color-sand: #08080A;
+    --color-paper: #121214;
+    --color-card: #1C1C1E;
+    --color-chip: #28282B;
+    --color-table-head: #242426;
+
+    --color-ink: #F5F5F7;
+    --color-ink2: #D1D1D6;
+    --color-muted: #A1A1A6;
+    --color-muted2: #8E8E93;
+    --color-faint: #636366;
+
+    --color-line: #2C2C2E;
+    --color-line2: #3A3A3C;
+    --color-line3: #48484A;
+
+    --color-done: #30D158;
+    --color-done-bg: #132E1B;
+    --color-done-ink: #4CD964;
+
+    --color-skip: #FF9F0A;
+    --color-skip-bg: #382400;
+
+    --color-replace: #BF5AF2;
+    --color-replace-bg: #2B163B;
+  }
+}
+
+:root.dark {
+  /* Forçar modo escuro */
+  --color-sand: #08080A;
+  --color-paper: #121214;
+  --color-card: #1C1C1E;
+  --color-chip: #28282B;
+  --color-table-head: #242426;
+
+  --color-ink: #F5F5F7;
+  --color-ink2: #D1D1D6;
+  --color-muted: #A1A1A6;
+  --color-muted2: #8E8E93;
+  --color-faint: #636366;
+
+  --color-line: #2C2C2E;
+  --color-line2: #3A3A3C;
+  --color-line3: #48484A;
+
+  --color-done: #30D158;
+  --color-done-bg: #132E1B;
+  --color-done-ink: #4CD964;
+
+  --color-skip: #FF9F0A;
+  --color-skip-bg: #382400;
+
+  --color-replace: #BF5AF2;
+  --color-replace-bg: #2B163B;
 }
 
 html,
 body {
   height: 100%;
+  overscroll-behavior-y: contain; /* Previne pull-to-refresh acidental no meio do treino */
 }
 
 body {
   @apply bg-paper text-ink antialiased;
-  font-feature-settings: 'tnum' 1; /* números tabulares (Manrope) */
+  font-feature-settings: 'tnum' 1; /* números tabulares */
   -webkit-tap-highlight-color: transparent;
+  user-select: none; /* Previne seleção acidental de texto durante toques rápidos */
+}
+
+input,
+textarea {
+  user-select: text; /* Permite digitar e selecionar normalmente nos inputs */
+  font-size: 16px !important; /* Previne auto-zoom indesejado no iOS Safari */
 }
 
 /* container mobile (trainee) */
 .app-shell {
   @apply mx-auto flex min-h-screen w-full max-w-[440px] flex-col bg-paper;
+  overscroll-behavior-y: contain;
 }
 
 .safe-top {
-  padding-top: env(safe-area-inset-top);
+  padding-top: max(env(safe-area-inset-top), 12px);
 }
 .safe-bottom {
-  padding-bottom: env(safe-area-inset-bottom);
+  padding-bottom: max(env(safe-area-inset-bottom), 12px);
 }
 
 /* utilitário de título display */

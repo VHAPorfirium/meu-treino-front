@@ -24,6 +24,10 @@ import { Button } from '@/components/ui/button';
 import { ExerciseCard } from '@/components/workout/exercise-card';
 import { RestTimer } from '@/components/workout/rest-timer';
 import { PushOptIn } from '@/components/layout/push-opt-in';
+import { ConnectionStatus } from '@/components/layout/connection-status';
+import { PwaInstallBanner } from '@/components/layout/pwa-install-banner';
+import { triggerHaptic } from '@/lib/haptics';
+import { unlockAudio } from '@/lib/audio';
 
 /** '2026-09-21' -> 'segunda, 21/09' */
 function rotuloData(iso: string): string {
@@ -199,6 +203,8 @@ export default function TreinoPage() {
   }
 
   async function start() {
+    unlockAudio();
+    triggerHaptic('success');
     setBusy(true);
     try {
       await ensureLog();
@@ -222,6 +228,7 @@ export default function TreinoPage() {
 
   async function complete() {
     if (!log) return;
+    triggerHaptic('medium');
     setBusy(true);
     try {
       // garante que marcações pendentes subam antes de fechar a sessão
@@ -231,6 +238,7 @@ export default function TreinoPage() {
         return;
       }
       const done = await workoutLogsApi.complete(log.id);
+      triggerHaptic('success');
       setLog({ ...log, completed: done.completed });
       await descartarRascunho(); // E13 — sessão fechada, rascunho não ressuscita
       setRascunhos({});
@@ -256,6 +264,8 @@ export default function TreinoPage() {
   return (
     <>
       <AppHeader eyebrow={TODAY_LABEL()} title={workout?.name ?? 'Treino de hoje'} />
+      <ConnectionStatus />
+      <PwaInstallBanner />
 
       <div className="space-y-3 p-5 pb-28">
         {/* avisos: offline / recados */}

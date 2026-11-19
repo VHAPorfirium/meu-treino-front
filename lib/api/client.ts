@@ -5,7 +5,7 @@ import { limpar as limparCache } from './cache-modulo';
  * A API é chamada no MESMO domínio do app (/api). O Next proxia até o backend
  * (ver `rewrites` em next.config.mjs). Assim o cookie httpOnly de sessão é
  * first-party e funciona em todo navegador — inclusive iOS/Safari, que bloqueia
- * cookie de terceiro entre domínios diferentes (Vercel ↔ Render).
+ * cookie de terceiro entre domínios diferentes (ex: Vercel ↔ VPS).
  */
 const BASE = '/api';
 

@@ -5,6 +5,7 @@ import { equipamentoExercicio, nomeExercicio } from '@/lib/exercicios/modo';
 import Image from 'next/image';
 import type { AlternativeExercise } from '@/lib/types';
 import { exercisesApi } from '@/lib/api/endpoints';
+import { triggerHaptic } from '@/lib/haptics';
 
 const STRIPE =
   'repeating-linear-gradient(135deg,#EFE7DC 0 6px,#E5DBCE 6px 12px)';
@@ -31,62 +32,84 @@ export function AlternativesModal({
   }, [exerciseId]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-ink/55">
-      <div className="app-shell safe-bottom max-h-[82vh] overflow-y-auto rounded-t-3xl bg-paper p-5">
-        <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-line3" />
-        <div className="mb-4">
-          <h2 className="font-display text-[26px] font-extrabold tracking-tight">
-            Trocar por outro
-          </h2>
-          <p className="mt-1 text-sm text-muted2">
-            no lugar de{' '}
-            <span className="font-extrabold capitalize text-ink">
-              {exerciseName}
-            </span>
-          </p>
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm transition-opacity"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          triggerHaptic('light');
+          onClose();
+        }
+      }}
+    >
+      <div className="w-full max-w-[440px] max-h-[85vh] flex flex-col rounded-t-3xl border-t border-line bg-paper p-5 pb-[max(env(safe-area-inset-bottom),20px)] shadow-2xl animate-in slide-in-from-bottom duration-200">
+        {/* Barra de arrasto (drag handle) */}
+        <div className="mx-auto mb-3 h-1.5 w-12 shrink-0 rounded-full bg-line3" />
+
+        <div className="flex items-start justify-between gap-3 shrink-0 mb-3">
+          <div>
+            <h2 className="font-display text-[22px] font-extrabold leading-tight tracking-tight">
+              Trocar exercício
+            </h2>
+            <p className="mt-0.5 text-xs text-muted2">
+              Substituir <span className="font-bold capitalize text-ink">{exerciseName}</span>
+            </p>
+          </div>
+          <button
+            onClick={() => {
+              triggerHaptic('light');
+              onClose();
+            }}
+            className="flex h-9 w-9 items-center justify-center rounded-full bg-chip text-sm font-bold text-muted2"
+          >
+            ✕
+          </button>
         </div>
 
-        {error && <p className="text-sm font-semibold text-brand">{error}</p>}
+        {error && <p className="text-sm font-semibold text-brand py-4 text-center">{error}</p>}
         {!alts && !error && (
-          <p className="py-8 text-center text-muted2">Carregando…</p>
+          <p className="py-12 text-center text-sm font-semibold text-muted2">Buscando alternativas compatíveis…</p>
         )}
         {alts && alts.length === 0 && (
-          <p className="py-8 text-center text-muted2">
-            Sem alternativas cadastradas para este exercício.
-          </p>
+          <div className="py-10 text-center text-muted2">
+            <p className="text-3xl">🔍</p>
+            <p className="mt-2 text-sm font-semibold">Sem alternativas diretas cadastradas.</p>
+          </div>
         )}
 
-        <div className="space-y-3">
+        <div className="overflow-y-auto space-y-2.5 pr-0.5">
           {alts?.map((alt) => (
             <button
               key={alt.id}
-              onClick={() => onPick(alt)}
-              className="flex w-full items-center gap-3 rounded-2xl border-2 border-line bg-card p-3 text-left transition active:scale-[0.99]"
+              onClick={() => {
+                triggerHaptic('medium');
+                onPick(alt);
+              }}
+              className="flex w-full items-center gap-3.5 rounded-2xl border border-line bg-card p-3 text-left transition active:scale-[0.98]"
             >
               {alt.thumbnailUrl ? (
                 <Image
                   src={alt.thumbnailUrl}
                   alt={nomeExercicio(alt)}
-                  width={64}
-                  height={64}
-                  className="h-16 w-16 rounded-[14px] bg-white object-cover"
+                  width={56}
+                  height={56}
+                  className="h-14 w-14 shrink-0 rounded-xl bg-card object-cover"
                   unoptimized
                 />
               ) : (
                 <div
-                  className="h-16 w-16 rounded-[14px]"
+                  className="h-14 w-14 shrink-0 rounded-xl"
                   style={{ background: STRIPE }}
                 />
               )}
               <div className="min-w-0 flex-1">
-                <p className="truncate text-[17px] font-extrabold capitalize leading-tight">
+                <p className="truncate text-base font-extrabold capitalize leading-tight text-ink">
                   {nomeExercicio(alt)}
                 </p>
-                <p className="mt-1 text-[13px] font-semibold capitalize text-muted2">
+                <p className="mt-1 text-xs font-semibold capitalize text-muted2">
                   {equipamentoExercicio(alt)}
                 </p>
               </div>
-              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 border-replace text-replace">
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-replace-bg text-sm font-bold text-replace">
                 ⇄
               </span>
             </button>
