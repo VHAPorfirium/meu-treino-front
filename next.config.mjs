@@ -22,6 +22,7 @@ const securityHeaders = [
 ];
 
 const nextConfig = {
+  output: 'standalone',
   reactStrictMode: true,
   poweredByHeader: false, // não expõe "X-Powered-By: Next.js"
   images: {
