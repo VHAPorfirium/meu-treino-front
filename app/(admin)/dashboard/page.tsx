@@ -153,10 +153,10 @@ export default function DashboardHome() {
                         <button
                           key={l.exercise}
                           onClick={() => setExercise(l.exercise)}
-                          className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-bold capitalize ${
+                          className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-bold capitalize transition active:scale-95 ${
                             exercise === l.exercise
-                              ? 'bg-ink text-white'
-                              : 'bg-chip text-muted'
+                              ? 'bg-brand text-white shadow-sm'
+                              : 'bg-chip text-muted hover:text-ink'
                           }`}
                         >
                           {l.exercise}

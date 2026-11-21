@@ -253,7 +253,7 @@ function Field({
         inputMode={text ? 'text' : 'numeric'}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="mt-0.5 w-full rounded-lg border border-line2 bg-white px-2 py-1.5 text-center text-sm font-extrabold text-ink"
+        className="mt-0.5 w-full rounded-lg border border-line bg-paper px-2 py-1.5 text-center text-sm font-extrabold text-ink focus:border-brand focus:outline-none"
       />
     </label>
   );

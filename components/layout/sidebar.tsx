@@ -63,12 +63,15 @@ export function Sidebar() {
       </aside>
 
       {/* Mobile top bar */}
-      <div className="sticky top-0 z-30 bg-ink px-4 py-3 text-paper md:hidden">
+      <div className="safe-top sticky top-0 z-30 bg-ink px-4 pb-3.5 pt-2 text-paper shadow-md md:hidden">
         <div className="mb-3 flex items-center justify-between">
           <div className="font-display text-[17px] font-extrabold tracking-[0.16em] text-brand">
             RITMO
           </div>
-          <button onClick={logout} className="text-xs font-bold text-faint">
+          <button
+            onClick={logout}
+            className="rounded-full bg-white/10 px-3.5 py-1.5 text-xs font-bold text-paper transition active:scale-95"
+          >
             Sair
           </button>
         </div>

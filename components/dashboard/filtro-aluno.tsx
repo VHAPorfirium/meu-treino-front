@@ -93,8 +93,8 @@ function Chip({
     <button
       onClick={onClick}
       aria-pressed={ativo}
-      className={`rounded-full px-3.5 py-1.5 text-xs font-bold capitalize transition ${
-        ativo ? 'bg-ink text-white' : 'bg-chip text-muted'
+      className={`rounded-full px-3.5 py-1.5 text-xs font-bold capitalize transition active:scale-95 ${
+        ativo ? 'bg-brand text-white shadow-sm' : 'bg-chip text-muted hover:text-ink'
       }`}
     >
       {label}

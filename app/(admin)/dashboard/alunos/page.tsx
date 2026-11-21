@@ -76,8 +76,8 @@ export default function AlunosPage() {
             <button
               key={t.id}
               onClick={() => setSelected(t)}
-              className={`rounded-full px-4 py-2 text-sm font-extrabold ${
-                selected?.id === t.id ? 'bg-ink text-white' : 'bg-chip text-muted'
+              className={`rounded-full px-4 py-2 text-sm font-extrabold transition active:scale-95 ${
+                selected?.id === t.id ? 'bg-brand text-white shadow-sm' : 'bg-chip text-muted hover:text-ink'
               }`}
             >
               {t.name}
@@ -111,7 +111,7 @@ export default function AlunosPage() {
                     rows={3}
                     maxLength={1000}
                     placeholder={`Recado pra ${selected.name.split(' ')[0]}… (ex: "Semana que vem sobe a carga do agachamento")`}
-                    className="w-full rounded-xl border border-line2 bg-white px-3.5 py-2.5 text-base font-medium text-ink placeholder:text-faint"
+                    className="w-full rounded-xl border border-line bg-paper px-3.5 py-2.5 text-base font-medium text-ink placeholder:text-muted2 focus:border-brand focus:outline-none"
                   />
                   <div className="flex items-center justify-between">
                     <span className="text-xs text-muted2">{text.length}/1000</span>

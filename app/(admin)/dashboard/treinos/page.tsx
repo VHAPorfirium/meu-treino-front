@@ -98,7 +98,7 @@ export default function TreinosPage() {
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Nome (ex: Treino A - Inferiores)"
-              className="w-full rounded-xl border border-line2 bg-white px-3.5 py-2.5 text-base font-medium text-ink placeholder:text-faint"
+              className="w-full rounded-xl border border-line bg-paper px-3.5 py-2.5 text-base font-medium text-ink placeholder:text-muted2 focus:border-brand focus:outline-none"
             />
             <div className="flex flex-wrap gap-1.5">
               <DayChip active={day === ''} onClick={() => setDay('')} label="Sem dia" />
@@ -288,7 +288,7 @@ function WorkoutEditor({
           onChange={(e) => setName(e.target.value)}
           onBlur={saveName}
           onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
-          className="w-full rounded-xl border border-line2 bg-white px-3.5 py-2 text-base font-extrabold text-ink"
+          className="w-full rounded-xl border border-line bg-paper px-3.5 py-2 text-base font-extrabold text-ink focus:border-brand focus:outline-none"
           aria-label="Nome do treino"
         />
         <div className="flex flex-wrap items-center gap-1.5">
@@ -380,8 +380,8 @@ function DayChip({
   return (
     <button
       onClick={onClick}
-      className={`rounded-full px-3 py-1.5 text-xs font-bold ${
-        active ? 'bg-ink text-white' : 'bg-chip text-muted'
+      className={`rounded-full px-3 py-1.5 text-xs font-bold transition active:scale-95 ${
+        active ? 'bg-brand text-white shadow-sm' : 'bg-chip text-muted hover:text-ink'
       }`}
     >
       {label}

@@ -82,7 +82,7 @@ export default function FotosPage() {
             value={note}
             onChange={(e) => setNote(e.target.value)}
             placeholder="Observação (opcional) — ex: 12 semanas"
-            className="w-full rounded-xl border border-line2 bg-white px-3.5 py-2.5 text-base font-medium text-ink placeholder:text-faint"
+            className="w-full rounded-xl border border-line bg-paper px-3.5 py-2.5 text-base font-medium text-ink placeholder:text-muted2 focus:border-brand focus:outline-none"
           />
           <input
             ref={fileRef}

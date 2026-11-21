@@ -152,8 +152,8 @@ export function ExerciseBrowser({
           <button
             key={g.id || 'all'}
             onClick={() => setGroup(g.name)}
-            className={`rounded-full px-3.5 py-1.5 text-xs font-bold transition ${
-              group === g.name ? 'bg-ink text-white' : 'bg-chip text-muted'
+            className={`rounded-full px-3.5 py-1.5 text-xs font-bold transition active:scale-95 ${
+              group === g.name ? 'bg-brand text-white shadow-sm' : 'bg-chip text-muted hover:text-ink'
             }`}
           >
             {g.displayName}
@@ -505,7 +505,7 @@ function CampoConfig({
         inputMode={texto ? 'text' : 'numeric'}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="mt-1 w-full rounded-lg border border-line2 bg-white px-2 py-1.5 text-center text-sm font-extrabold text-ink"
+        className="mt-1 w-full rounded-lg border border-line bg-paper px-2 py-1.5 text-center text-sm font-extrabold text-ink focus:border-brand focus:outline-none"
       />
     </label>
   );
