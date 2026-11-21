@@ -48,11 +48,11 @@ export default function HistoricoPage() {
       />
       <div className="space-y-3 p-5 pb-24">
         <div className="flex gap-3">
-          <div className="flex-1 rounded-2xl bg-ink p-4">
-            <p className="text-[11px] font-bold uppercase tracking-wider text-faint">
+          <div className="flex-1 rounded-2xl bg-inverse p-4">
+            <p className="text-[11px] font-bold uppercase tracking-wider text-on-inverse-muted">
               Este mês
             </p>
-            <p className="font-display text-[30px] font-extrabold text-paper">
+            <p className="font-display text-[30px] font-extrabold text-on-inverse">
               {monthCount} treinos
             </p>
           </div>

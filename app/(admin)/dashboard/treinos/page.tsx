@@ -140,6 +140,7 @@ export default function TreinosPage() {
                   {w.assignees && w.assignees.length > 0
                     ? ` · ${w.assignees.map((a) => a.name.split(' ')[0]).join(', ')}`
                     : ' · sem aluno'}
+                  {w.program ? ` · ${w.program.name}` : ''}
                 </p>
               </div>
               <span
@@ -486,7 +487,7 @@ function AddExerciseModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-ink/55 md:items-center">
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/55 md:items-center">
       <div className="flex max-h-[88vh] w-full max-w-lg flex-col rounded-t-3xl bg-paper md:rounded-3xl">
         <div className="flex shrink-0 items-center justify-between px-5 pb-3 pt-5">
           <h2 className="font-display text-[22px] font-extrabold">Escolher exercícios</h2>

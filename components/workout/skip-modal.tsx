@@ -104,7 +104,7 @@ export function SkipModal({
               triggerHaptic('warning');
               onConfirm(note.trim());
             }}
-            className="h-13 w-full rounded-2xl bg-skip py-3.5 text-base font-extrabold text-white shadow-sm transition active:scale-[0.98]"
+            className="h-13 w-full rounded-2xl bg-skip py-3.5 text-base font-extrabold text-on-skip shadow-sm transition active:scale-[0.98]"
           >
             Confirmar pulo
           </button>

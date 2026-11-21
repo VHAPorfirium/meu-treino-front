@@ -1,10 +1,13 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import type { Workout } from '@/lib/types';
-import { workoutsApi } from '@/lib/api/endpoints';
+import type { ProgramAchievement, Workout } from '@/lib/types';
+import { programsApi, workoutsApi } from '@/lib/api/endpoints';
 import { ApiError } from '@/lib/api/client';
 import { AppHeader } from '@/components/layout/app-header';
+import { AchievementList } from '@/components/programs/achievement-list';
+import { ProgramTypeBadge } from '@/components/programs/program-type-badge';
+import { ChallengeCompletedCelebration } from '@/components/programs/challenge-completed-celebration';
 
 const DAYS = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
 
@@ -12,18 +15,25 @@ const DAYS = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sáb
 export default function MeusTreinosPage() {
   const [items, setItems] = useState<Workout[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [achievements, setAchievements] = useState<ProgramAchievement[]>([]);
+  const [selectedAchievement, setSelectedAchievement] = useState<ProgramAchievement | null>(null);
 
   useEffect(() => {
     workoutsApi
       .mine()
       .then(setItems)
       .catch((e) => setError(e instanceof ApiError ? e.message : 'Sem conexão'));
+    programsApi
+      .achievements()
+      .then(setAchievements)
+      .catch(() => {});
   }, []);
 
   return (
     <>
       <AppHeader eyebrow="Programação" title="Meus treinos" />
       <div className="space-y-3 p-5 pb-28">
+        <AchievementList achievements={achievements} onSelectAchievement={setSelectedAchievement} />
         {items === null && !error && <p className="py-10 text-center text-muted2">Carregando…</p>}
         {error && <p className="py-10 text-center text-brand">{error}</p>}
         {items && items.length === 0 && (
@@ -41,6 +51,12 @@ export default function MeusTreinosPage() {
                   {w.dayOfWeek != null ? DAYS[w.dayOfWeek] : 'Sem dia fixo'}
                   {w._count ? ` · ${w._count.exercises} exercícios` : ''}
                 </p>
+                {w.program && (
+                  <div className="mt-1.5 flex items-center gap-1.5">
+                    <ProgramTypeBadge programType={w.program.type} />
+                    <span className="truncate text-xs font-semibold text-muted2">{w.program.name}</span>
+                  </div>
+                )}
               </div>
               <span
                 className={`shrink-0 rounded-full px-3 py-1 text-xs font-extrabold ${
@@ -56,6 +72,13 @@ export default function MeusTreinosPage() {
           O treino de hoje segue o dia da semana; sem treino marcado, o app sugere um dos ativos.
         </p>
       </div>
+
+      {selectedAchievement && (
+        <ChallengeCompletedCelebration
+          programReport={selectedAchievement.report}
+          onClose={() => setSelectedAchievement(null)}
+        />
+      )}
     </>
   );
 }

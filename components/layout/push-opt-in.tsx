@@ -74,7 +74,7 @@ export function PushOptIn() {
       </p>
       <button
         onClick={enable}
-        className="shrink-0 rounded-full bg-ink px-3 py-1.5 text-xs font-extrabold text-white"
+        className="shrink-0 rounded-full bg-inverse px-3 py-1.5 text-xs font-extrabold text-on-inverse"
       >
         Ativar
       </button>

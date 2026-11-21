@@ -343,7 +343,7 @@ export function ExerciseCard({
                     nomeExercicio(item.exercise),
                   );
                 }}
-                className="h-[44px] rounded-xl bg-ink px-4 text-sm font-extrabold text-white shadow-sm transition active:scale-95 disabled:opacity-50"
+                className="h-[44px] rounded-xl bg-inverse px-4 text-sm font-extrabold text-on-inverse shadow-sm transition active:scale-95 disabled:bg-chip disabled:text-muted2 disabled:shadow-none"
               >
                 ▶ Cronômetro
               </button>

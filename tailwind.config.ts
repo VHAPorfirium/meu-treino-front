@@ -15,21 +15,21 @@ const config: Config = {
       },
       colors: {
         // base semântica (suporta claro/escuro via CSS variables)
-        sand: 'var(--color-sand)',
-        paper: 'var(--color-paper)',
-        card: 'var(--color-card)',
-        chip: 'var(--color-chip)',
-        tableHead: 'var(--color-table-head)',
+        sand: 'rgb(var(--color-sand) / <alpha-value>)',
+        paper: 'rgb(var(--color-paper) / <alpha-value>)',
+        card: 'rgb(var(--color-card) / <alpha-value>)',
+        chip: 'rgb(var(--color-chip) / <alpha-value>)',
+        tableHead: 'rgb(var(--color-table-head) / <alpha-value>)',
         // tinta
-        ink: 'var(--color-ink)',
-        ink2: 'var(--color-ink2)',
-        muted: 'var(--color-muted)',
-        muted2: 'var(--color-muted2)',
-        faint: 'var(--color-faint)',
+        ink: 'rgb(var(--color-ink) / <alpha-value>)',
+        ink2: 'rgb(var(--color-ink2) / <alpha-value>)',
+        muted: 'rgb(var(--color-muted) / <alpha-value>)',
+        muted2: 'rgb(var(--color-muted2) / <alpha-value>)',
+        faint: 'rgb(var(--color-faint) / <alpha-value>)',
         // linhas
-        line: 'var(--color-line)',
-        line2: 'var(--color-line2)',
-        line3: 'var(--color-line3)',
+        line: 'rgb(var(--color-line) / <alpha-value>)',
+        line2: 'rgb(var(--color-line2) / <alpha-value>)',
+        line3: 'rgb(var(--color-line3) / <alpha-value>)',
         // marca (ação principal)
         brand: {
           DEFAULT: '#EE4E22',
@@ -37,17 +37,32 @@ const config: Config = {
         },
         // estados
         done: {
-          DEFAULT: 'var(--color-done)',
-          bg: 'var(--color-done-bg)',
-          ink: 'var(--color-done-ink)',
+          DEFAULT: 'rgb(var(--color-done) / <alpha-value>)',
+          bg: 'rgb(var(--color-done-bg) / <alpha-value>)',
+          ink: 'rgb(var(--color-done-ink) / <alpha-value>)',
         },
         skip: {
-          DEFAULT: 'var(--color-skip)',
-          bg: 'var(--color-skip-bg)',
+          DEFAULT: 'rgb(var(--color-skip) / <alpha-value>)',
+          bg: 'rgb(var(--color-skip-bg) / <alpha-value>)',
         },
         replace: {
-          DEFAULT: 'var(--color-replace)',
-          bg: 'var(--color-replace-bg)',
+          DEFAULT: 'rgb(var(--color-replace) / <alpha-value>)',
+          bg: 'rgb(var(--color-replace-bg) / <alpha-value>)',
+        },
+        // superfície sempre escura + texto sobre ela (ver globals.css)
+        inverse: 'rgb(var(--color-inverse) / <alpha-value>)',
+        'on-inverse': {
+          DEFAULT: 'rgb(var(--color-on-inverse) / <alpha-value>)',
+          muted: 'rgb(var(--color-on-inverse-muted) / <alpha-value>)',
+        },
+        // texto sobre bg-done / bg-skip / bg-replace
+        'on-done': 'rgb(var(--color-on-done) / <alpha-value>)',
+        'on-skip': 'rgb(var(--color-on-skip) / <alpha-value>)',
+        'on-replace': 'rgb(var(--color-on-replace) / <alpha-value>)',
+        // conquistas
+        gold: {
+          DEFAULT: 'rgb(var(--color-gold) / <alpha-value>)',
+          bg: 'rgb(var(--color-gold-bg) / <alpha-value>)',
         },
       },
       borderRadius: {

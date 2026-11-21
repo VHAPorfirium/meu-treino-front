@@ -80,7 +80,7 @@ export function RestTimer({
             setMinimized(false);
           }}
           className={`flex items-center gap-2.5 rounded-full px-4 py-2.5 shadow-2xl border border-line ${
-            left === 0 ? 'bg-brand text-white animate-pulse' : 'bg-ink text-white'
+            left === 0 ? 'bg-brand text-white animate-pulse' : 'bg-inverse text-on-inverse'
           }`}
           aria-label="Expandir cronômetro"
         >
@@ -88,7 +88,7 @@ export function RestTimer({
           <span className="font-display text-lg font-extrabold tabular-nums">
             {mm}:{ss}
           </span>
-          <span className="text-xs font-semibold text-white/70 truncate max-w-[80px]">
+          <span className="text-xs font-semibold text-on-inverse-muted truncate max-w-[80px]">
             {label}
           </span>
         </button>
@@ -99,11 +99,11 @@ export function RestTimer({
   // Modo Expandido
   return (
     <div className="fixed inset-x-0 bottom-0 z-40 mx-auto max-w-md p-3 pb-[max(env(safe-area-inset-bottom),12px)] animate-in slide-in-from-bottom duration-200">
-      <div className="rounded-3xl border border-line bg-ink p-4 text-white shadow-2xl">
+      <div className="rounded-3xl border border-line bg-inverse p-4 text-on-inverse shadow-2xl">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="text-base">⏱️</span>
-            <p className="truncate text-[11px] font-extrabold uppercase tracking-[0.18em] text-white/70">
+            <p className="truncate text-[11px] font-extrabold uppercase tracking-[0.18em] text-on-inverse-muted">
               {label}
             </p>
           </div>
@@ -132,7 +132,7 @@ export function RestTimer({
 
         <p
           className={`my-1 text-center font-display text-[58px] font-extrabold leading-none tabular-nums tracking-tight ${
-            left === 0 ? 'text-brand animate-bounce' : 'text-white'
+            left === 0 ? 'text-brand animate-bounce' : 'text-on-inverse'
           }`}
           aria-live="polite"
         >

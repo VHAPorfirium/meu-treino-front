@@ -226,7 +226,7 @@ export function ExerciseBrowser({
           <p className="mt-1 text-xs font-semibold text-muted2">{error}</p>
           <button
             onClick={() => setAttempt((n) => n + 1)}
-            className="mt-3 rounded-full bg-ink px-4 py-2 text-xs font-bold text-white"
+            className="mt-3 rounded-full bg-inverse px-4 py-2 text-xs font-bold text-on-inverse"
           >
             Tentar de novo
           </button>
@@ -259,7 +259,7 @@ export function ExerciseBrowser({
                     className="group relative shrink-0 rounded-xl"
                   >
                     <Thumb url={ex.thumbnailUrl} />
-                    <span className="absolute inset-0 flex items-center justify-center rounded-xl bg-ink/0 text-transparent transition group-hover:bg-ink/55 group-hover:text-white">
+                    <span className="absolute inset-0 flex items-center justify-center rounded-xl bg-black/0 text-transparent transition group-hover:bg-black/55 group-hover:text-white">
                       ▶
                     </span>
                   </button>

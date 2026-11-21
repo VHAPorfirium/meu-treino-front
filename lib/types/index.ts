@@ -190,6 +190,8 @@ export interface Workout {
   createdAt: string;
   _count?: { exercises: number };
   assignees?: Assignee[];
+  /** Programa (contínuo, mesociclo ou desafio) ao qual o treino pertence. */
+  program?: ProgramReference | null;
 }
 
 export interface WorkoutExerciseItem {
@@ -292,4 +294,117 @@ export interface ProgressPhoto {
   takenAt: string;
   note: string | null;
   url: string | null;
+}
+
+// ── Programas: treino contínuo, mesociclo e desafio ─────────────────────────
+
+/** CONTINUOUS = treino normal constante · MESOCYCLE = fase em semanas · CHALLENGE = desafio em dias. */
+export type ProgramType = 'CONTINUOUS' | 'MESOCYCLE' | 'CHALLENGE';
+export type ProgramStatus = 'ACTIVE' | 'COMPLETED' | 'ARCHIVED';
+
+export interface ProgramReference {
+  id: string;
+  name: string;
+  type: ProgramType;
+}
+
+export interface ProgramWorkoutSummary {
+  id: string;
+  name: string;
+  dayOfWeek: number | null;
+  active: boolean;
+}
+
+export interface ProgramProgress {
+  currentDayNumber: number;
+  totalDays: number;
+  completedWorkoutsCount: number;
+  trainedDaysCount: number;
+  progressPercentage: number;
+  isLastDayReached: boolean;
+}
+
+export interface ProgramReport {
+  programName: string;
+  programType: ProgramType;
+  totalDays: number;
+  trainedDaysCount: number;
+  completedWorkoutsCount: number;
+  loadEvolutionPercentage: number | null;
+  completedAt: string;
+}
+
+export interface ProgramAssignmentDetail {
+  id: string;
+  userId: string;
+  user: { id: string; name: string };
+  status: ProgramStatus;
+  startDayKey: string;
+  startDate: string;
+  endDate: string | null;
+  reportData: ProgramReport | null;
+  progress?: ProgramProgress | null;
+}
+
+export interface TrainingProgram {
+  id: string;
+  name: string;
+  description: string | null;
+  type: ProgramType;
+  targetWeeks: number | null;
+  targetDays: number | null;
+  createdAt: string;
+  workouts: ProgramWorkoutSummary[];
+  assignments: ProgramAssignmentDetail[];
+}
+
+export interface CreateProgramPayload {
+  name: string;
+  description?: string;
+  type: ProgramType;
+  targetWeeks?: number;
+  targetDays?: number;
+  workoutIds: string[];
+  userIds: string[];
+}
+
+export interface UpdateProgramPayload {
+  name?: string;
+  description?: string | null;
+  workoutIds?: string[];
+}
+
+/** GET /programs/current — programa em que o aluno está agora. */
+export interface CurrentProgram {
+  assignmentId: string;
+  status: ProgramStatus;
+  startDate: string;
+  endDate: string | null;
+  hasDeadline: boolean;
+  report: ProgramReport | null;
+  progress: ProgramProgress | null;
+  program: {
+    id: string;
+    name: string;
+    description: string | null;
+    type: ProgramType;
+    targetWeeks: number | null;
+    targetDays: number | null;
+    workouts: ProgramWorkoutSummary[];
+  };
+}
+
+/** GET /programs/achievements — medalha de um programa com prazo concluído. */
+export interface ProgramAchievement {
+  assignmentId: string;
+  programId: string;
+  programName: string;
+  programType: ProgramType;
+  completedAt: string | null;
+  report: ProgramReport;
+}
+
+/** Resposta de PATCH /workout-logs/:id/complete. */
+export interface CompletedWorkoutLog extends WorkoutLog {
+  programCompletion: { programCompleted: boolean; report: ProgramReport | null } | null;
 }

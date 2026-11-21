@@ -3,12 +3,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import type {
+  CurrentProgram,
   PatchExercisePayload,
+  ProgramReport,
   TodayResponse,
   WorkoutExerciseLog,
   WorkoutLog,
 } from '@/lib/types';
-import { notesApi, workoutLogsApi, workoutsApi } from '@/lib/api/endpoints';
+import { notesApi, programsApi, workoutLogsApi, workoutsApi } from '@/lib/api/endpoints';
 import { ApiError } from '@/lib/api/client';
 import { enqueueAndSend, flush, onPendingChange, wireAutoFlush } from '@/lib/offline/queue';
 import {
@@ -28,6 +30,12 @@ import { ConnectionStatus } from '@/components/layout/connection-status';
 import { PwaInstallBanner } from '@/components/layout/pwa-install-banner';
 import { triggerHaptic } from '@/lib/haptics';
 import { unlockAudio } from '@/lib/audio';
+import { ProgramProgressBanner } from '@/components/programs/program-progress-banner';
+import { ChallengeCompletedCelebration } from '@/components/programs/challenge-completed-celebration';
+import {
+  markAchievementAsCelebrated,
+  wasAchievementCelebrated,
+} from '@/lib/programs/celebration-memory';
 
 /** '2026-09-21' -> 'segunda, 21/09' */
 function rotuloData(iso: string): string {
@@ -62,6 +70,49 @@ export default function TreinoPage() {
   const [rascunhos, setRascunhos] = useState<Record<string, RascunhoExercicio>>({});
   const [rascunhoPronto, setRascunhoPronto] = useState(false);
   const [unreadNotes, setUnreadNotes] = useState(0);
+  // Programas — banner de "Dia X de Y" e comemoração ao concluir mesociclo/desafio
+  const [currentProgram, setCurrentProgram] = useState<CurrentProgram | null>(null);
+  const [celebration, setCelebration] = useState<
+    { assignmentId: string; programReport: ProgramReport } | null
+  >(null);
+
+  /**
+   * Busca o programa atual. Se ele acabou de ser concluído (aqui, em outro
+   * aparelho ou numa finalização que estava offline) e a conquista ainda não foi
+   * comemorada neste aparelho, abre a comemoração. Falha aqui nunca trava o treino.
+   */
+  const loadCurrentProgram = useCallback(async () => {
+    try {
+      const loadedProgram = await programsApi.current();
+      setCurrentProgram(loadedProgram);
+      if (
+        loadedProgram?.status === 'COMPLETED' &&
+        loadedProgram.report &&
+        !wasAchievementCelebrated(loadedProgram.assignmentId)
+      ) {
+        setCelebration({
+          assignmentId: loadedProgram.assignmentId,
+          programReport: loadedProgram.report,
+        });
+      }
+    } catch {
+      /* sem rede: o banner só não aparece */
+    }
+  }, []);
+
+  function openAchievementOfCurrentProgram() {
+    if (currentProgram?.report) {
+      setCelebration({
+        assignmentId: currentProgram.assignmentId,
+        programReport: currentProgram.report,
+      });
+    }
+  }
+
+  function closeCelebration() {
+    if (celebration) markAchievementAsCelebrated(celebration.assignmentId);
+    setCelebration(null);
+  }
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -83,6 +134,7 @@ export default function TreinoPage() {
 
   useEffect(() => {
     load();
+    void loadCurrentProgram();
     wireAutoFlush();
     const off = onPendingChange((n) => {
       setPendingOps(n);
@@ -95,7 +147,7 @@ export default function TreinoPage() {
     return () => {
       off();
     };
-  }, [load]);
+  }, [load, loadCurrentProgram]);
 
   /**
    * E13 — ao (re)montar com uma sessão aberta, recupera o rascunho: o que foi
@@ -245,6 +297,9 @@ export default function TreinoPage() {
       setTimer(null);
       // recarrega pra pegar `status` e `proximaLiberacao` do servidor (E9)
       await load();
+      // se este treino fechou o último dia do desafio/mesociclo, o programa
+      // volta como COMPLETED e a comemoração (com vibração forte) abre sozinha
+      await loadCurrentProgram();
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'Sem conexão — tente finalizar depois.');
     } finally {
@@ -288,6 +343,13 @@ export default function TreinoPage() {
           </Link>
         )}
 
+        {currentProgram && (
+          <ProgramProgressBanner
+            currentProgram={currentProgram}
+            onOpenAchievement={openAchievementOfCurrentProgram}
+          />
+        )}
+
         {loading && <p className="py-10 text-center text-muted2">Carregando…</p>}
         {error && (
           <p className="rounded-2xl border border-line bg-card p-3 text-center text-sm font-semibold text-brand">
@@ -313,10 +375,10 @@ export default function TreinoPage() {
         )}
 
         {workout && (
-          <div className="flex items-center justify-between rounded-2xl bg-ink px-5 py-4">
+          <div className="flex items-center justify-between rounded-2xl bg-inverse px-5 py-4">
             <div>
-              <p className="text-[11px] font-bold uppercase tracking-wider text-faint">Progresso</p>
-              <p className="font-display text-[24px] font-extrabold text-paper">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-on-inverse-muted">Progresso</p>
+              <p className="font-display text-[24px] font-extrabold text-on-inverse">
                 {marked} de {total} exercícios
               </p>
             </div>
@@ -389,6 +451,13 @@ export default function TreinoPage() {
             setTimer(null);
             if (log) void salvarTimer(log.id, null);
           }}
+        />
+      )}
+
+      {celebration && (
+        <ChallengeCompletedCelebration
+          programReport={celebration.programReport}
+          onClose={closeCelebration}
         />
       )}
     </>

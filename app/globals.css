@@ -5,92 +5,134 @@
 :root {
   color-scheme: light dark;
 
-  /* Tema Claro (Papel Quente) */
-  --color-sand: #E7E1D9;
-  --color-paper: #FBF7F1;
-  --color-card: #FFFFFF;
-  --color-chip: #F2ECE4;
-  --color-table-head: #F6F0E8;
+  /* Tema Claro (Papel Quente)
+     As cores são CANAIS RGB ("r g b"), não hex: assim o Tailwind consegue
+     aplicar opacidade (bg-paper/95, bg-ink/10...). Com hex, essas classes
+     simplesmente não eram geradas. */
+  --color-sand: 231 225 217;
+  --color-paper: 251 247 241;
+  --color-card: 255 255 255;
+  --color-chip: 242 236 228;
+  --color-table-head: 246 240 232;
 
-  --color-ink: #191512;
-  --color-ink2: #33291F;
-  --color-muted: #5E5348;
-  --color-muted2: #8A7E72;
-  --color-faint: #A99C8F;
+  --color-ink: 25 21 18;
+  --color-ink2: 51 41 31;
+  --color-muted: 94 83 72;
+  --color-muted2: 138 126 114;
+  --color-faint: 169 156 143;
 
-  --color-line: #E9E0D6;
-  --color-line2: #E3DAD0;
-  --color-line3: #DCD2C6;
+  --color-line: 233 224 214;
+  --color-line2: 227 218 208;
+  --color-line3: 220 210 198;
 
-  --color-done: #1E7A4F;
-  --color-done-bg: #E3F0E7;
-  --color-done-ink: #14603C;
+  --color-done: 30 122 79;
+  --color-done-bg: 227 240 231;
+  --color-done-ink: 20 96 60;
 
-  --color-skip: #B06E00;
-  --color-skip-bg: #FBEBD2;
+  --color-skip: 176 110 0;
+  --color-skip-bg: 251 235 210;
 
-  --color-replace: #5B3FBF;
-  --color-replace-bg: #EAE4FB;
+  --color-replace: 91 63 191;
+  --color-replace-bg: 234 228 251;
+
+  /* Superfície de contraste: sempre ESCURA (botão de ação secundária, sidebar,
+     cronômetro, card de progresso). Use com text-on-inverse — nunca text-white. */
+  --color-inverse: 25 21 18;
+  --color-on-inverse: 251 247 241;
+  --color-on-inverse-muted: 169 156 143;
+
+  /* Texto sobre os fundos de estado (bg-done / bg-skip / bg-replace) */
+  --color-on-done: 255 255 255;
+  --color-on-skip: 255 255 255;
+  --color-on-replace: 255 255 255;
+
+  /* Dourado das conquistas (desafios / mesociclos) */
+  --color-gold: 146 64 14;
+  --color-gold-bg: 254 243 199;
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not(.light) {
     /* Tema Escuro / Academia AMOLED */
-    --color-sand: #08080A;
-    --color-paper: #121214;
-    --color-card: #1C1C1E;
-    --color-chip: #28282B;
-    --color-table-head: #242426;
+    --color-sand: 8 8 10;
+    --color-paper: 18 18 20;
+    --color-card: 28 28 30;
+    --color-chip: 40 40 43;
+    --color-table-head: 36 36 38;
 
-    --color-ink: #F5F5F7;
-    --color-ink2: #D1D1D6;
-    --color-muted: #A1A1A6;
-    --color-muted2: #8E8E93;
-    --color-faint: #636366;
+    --color-ink: 245 245 247;
+    --color-ink2: 209 209 214;
+    --color-muted: 161 161 166;
+    --color-muted2: 142 142 147;
+    --color-faint: 99 99 102;
 
-    --color-line: #2C2C2E;
-    --color-line2: #3A3A3C;
-    --color-line3: #48484A;
+    --color-line: 44 44 46;
+    --color-line2: 58 58 60;
+    --color-line3: 72 72 74;
 
-    --color-done: #30D158;
-    --color-done-bg: #132E1B;
-    --color-done-ink: #4CD964;
+    --color-done: 48 209 88;
+    --color-done-bg: 19 46 27;
+    --color-done-ink: 76 217 100;
 
-    --color-skip: #FF9F0A;
-    --color-skip-bg: #382400;
+    --color-skip: 255 159 10;
+    --color-skip-bg: 56 36 0;
 
-    --color-replace: #BF5AF2;
-    --color-replace-bg: #2B163B;
+    --color-replace: 191 90 242;
+    --color-replace-bg: 43 22 59;
+
+    --color-inverse: 58 58 60;
+    --color-on-inverse: 245 245 247;
+    --color-on-inverse-muted: 174 174 178;
+
+    /* no escuro os estados são cores claras/vibrantes: texto escuro por cima */
+    --color-on-done: 10 10 12;
+    --color-on-skip: 10 10 12;
+    --color-on-replace: 10 10 12;
+
+    --color-gold: 252 211 77;
+    --color-gold-bg: 58 42 6;
   }
 }
 
 :root.dark {
   /* Forçar modo escuro */
-  --color-sand: #08080A;
-  --color-paper: #121214;
-  --color-card: #1C1C1E;
-  --color-chip: #28282B;
-  --color-table-head: #242426;
+  --color-sand: 8 8 10;
+  --color-paper: 18 18 20;
+  --color-card: 28 28 30;
+  --color-chip: 40 40 43;
+  --color-table-head: 36 36 38;
 
-  --color-ink: #F5F5F7;
-  --color-ink2: #D1D1D6;
-  --color-muted: #A1A1A6;
-  --color-muted2: #8E8E93;
-  --color-faint: #636366;
+  --color-ink: 245 245 247;
+  --color-ink2: 209 209 214;
+  --color-muted: 161 161 166;
+  --color-muted2: 142 142 147;
+  --color-faint: 99 99 102;
 
-  --color-line: #2C2C2E;
-  --color-line2: #3A3A3C;
-  --color-line3: #48484A;
+  --color-line: 44 44 46;
+  --color-line2: 58 58 60;
+  --color-line3: 72 72 74;
 
-  --color-done: #30D158;
-  --color-done-bg: #132E1B;
-  --color-done-ink: #4CD964;
+  --color-done: 48 209 88;
+  --color-done-bg: 19 46 27;
+  --color-done-ink: 76 217 100;
 
-  --color-skip: #FF9F0A;
-  --color-skip-bg: #382400;
+  --color-skip: 255 159 10;
+  --color-skip-bg: 56 36 0;
 
-  --color-replace: #BF5AF2;
-  --color-replace-bg: #2B163B;
+  --color-replace: 191 90 242;
+  --color-replace-bg: 43 22 59;
+
+  --color-inverse: 58 58 60;
+  --color-on-inverse: 245 245 247;
+  --color-on-inverse-muted: 174 174 178;
+
+  /* no escuro os estados são cores claras/vibrantes: texto escuro por cima */
+  --color-on-done: 10 10 12;
+  --color-on-skip: 10 10 12;
+  --color-on-replace: 10 10 12;
+
+  --color-gold: 252 211 77;
+  --color-gold-bg: 58 42 6;
 }
 
 html,

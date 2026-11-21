@@ -65,7 +65,7 @@ export default function ExercicioDetailPage() {
               ) : (
                 <div className="h-[240px]" style={{ background: STRIPE }} />
               )}
-              <span className="absolute left-3.5 top-3.5 rounded-full bg-ink px-3.5 py-1.5 text-[11px] font-extrabold uppercase tracking-wide text-paper">
+              <span className="absolute left-3.5 top-3.5 rounded-full bg-inverse px-3.5 py-1.5 text-[11px] font-extrabold uppercase tracking-wide text-on-inverse">
                 {ex.bodyPart}
               </span>
             </div>

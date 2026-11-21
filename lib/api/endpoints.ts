@@ -3,6 +3,9 @@ import { TTL_CATALOGO, lembrar } from './cache-modulo';
 import type {
   AddExerciseBatchItem,
   AlternativeExercise,
+  CompletedWorkoutLog,
+  CreateProgramPayload,
+  CurrentProgram,
   EquipamentoOpcao,
   ExerciseMode,
   Exercise,
@@ -11,10 +14,13 @@ import type {
   MuscleGroup,
   PaginatedExercises,
   PatchExercisePayload,
+  ProgramAchievement,
   ProgressPhoto,
   ProgressSummary,
   TodayResponse,
   TrainerNote,
+  TrainingProgram,
+  UpdateProgramPayload,
   UserSummary,
   Workout,
   WorkoutDetail,
@@ -141,7 +147,7 @@ export const workoutLogsApi = {
     payload: PatchExercisePayload,
   ) => api.patch(`/workout-logs/${logId}/exercises/${weId}`, payload),
   complete: (logId: string) =>
-    api.patch<WorkoutLog>(`/workout-logs/${logId}/complete`),
+    api.patch<CompletedWorkoutLog>(`/workout-logs/${logId}/complete`),
   history: () => api.get<HistoryEntry[]>('/workout-logs/history'),
   myHistory: () => api.get<HistoryEntry[]>('/workout-logs/my-history'),
   /** Sem `userId` = agregado de todos os alunos; com `userId` = só aquele aluno. */
@@ -179,4 +185,26 @@ export const pushApi = {
   publicKey: () => api.get<{ publicKey: string | null; enabled: boolean }>('/push/public-key'),
   subscribe: (sub: PushSubscriptionJSON) => api.post<{ ok: boolean }>('/push/subscribe', sub),
   unsubscribe: (endpoint: string) => api.delete<{ ok: boolean }>('/push/subscribe', { endpoint }),
+};
+
+// Programas — treino contínuo, mesociclo ou desafio com prazo
+export const programsApi = {
+  // leitura do aluno
+  current: () =>
+    api
+      .get<{ currentProgram: CurrentProgram | null }>('/programs/current')
+      .then((response) => response.currentProgram),
+  achievements: () => api.get<ProgramAchievement[]>('/programs/achievements'),
+
+  // gestão (admin)
+  list: () => api.get<TrainingProgram[]>('/programs'),
+  get: (programId: string) => api.get<TrainingProgram>(`/programs/${programId}`),
+  create: (payload: CreateProgramPayload) => api.post<TrainingProgram>('/programs', payload),
+  update: (programId: string, payload: UpdateProgramPayload) =>
+    api.patch<TrainingProgram>(`/programs/${programId}`, payload),
+  remove: (programId: string) => api.delete<{ ok: boolean }>(`/programs/${programId}`),
+  assign: (programId: string, userIds: string[]) =>
+    api.post<TrainingProgram>(`/programs/${programId}/assignments`, { userIds }),
+  archiveAssignment: (assignmentId: string) =>
+    api.patch<{ ok: boolean }>(`/programs/assignments/${assignmentId}/archive`),
 };

@@ -57,7 +57,7 @@ export function ConnectionStatus() {
   return (
     <div className="sticky top-0 z-30 w-full animate-in slide-in-from-top duration-200">
       {!online ? (
-        <div className="flex items-center justify-between bg-skip px-4 py-2 text-xs font-bold text-white shadow-md">
+        <div className="flex items-center justify-between bg-skip px-4 py-2 text-xs font-bold text-on-skip shadow-md">
           <div className="flex items-center gap-2">
             <span className="animate-pulse text-sm">⚡</span>
             <span>
@@ -67,7 +67,7 @@ export function ConnectionStatus() {
           <button
             onClick={handleFlush}
             disabled={syncing}
-            className="rounded-full bg-white/20 px-2.5 py-1 text-[11px] font-extrabold text-white transition active:scale-95"
+            className="rounded-full bg-white/20 px-2.5 py-1 text-[11px] font-extrabold text-on-skip transition active:scale-95"
           >
             {syncing ? 'Verificando…' : 'Tentar agora'}
           </button>
@@ -81,13 +81,13 @@ export function ConnectionStatus() {
           <button
             onClick={handleFlush}
             disabled={syncing}
-            className="rounded-full bg-white/20 px-2.5 py-1 text-[11px] font-extrabold text-white transition active:scale-95"
+            className="rounded-full bg-white/20 px-2.5 py-1 text-[11px] font-extrabold text-on-skip transition active:scale-95"
           >
             Sincronizar
           </button>
         </div>
       ) : justSynced ? (
-        <div className="flex items-center justify-center gap-1.5 bg-done px-4 py-1.5 text-xs font-bold text-white shadow-sm">
+        <div className="flex items-center justify-center gap-1.5 bg-done px-4 py-1.5 text-xs font-bold text-on-done shadow-sm">
           <span>✓</span>
           <span>Tudo sincronizado! Treino atualizado.</span>
         </div>

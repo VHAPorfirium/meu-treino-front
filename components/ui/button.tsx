@@ -14,7 +14,7 @@ type Variant =
 const styles: Record<Variant, string> = {
   primary: 'bg-brand text-white shadow-brand hover:bg-brand-700',
   secondary: 'bg-card text-ink border-2 border-line hover:bg-chip',
-  done: 'bg-done text-white hover:brightness-95 shadow-sm',
+  done: 'bg-done text-on-done hover:brightness-95 shadow-sm',
   skip: 'bg-card text-skip border-2 border-skip hover:bg-skip-bg',
   replace: 'bg-card text-replace border-2 border-replace hover:bg-replace-bg',
   ghost: 'text-muted hover:bg-chip',

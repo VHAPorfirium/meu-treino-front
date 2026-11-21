@@ -1,7 +1,7 @@
 /**
  * Haptic feedback utilitário para interações táteis em smartphones.
  */
-export function triggerHaptic(type: 'light' | 'medium' | 'success' | 'warning' = 'light') {
+export function triggerHaptic(type: 'light' | 'medium' | 'success' | 'warning' | 'celebration' = 'light') {
   if (typeof navigator === 'undefined' || !('vibrate' in navigator)) return;
   try {
     switch (type) {
@@ -16,6 +16,10 @@ export function triggerHaptic(type: 'light' | 'medium' | 'success' | 'warning' =
         break;
       case 'warning':
         navigator.vibrate([40, 60, 40]);
+        break;
+      case 'celebration':
+        // vibração forte e longa: conquista de desafio/mesociclo
+        navigator.vibrate([120, 60, 120, 60, 300]);
         break;
     }
   } catch {

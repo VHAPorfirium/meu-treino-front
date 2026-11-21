@@ -4,6 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev -p 3001",
+    "lint:theme": "node scripts/check-theme-classes.mjs",
+    "prebuild": "node scripts/check-theme-classes.mjs",
     "build": "next build",
     "start": "next start -p 3001",
     "lint": "next lint"
