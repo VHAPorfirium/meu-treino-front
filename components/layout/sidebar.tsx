@@ -4,15 +4,28 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/lib/auth/auth-context';
 
-const NAV = [
-  { href: '/dashboard', label: 'Dashboard', icon: '📊' },
-  { href: '/dashboard/treinos', label: 'Treinos', icon: '📋' },
-  { href: '/dashboard/programas', label: 'Programas', icon: '🎯' },
-  { href: '/dashboard/exercicios', label: 'Catálogo', icon: '💪' },
-  { href: '/dashboard/historico', label: 'Histórico', icon: '🗓️' },
-  { href: '/dashboard/evolucao', label: 'Evolução', icon: '📈' },
-  { href: '/dashboard/alunos', label: 'Alunos', icon: '🧑‍🤝‍🧑' },
+/** Menu agrupado: o dia a dia, a montagem dos treinos e o acompanhamento. */
+const NAVIGATION_GROUPS = [
+  { title: 'Hoje', links: [{ href: '/dashboard', label: 'Dashboard', icon: '📊' }] },
+  {
+    title: 'Programação',
+    links: [
+      { href: '/dashboard/treinos', label: 'Treinos', icon: '📋' },
+      { href: '/dashboard/programas', label: 'Programas', icon: '🎯' },
+      { href: '/dashboard/exercicios', label: 'Catálogo', icon: '💪' },
+    ],
+  },
+  {
+    title: 'Acompanhamento',
+    links: [
+      { href: '/dashboard/alunos', label: 'Alunos', icon: '🧑‍🤝‍🧑' },
+      { href: '/dashboard/historico', label: 'Histórico', icon: '🗓️' },
+      { href: '/dashboard/evolucao', label: 'Evolução', icon: '📈' },
+    ],
+  },
 ];
+
+const NAV = NAVIGATION_GROUPS.flatMap((navigationGroup) => navigationGroup.links);
 
 function isActive(pathname: string, href: string) {
   if (href === '/dashboard') return pathname === '/dashboard';
@@ -26,28 +39,33 @@ export function Sidebar() {
   return (
     <>
       {/* Desktop */}
-      <aside className="sticky top-0 hidden h-screen w-[236px] shrink-0 flex-col gap-8 bg-inverse p-6 text-on-inverse md:flex">
+      <aside className="sticky top-0 hidden h-screen w-[236px] shrink-0 flex-col gap-6 bg-inverse p-6 text-on-inverse md:flex">
         <div className="font-display text-[20px] font-extrabold tracking-[0.16em] text-brand">
           RITMO
         </div>
-        <nav className="flex flex-col gap-1.5">
-          {NAV.map((n) => {
-            const active = isActive(pathname, n.href);
-            return (
-              <Link
-                key={n.href}
-                href={n.href}
-                className={`flex items-center gap-2.5 rounded-xl px-3.5 py-3 text-sm font-bold transition ${
-                  active
-                    ? 'bg-brand text-white'
-                    : 'text-on-inverse/80 hover:bg-white/5'
-                }`}
-              >
-                <span className="opacity-90">{n.icon}</span>
-                {n.label}
-              </Link>
-            );
-          })}
+        <nav className="flex flex-col gap-1">
+          {NAVIGATION_GROUPS.map((navigationGroup) => (
+            <div key={navigationGroup.title} className="mb-2 flex flex-col gap-1">
+              <p className="mx-3.5 mb-0.5 text-[10.5px] font-extrabold uppercase tracking-[0.08em] text-on-inverse-muted">
+                {navigationGroup.title}
+              </p>
+              {navigationGroup.links.map((n) => {
+                const active = isActive(pathname, n.href);
+                return (
+                  <Link
+                    key={n.href}
+                    href={n.href}
+                    className={`flex items-center gap-2.5 rounded-xl px-3.5 py-2.5 text-sm font-bold transition ${
+                      active ? 'bg-brand text-white' : 'text-on-inverse/80 hover:bg-white/5'
+                    }`}
+                  >
+                    <span className="opacity-90">{n.icon}</span>
+                    {n.label}
+                  </Link>
+                );
+              })}
+            </div>
+          ))}
         </nav>
         <div className="mt-auto flex items-center gap-2.5 border-t border-white/10 pt-5">
           <div className="flex h-9 w-9 items-center justify-center rounded-full bg-brand text-sm font-extrabold text-white">
@@ -55,7 +73,7 @@ export function Sidebar() {
           </div>
           <div className="flex-1">
             <p className="text-[13px] font-bold">{user?.name ?? 'Admin'}</p>
-            <p className="text-[11px] text-on-inverse-muted">Admin</p>
+            <p className="text-[11px] text-on-inverse-muted">Personal</p>
           </div>
           <button onClick={logout} className="text-xs font-bold text-on-inverse-muted hover:text-on-inverse">
             Sair
@@ -84,7 +102,7 @@ export function Sidebar() {
                 key={n.href}
                 href={n.href}
                 className={`shrink-0 rounded-full px-3.5 py-1.5 text-xs font-bold ${
-                  active ? 'bg-brand text-white' : 'bg-white/10 text-paper/80'
+                  active ? 'bg-brand text-white' : 'bg-white/10 text-on-inverse/80'
                 }`}
               >
                 {n.label}

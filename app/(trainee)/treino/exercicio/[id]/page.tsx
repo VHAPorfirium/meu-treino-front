@@ -1,62 +1,109 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import {
-  equipamentoExercicio,
-  musculoExercicio,
-  nomeExercicio,
-} from '@/lib/exercicios/modo';
 import { useParams, useRouter } from 'next/navigation';
 import Image from 'next/image';
-import type { AlternativeExercise, Exercise } from '@/lib/types';
-import { exercisesApi } from '@/lib/api/endpoints';
+import { equipamentoExercicio, musculoExercicio, nomeExercicio } from '@/lib/exercicios/modo';
+import type { AlternativeExercise, Exercise, ExerciseStats } from '@/lib/types';
+import { exercisesApi, workoutLogsApi } from '@/lib/api/endpoints';
+import { triggerHaptic } from '@/lib/haptics';
+import { SectionTitle } from '@/components/trainee/section-title';
+import { StatTile } from '@/components/trainee/stat-tile';
 
-const STRIPE =
-  'repeating-linear-gradient(135deg,#EFE7DC 0 8px,#E5DBCE 8px 16px)';
+const STRIPE = 'repeating-linear-gradient(135deg,#EFE7DC 0 8px,#E5DBCE 8px 16px)';
+const COLLAPSED_STEPS_COUNT = 3;
 
+/** Quebra as instruções em passos (uma linha ou frase por passo). */
+function splitInstructionSteps(instructions: string): string[] {
+  const lines = instructions
+    .split(/\n+/)
+    .map((line) => line.replace(/^\s*\d+[.)-]\s*/, '').trim())
+    .filter(Boolean);
+  if (lines.length > 1) return lines;
+  return instructions
+    .split(/(?<=[.!?])\s+/)
+    .map((sentence) => sentence.trim())
+    .filter(Boolean);
+}
+
+/** Detalhe do exercício: GIF, chips, os números do aluno e o passo a passo. */
 export default function ExercicioDetailPage() {
-  const { id } = useParams<{ id: string }>();
+  const { id: exerciseId } = useParams<{ id: string }>();
   const router = useRouter();
-  const [ex, setEx] = useState<Exercise | null>(null);
-  const [alts, setAlts] = useState<AlternativeExercise[]>([]);
-  const [error, setError] = useState<string | null>(null);
+  const [exercise, setExercise] = useState<Exercise | null>(null);
+  const [alternatives, setAlternatives] = useState<AlternativeExercise[]>([]);
+  const [exerciseStats, setExerciseStats] = useState<ExerciseStats | null>(null);
+  const [isFavorite, setIsFavorite] = useState(false);
+  const [areAllStepsVisible, setAreAllStepsVisible] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!id) return;
-    Promise.all([exercisesApi.get(id), exercisesApi.alternatives(id)])
-      .then(([e, a]) => {
-        setEx(e);
-        setAlts(a);
+    if (!exerciseId) return;
+    Promise.all([exercisesApi.get(exerciseId), exercisesApi.alternatives(exerciseId)])
+      .then(([loadedExercise, loadedAlternatives]) => {
+        setExercise(loadedExercise);
+        setAlternatives(loadedAlternatives);
       })
-      .catch(() => setError('Não foi possível carregar o exercício.'));
-  }, [id]);
+      .catch(() => setErrorMessage('Não foi possível carregar o exercício.'));
+    workoutLogsApi.exerciseStats(exerciseId).then(setExerciseStats).catch(() => {});
+    exercisesApi
+      .favorites()
+      .then((favoriteExercises) =>
+        setIsFavorite(favoriteExercises.some((favoriteExercise) => favoriteExercise.id === exerciseId)),
+      )
+      .catch(() => {});
+  }, [exerciseId]);
+
+  async function toggleFavorite() {
+    triggerHaptic('light');
+    const willBeFavorite = !isFavorite;
+    setIsFavorite(willBeFavorite); // otimista
+    try {
+      if (willBeFavorite) await exercisesApi.favorite(exerciseId);
+      else await exercisesApi.unfavorite(exerciseId);
+    } catch {
+      setIsFavorite(!willBeFavorite);
+    }
+  }
+
+  const instructionSteps = exercise?.instructions ? splitInstructionSteps(exercise.instructions) : [];
+  const visibleSteps = areAllStepsVisible ? instructionSteps : instructionSteps.slice(0, COLLAPSED_STEPS_COUNT);
+  const evolution = exerciseStats?.evolutionLast30DaysPercentage;
 
   return (
-    <div className="app-shell">
+    <>
       <header className="safe-top sticky top-0 z-20 flex items-center justify-between border-b border-line bg-paper/95 px-5 py-3 backdrop-blur">
         <button
+          type="button"
           onClick={() => router.back()}
-          className="flex h-10 w-10 items-center justify-center rounded-full bg-chip text-xl font-extrabold"
+          aria-label="Voltar"
+          className="flex h-9 w-9 items-center justify-center rounded-xl bg-chip text-lg font-extrabold text-ink"
         >
-          ‹
+          ←
         </button>
-        <span className="text-sm font-extrabold text-muted2">Exercício</span>
-        <span className="w-10" />
+        <button
+          type="button"
+          onClick={toggleFavorite}
+          aria-pressed={isFavorite}
+          className={`rounded-full px-3 py-1.5 text-xs font-extrabold transition active:scale-95 ${
+            isFavorite ? 'bg-gold-bg text-gold' : 'bg-chip text-muted'
+          }`}
+        >
+          {isFavorite ? '★ Favorito' : '☆ Favoritar'}
+        </button>
       </header>
 
-      <div className="space-y-4 p-5 pb-24">
-        {error && <p className="py-10 text-center text-brand">{error}</p>}
-        {!ex && !error && (
-          <p className="py-10 text-center text-muted2">Carregando…</p>
-        )}
+      <div className="space-y-4 p-5 pb-28">
+        {errorMessage && <p className="py-10 text-center text-brand">{errorMessage}</p>}
+        {!exercise && !errorMessage && <p className="py-10 text-center text-muted2">Carregando…</p>}
 
-        {ex && (
+        {exercise && (
           <>
-            <div className="relative overflow-hidden rounded-3xl border border-line bg-white">
-              {ex.gifUrl ? (
+            <div className="overflow-hidden rounded-3xl border border-line bg-white">
+              {exercise.gifUrl ? (
                 <Image
-                  src={ex.gifUrl}
-                  alt={nomeExercicio(ex)}
+                  src={exercise.gifUrl}
+                  alt={nomeExercicio(exercise)}
                   width={400}
                   height={320}
                   className="h-[240px] w-full object-contain"
@@ -65,95 +112,102 @@ export default function ExercicioDetailPage() {
               ) : (
                 <div className="h-[240px]" style={{ background: STRIPE }} />
               )}
-              <span className="absolute left-3.5 top-3.5 rounded-full bg-inverse px-3.5 py-1.5 text-[11px] font-extrabold uppercase tracking-wide text-on-inverse">
-                {ex.bodyPart}
-              </span>
             </div>
 
             <div>
-              <h1 className="font-display text-[30px] font-extrabold capitalize leading-tight tracking-tight">
-                {nomeExercicio(ex)}
+              <h1 className="font-display text-[28px] font-extrabold capitalize leading-tight tracking-tight text-ink">
+                {nomeExercicio(exercise)}
               </h1>
-              <p className="mt-1 text-sm font-semibold capitalize text-muted2">
-                {equipamentoExercicio(ex)} · {musculoExercicio(ex)}
-              </p>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {[exercise.bodyPart, musculoExercicio(exercise), equipamentoExercicio(exercise)]
+                  .filter(Boolean)
+                  .map((chipLabel) => (
+                    <span key={chipLabel} className="rounded-full bg-chip px-3 py-1.5 text-xs font-extrabold capitalize text-muted">
+                      {chipLabel}
+                    </span>
+                  ))}
+              </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-2.5">
-              <InfoTile label="Grupo" value={ex.bodyPart} />
-              <InfoTile label="Alvo" value={musculoExercicio(ex)} />
-            </div>
-
-            {ex.instructions && (
-              <div className="rounded-2xl border border-line bg-card p-4">
-                <h2 className="mb-2 text-xs font-extrabold uppercase tracking-wide text-muted2">
-                  Como fazer
-                </h2>
-                <p className="whitespace-pre-line text-sm leading-relaxed text-ink2">
-                  {ex.instructions}
-                </p>
+            {exerciseStats && exerciseStats.timesPerformed > 0 && (
+              <div className="grid grid-cols-3 gap-2">
+                <StatTile
+                  value={exerciseStats.bestWeight != null ? `${exerciseStats.bestWeight} kg` : '–'}
+                  label="melhor carga"
+                />
+                <StatTile value={exerciseStats.timesPerformed} label="vezes feito" />
+                <StatTile
+                  value={evolution == null ? '–' : `${evolution >= 0 ? '+' : ''}${evolution}%`}
+                  label="em 30 dias"
+                  valueClassName={evolution != null && evolution > 0 ? '!text-done' : ''}
+                />
               </div>
             )}
 
-            {alts.length > 0 && (
-              <div>
-                <h2 className="mb-2 text-xs font-extrabold uppercase tracking-wide text-muted2">
-                  Alternativas ({alts.length})
-                </h2>
-                <div className="space-y-2">
-                  {alts.map((a) => (
-                    <div
-                      key={a.id}
-                      className="flex items-center gap-3 rounded-2xl border border-line bg-card p-3"
+            {instructionSteps.length > 0 && (
+              <section>
+                <SectionTitle>Como fazer</SectionTitle>
+                <div className="space-y-1.5 rounded-2xl border border-line bg-card p-4 text-sm font-semibold leading-relaxed text-ink2">
+                  {visibleSteps.map((instructionStep, stepIndex) => (
+                    <p key={stepIndex}>
+                      <span className="font-extrabold text-brand">{stepIndex + 1}.</span> {instructionStep}
+                    </p>
+                  ))}
+                  {instructionSteps.length > COLLAPSED_STEPS_COUNT && (
+                    <button
+                      type="button"
+                      onClick={() => setAreAllStepsVisible((isVisible) => !isVisible)}
+                      className="text-sm font-extrabold text-brand"
                     >
-                      {a.thumbnailUrl ? (
+                      {areAllStepsVisible ? 'ver menos' : 'ver mais'}
+                    </button>
+                  )}
+                </div>
+              </section>
+            )}
+
+            {alternatives.length > 0 && (
+              <section>
+                <SectionTitle>Alternativas ({alternatives.length})</SectionTitle>
+                <div className="space-y-2">
+                  {alternatives.map((alternative) => (
+                    <button
+                      key={alternative.id}
+                      type="button"
+                      onClick={() => router.push(`/treino/exercicio/${alternative.id}`)}
+                      className="flex w-full items-center gap-3 rounded-2xl border border-line bg-card p-3 text-left"
+                    >
+                      {alternative.thumbnailUrl ? (
                         <Image
-                          src={a.thumbnailUrl}
-                          alt={a.name}
+                          src={alternative.thumbnailUrl}
+                          alt={alternative.name}
                           width={48}
                           height={48}
                           className="h-12 w-12 rounded-xl bg-white object-cover"
                           unoptimized
                         />
                       ) : (
-                        <div
-                          className="h-12 w-12 rounded-xl"
-                          style={{ background: STRIPE }}
-                        />
+                        <div className="h-12 w-12 rounded-xl" style={{ background: STRIPE }} />
                       )}
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-extrabold capitalize">
-                          {a.name}
-                        </p>
-                        <p className="text-xs font-semibold capitalize text-muted2">
-                          {equipamentoExercicio(a)}
-                        </p>
-                      </div>
-                    </div>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-extrabold capitalize text-ink">
+                          {nomeExercicio(alternative)}
+                        </span>
+                        <span className="block text-xs font-semibold capitalize text-muted2">
+                          {equipamentoExercicio(alternative)}
+                        </span>
+                      </span>
+                      <span className="text-muted2">›</span>
+                    </button>
                   ))}
                 </div>
-              </div>
+              </section>
             )}
 
-            {ex.attribution && (
-              <p className="text-center text-[10px] text-faint">{ex.attribution}</p>
-            )}
+            {exercise.attribution && <p className="text-center text-[10px] text-faint">{exercise.attribution}</p>}
           </>
         )}
       </div>
-    </div>
-  );
-}
-
-function InfoTile({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-2xl border border-line bg-card px-4 py-3 text-center">
-      <p className="text-[11px] font-extrabold uppercase tracking-wide text-muted2">
-        {label}
-      </p>
-      <p className="mt-0.5 font-display text-lg font-extrabold capitalize">
-        {value}
-      </p>
-    </div>
+    </>
   );
 }

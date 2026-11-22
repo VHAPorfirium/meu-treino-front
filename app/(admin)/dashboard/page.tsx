@@ -2,8 +2,12 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import type { ProgressSummary } from '@/lib/types';
-import { workoutLogsApi } from '@/lib/api/endpoints';
+import type { AttentionItem, ProgressSummary, TrainingProgram } from '@/lib/types';
+import { programsApi, workoutLogsApi } from '@/lib/api/endpoints';
+import { useAuth } from '@/lib/auth/auth-context';
+import { greetingForHour } from '@/lib/trainee/workout-history';
+import { AttentionPanel } from '@/components/dashboard/attention-panel';
+import { ProgramsInProgressPanel } from '@/components/dashboard/programs-in-progress-panel';
 import { PageHead } from '@/components/dashboard/page-head';
 import { FiltroAluno, useNomeAluno } from '@/components/dashboard/filtro-aluno';
 
@@ -15,6 +19,25 @@ export default function DashboardHome() {
   // '' = todos os alunos juntos (agregado)
   const [alunoId, setAlunoId] = useState('');
   const nomeAluno = useNomeAluno(alunoId);
+  const { user } = useAuth();
+  const [attentionItems, setAttentionItems] = useState<AttentionItem[] | null>(null);
+  const [programs, setPrograms] = useState<TrainingProgram[] | null>(null);
+
+  useEffect(() => {
+    workoutLogsApi.attention().then(setAttentionItems).catch(() => setAttentionItems([]));
+    programsApi.list().then(setPrograms).catch(() => setPrograms([]));
+  }, []);
+
+  // com um aluno filtrado, os blocos laterais mostram só ele
+  const visibleAttentionItems = alunoId
+    ? (attentionItems ?? []).filter((attentionItem) => attentionItem.userId === alunoId)
+    : attentionItems;
+  const visiblePrograms = alunoId
+    ? (programs ?? []).map((program) => ({
+        ...program,
+        assignments: program.assignments.filter((assignment) => assignment.userId === alunoId),
+      }))
+    : programs;
 
   useEffect(() => {
     let cancelado = false;
@@ -66,17 +89,27 @@ export default function DashboardHome() {
   return (
     <>
       <PageHead
-        eyebrow="Acompanhamento"
+        eyebrow={new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' })}
         title={
-          nomeAluno ? `Evolução · ${nomeAluno.split(' ')[0]}` : 'Evolução dos alunos'
+          nomeAluno
+            ? `Acompanhando ${nomeAluno.split(' ')[0]}`
+            : `${greetingForHour(new Date().getHours())}, ${user?.name.split(' ')[0] ?? ''} 👋`
         }
         actions={
-          <Link
-            href="/dashboard/treinos"
-            className="rounded-xl bg-brand px-4 py-2.5 text-sm font-extrabold text-white shadow-brand"
-          >
-            + Novo treino
-          </Link>
+          <>
+            <Link
+              href="/dashboard/alunos"
+              className="rounded-xl bg-chip px-4 py-2.5 text-sm font-extrabold text-ink"
+            >
+              ✉ Enviar recado
+            </Link>
+            <Link
+              href="/dashboard/treinos"
+              className="rounded-xl bg-brand px-4 py-2.5 text-sm font-extrabold text-white shadow-brand"
+            >
+              + Novo treino
+            </Link>
+          </>
         }
       />
 
@@ -169,6 +202,9 @@ export default function DashboardHome() {
               </div>
 
               <div className="space-y-5">
+                <AttentionPanel attentionItems={visibleAttentionItems} />
+                <ProgramsInProgressPanel programs={visiblePrograms} />
+
                 <div className="rounded-2xl border border-line bg-card p-5">
                   <h2 className="mb-4 text-base font-extrabold">
                     Mais pulados e trocados

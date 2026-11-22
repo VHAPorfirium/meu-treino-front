@@ -5,6 +5,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import type {
   AlternativeExercise,
+  LastPerformance,
   PatchExercisePayload,
   SetLogInput,
   TodayExercise,
@@ -28,8 +29,15 @@ const STRIPE =
 
 type SetRow = { weight: string; reps: string };
 
-/** Linhas de série iniciais: do log (se houver) ou N vazias conforme o treino. */
-function initialRows(item: TodayExercise, log?: WorkoutExerciseLog): SetRow[] {
+/**
+ * Linhas de série iniciais: do log (se houver) ou N linhas conforme o treino,
+ * já com a carga sugerida pela "última vez" quando existir.
+ */
+function initialRows(
+  item: TodayExercise,
+  log?: WorkoutExerciseLog,
+  suggestedWeight?: number | null,
+): SetRow[] {
   if (log?.sets && log.sets.length) {
     return log.sets.map((s) => ({
       weight: s.weight != null ? String(s.weight) : '',
@@ -38,7 +46,12 @@ function initialRows(item: TodayExercise, log?: WorkoutExerciseLog): SetRow[] {
   }
   const n = Math.max(1, item.sets);
   return Array.from({ length: n }, () => ({
-    weight: log?.loadUsed != null ? String(log.loadUsed) : '',
+    weight:
+      log?.loadUsed != null
+        ? String(log.loadUsed)
+        : suggestedWeight != null
+          ? String(suggestedWeight)
+          : '',
     reps: '',
   }));
 }
@@ -63,6 +76,8 @@ export function ExerciseCard({
   onTimer,
   rascunho,
   onRascunho,
+  lastPerformance,
+  isCurrent = false,
 }: {
   item: TodayExercise;
   log?: WorkoutExerciseLog;
@@ -76,8 +91,12 @@ export function ExerciseCard({
   rascunho?: RascunhoExercicio;
   /** E13 — avisa cada digitação pro pai gravar o rascunho (com atraso) */
   onRascunho?: (weId: string, dados: RascunhoExercicio) => void;
+  /** Como o aluno fez este exercício da última vez + carga sugerida para hoje. */
+  lastPerformance?: LastPerformance;
+  /** Exercício da vez: fica destacado e já abre com as séries. */
+  isCurrent?: boolean;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(isCurrent);
   const [showAlts, setShowAlts] = useState(false);
   const [showSkip, setShowSkip] = useState(false);
   const [activeRowIdx, setActiveRowIdx] = useState<number>(0);
@@ -85,7 +104,7 @@ export function ExerciseCard({
 
   // E13 — o rascunho vence: ele é mais NOVO que o log
   const [rows, setRows] = useState<SetRow[]>(
-    () => rascunho?.linhas ?? initialRows(item, log),
+    () => rascunho?.linhas ?? initialRows(item, log, lastPerformance?.suggestedWeight),
   );
 
   // E10 — no modo TIME o registro é um bloco de minutos
@@ -200,7 +219,11 @@ export function ExerciseCard({
   const filledCount = rows.filter((r) => r.weight.trim() || r.reps.trim()).length;
 
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-line bg-card shadow-sm transition">
+    <div
+      className={`relative overflow-hidden rounded-2xl border bg-card shadow-sm transition ${
+        isCurrent ? 'border-2 border-brand' : 'border-line'
+      }`}
+    >
       <div className="absolute bottom-0 left-0 top-0 w-[5px]" style={{ background: bar }} />
 
       <div className="flex items-center gap-3 p-3 pl-4">
@@ -240,6 +263,7 @@ export function ExerciseCard({
             {item.restSeconds ? ` · ${item.restSeconds}s desc.` : ''}
             <span className="capitalize"> · {equipamentoExercicio(item.exercise)}</span>
           </p>
+          {lastPerformance && <LastPerformanceLine lastPerformance={lastPerformance} isTimeMode={ehTempo} />}
           {replaced && (
             <p className="mt-1 text-xs font-bold text-replace">
               ⇄ trocado por <span className="capitalize">{replaced.name}</span>
@@ -546,4 +570,43 @@ export function ExerciseCard({
       )}
     </div>
   );
+}
+
+/** "Última vez: 40 kg × 12 · tente 42,5 kg" */
+function LastPerformanceLine({
+  lastPerformance,
+  isTimeMode,
+}: {
+  lastPerformance: LastPerformance;
+  isTimeMode: boolean;
+}) {
+  const heaviestSet = [...lastPerformance.sets]
+    .filter((performedSet) => performedSet.weight != null)
+    .sort((first, second) => (second.weight ?? 0) - (first.weight ?? 0))[0];
+
+  const lastPerformanceDescription = isTimeMode
+    ? lastPerformance.totalSeconds
+      ? `${Math.round(lastPerformance.totalSeconds / 60)} min`
+      : null
+    : heaviestSet
+      ? `${formatWeight(heaviestSet.weight)} kg${heaviestSet.reps ? ` × ${heaviestSet.reps}` : ''}`
+      : lastPerformance.loadUsed != null
+        ? `${formatWeight(lastPerformance.loadUsed)} kg`
+        : null;
+
+  if (!lastPerformanceDescription) return null;
+
+  return (
+    <p className="mt-1.5 rounded-lg bg-chip px-2 py-1 text-xs font-bold text-muted">
+      <span className="text-muted2">Última vez:</span> {lastPerformanceDescription}
+      {lastPerformance.suggestionKind === 'increase' && lastPerformance.suggestedWeight != null && (
+        <span className="text-done"> · tente {formatWeight(lastPerformance.suggestedWeight)} kg</span>
+      )}
+    </p>
+  );
+}
+
+/** 42.5 → "42,5" */
+function formatWeight(weight: number | null): string {
+  return weight == null ? '' : weight.toLocaleString('pt-BR', { maximumFractionDigits: 1 });
 }

@@ -1,6 +1,9 @@
 import { api } from './client';
 import { TTL_CATALOGO, lembrar } from './cache-modulo';
 import type {
+  AttentionItem,
+  ExerciseStats,
+  LastPerformanceByWorkoutExerciseId,
   AddExerciseBatchItem,
   AlternativeExercise,
   CompletedWorkoutLog,
@@ -37,6 +40,8 @@ export const usersApi = {
   // ADMIN — fonte do select "pra quem é o treino"
   list: (params: { role?: 'ADMIN' | 'TRAINEE' } = {}) =>
     api.get<UserSummary[]>(`/users${params.role ? `?role=${params.role}` : ''}`),
+  /** ADMIN — cadastra um aluno (o PIN precisa ser único: é ele que identifica no login) */
+  createTrainee: (payload: { name: string; pin: string }) => api.post<UserSummary>('/users', payload),
 };
 
 export const exercisesApi = {
@@ -67,6 +72,9 @@ export const exercisesApi = {
       api.get<EquipamentoOpcao[]>('/exercises/equipment'),
     ),
   get: (id: string) => api.get<Exercise>(`/exercises/${id}`),
+  favorites: () => api.get<Exercise[]>('/exercises/favorites'),
+  favorite: (exerciseId: string) => api.put<{ favorite: boolean }>(`/exercises/${exerciseId}/favorite`),
+  unfavorite: (exerciseId: string) => api.delete<{ favorite: boolean }>(`/exercises/${exerciseId}/favorite`),
   alternatives: (id: string) =>
     api.get<AlternativeExercise[]>(`/exercises/${id}/alternatives`),
 };
@@ -84,6 +92,8 @@ export const workoutsApi = {
       `/workouts/today${dayOfWeek !== undefined ? `?dayOfWeek=${dayOfWeek}` : ''}`,
     ),
   mine: () => api.get<Workout[]>('/workouts/mine'),
+  /** Treino escolhido pelo aluno + sessão do dia (mesmo formato do `today`). */
+  session: (workoutId: string) => api.get<TodayResponse>(`/workouts/${workoutId}/session`),
 
   // gestão (admin)
   list: () => api.get<Workout[]>('/workouts'),
@@ -149,6 +159,13 @@ export const workoutLogsApi = {
   complete: (logId: string) =>
     api.patch<CompletedWorkoutLog>(`/workout-logs/${logId}/complete`),
   history: () => api.get<HistoryEntry[]>('/workout-logs/history'),
+  lastPerformance: (workoutId: string) =>
+    api.get<LastPerformanceByWorkoutExerciseId>(
+      `/workout-logs/last-performance?workoutId=${encodeURIComponent(workoutId)}`,
+    ),
+  exerciseStats: (exerciseId: string) =>
+    api.get<ExerciseStats>(`/workout-logs/exercise-stats/${exerciseId}`),
+  attention: () => api.get<AttentionItem[]>('/workout-logs/attention'),
   myHistory: () => api.get<HistoryEntry[]>('/workout-logs/my-history'),
   /** Sem `userId` = agregado de todos os alunos; com `userId` = só aquele aluno. */
   progress: (userId?: string) =>
@@ -205,6 +222,12 @@ export const programsApi = {
   remove: (programId: string) => api.delete<{ ok: boolean }>(`/programs/${programId}`),
   assign: (programId: string, userIds: string[]) =>
     api.post<TrainingProgram>(`/programs/${programId}/assignments`, { userIds }),
+  currentOfUser: (userId: string) =>
+    api
+      .get<{ currentProgram: CurrentProgram | null }>(`/programs/users/${userId}/current`)
+      .then((response) => response.currentProgram),
+  achievementsOfUser: (userId: string) =>
+    api.get<ProgramAchievement[]>(`/programs/users/${userId}/achievements`),
   archiveAssignment: (assignmentId: string) =>
     api.patch<{ ok: boolean }>(`/programs/assignments/${assignmentId}/archive`),
 };

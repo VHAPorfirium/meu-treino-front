@@ -16,6 +16,16 @@ import { PageHead } from '@/components/dashboard/page-head';
 import { ExerciseBrowser } from '@/components/dashboard/exercise-browser';
 import { AssigneeSelect } from '@/components/dashboard/assignee-select';
 import { SortableExerciseList } from '@/components/dashboard/sortable-exercise-list';
+import { useMediaQuery } from '@/lib/hooks/use-media-query';
+import { PROGRAM_TYPE_RULES } from '@/lib/programs/program-type-rules';
+
+type WorkoutListFilter = 'all' | 'in-program' | 'standalone';
+
+const WORKOUT_LIST_FILTERS: { value: WorkoutListFilter; label: string }[] = [
+  { value: 'all', label: 'Todos' },
+  { value: 'in-program', label: 'Em programa' },
+  { value: 'standalone', label: 'Avulsos' },
+];
 
 const DAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 
@@ -31,6 +41,19 @@ export default function TreinosPage() {
   const [day, setDay] = useState<number | ''>('');
   const [picker, setPicker] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [searchText, setSearchText] = useState('');
+  const [listFilter, setListFilter] = useState<WorkoutListFilter>('all');
+  // no desktop o editor fica ao lado da lista; no celular, abre embaixo do treino
+  const isWideScreen = useMediaQuery('(min-width: 1024px)');
+
+  const visibleWorkouts = workouts.filter((workout) => {
+    const matchesSearch = workout.name
+      .toLocaleLowerCase('pt-BR')
+      .includes(searchText.trim().toLocaleLowerCase('pt-BR'));
+    const matchesFilter =
+      listFilter === 'all' || (listFilter === 'in-program' ? Boolean(workout.program) : !workout.program);
+    return matchesSearch && matchesFilter;
+  });
 
   const refresh = useCallback(async () => {
     setWorkouts(await workoutsApi.list());
@@ -82,7 +105,7 @@ export default function TreinosPage() {
         }
       />
 
-      <div className="mx-auto max-w-3xl space-y-3 p-6 md:p-8">
+      <div className="mx-auto max-w-6xl space-y-3 p-6 md:p-8">
         {error && (
           <div className="rounded-2xl border border-line bg-card p-3 text-sm font-semibold text-brand">
             {error}{' '}
@@ -123,57 +146,120 @@ export default function TreinosPage() {
           </div>
         )}
 
-        {workouts.map((w, idx) => (
-          <div key={w.id} className="rounded-2xl border border-line bg-card p-4">
-            <button
-              className="flex w-full items-center gap-4"
-              onClick={() => (detail?.id === w.id ? setDetail(null) : openDetail(w.id))}
-            >
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-chip font-display text-base font-extrabold text-ink">
-                {String.fromCharCode(65 + (idx % 26))}
-              </div>
-              <div className="min-w-0 flex-1 text-left">
-                <p className="truncate font-extrabold">{w.name}</p>
-                <p className="text-[13px] font-semibold text-muted2">
-                  {w.dayOfWeek != null ? DAYS[w.dayOfWeek] : 'Sem dia fixo'}
-                  {w._count ? ` · ${w._count.exercises} exercícios` : ''}
-                  {w.assignees && w.assignees.length > 0
-                    ? ` · ${w.assignees.map((a) => a.name.split(' ')[0]).join(', ')}`
-                    : ' · sem aluno'}
-                  {w.program ? ` · ${w.program.name}` : ''}
-                </p>
-              </div>
-              <span
-                className={`shrink-0 rounded-full px-3 py-1 text-xs font-extrabold ${
-                  w.active ? 'bg-done-bg text-done-ink' : 'bg-chip text-muted'
-                }`}
-              >
-                {w.active ? 'Ativo' : 'Inativo'}
-              </span>
-              <span className="text-muted2">{detail?.id === w.id ? '▲' : '▼'}</span>
-            </button>
+        <div className="grid gap-4 lg:grid-cols-[340px_1fr]">
+          <div className="space-y-2.5 lg:self-start">
+            <input
+              value={searchText}
+              onChange={(event) => setSearchText(event.target.value)}
+              placeholder="🔍 Buscar treino"
+              className="w-full rounded-xl border border-line bg-card px-3.5 py-2.5 text-sm font-semibold text-ink placeholder:text-muted2 focus:border-brand focus:outline-none"
+            />
+            <div className="flex flex-wrap gap-1.5">
+              {WORKOUT_LIST_FILTERS.map((workoutListFilter) => (
+                <DayChip
+                  key={workoutListFilter.value}
+                  active={listFilter === workoutListFilter.value}
+                  onClick={() => setListFilter(workoutListFilter.value)}
+                  label={workoutListFilter.label}
+                />
+              ))}
+            </div>
 
-            {detail?.id === w.id && (
-              <WorkoutEditor
-                detail={detail}
-                onChanged={async (d) => {
-                  setDetail(d);
-                  await refresh();
-                }}
-                onDeleted={async () => {
-                  setDetail(null);
-                  await refresh();
-                }}
-                onAddExercise={() => setPicker(true)}
-                onError={setError}
-              />
+            {visibleWorkouts.map((w) => {
+              const isSelected = detail?.id === w.id;
+              return (
+                <div
+                  key={w.id}
+                  className={`rounded-2xl border bg-card p-3 ${isSelected ? 'border-2 border-brand' : 'border-line'}`}
+                >
+                  <button
+                    className="flex w-full items-center gap-3 text-left"
+                    onClick={() => (isSelected ? setDetail(null) : openDetail(w.id))}
+                  >
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-chip font-display text-base font-extrabold text-ink">
+                      {String.fromCharCode(65 + (workouts.indexOf(w) % 26))}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-extrabold">{w.name}</p>
+                      <p className="truncate text-xs font-bold text-muted2">
+                        {w.program
+                          ? `${PROGRAM_TYPE_RULES[w.program.type].icon} ${w.program.name}`
+                          : 'Avulso'}
+                        {w._count ? ` · ${w._count.exercises} ex.` : ''}
+                        {w.dayOfWeek != null ? ` · ${DAYS[w.dayOfWeek]}` : ''}
+                        {w.assignees && w.assignees.length > 0
+                          ? ` · ${w.assignees.map((a) => a.name.split(' ')[0]).join(', ')}`
+                          : ' · sem aluno'}
+                      </p>
+                    </div>
+                    <span
+                      className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-extrabold ${
+                        w.active ? 'bg-done-bg text-done-ink' : 'bg-chip text-muted'
+                      }`}
+                    >
+                      {w.active ? 'Ativo' : 'Inativo'}
+                    </span>
+                  </button>
+
+                  {isSelected && detail && !isWideScreen && (
+                    <WorkoutEditor
+                      detail={detail}
+                      onChanged={async (d) => {
+                        setDetail(d);
+                        await refresh();
+                      }}
+                      onDeleted={async () => {
+                        setDetail(null);
+                        await refresh();
+                      }}
+                      onAddExercise={() => setPicker(true)}
+                      onError={setError}
+                    />
+                  )}
+                </div>
+              );
+            })}
+
+            {workouts.length === 0 && !creating && !error && (
+              <p className="py-10 text-center text-muted2">Nenhum treino criado ainda.</p>
+            )}
+            {workouts.length > 0 && visibleWorkouts.length === 0 && (
+              <p className="py-6 text-center text-sm text-muted2">Nenhum treino com esse filtro.</p>
             )}
           </div>
-        ))}
 
-        {workouts.length === 0 && !creating && !error && (
-          <p className="py-10 text-center text-muted2">Nenhum treino criado ainda.</p>
-        )}
+          {isWideScreen && (
+            <div className="lg:sticky lg:top-6 lg:self-start">
+              {detail ? (
+                <div className="rounded-2xl border border-line bg-card p-5">
+                  <p className="text-xs font-bold text-muted2">
+                    {detail.program
+                      ? `Programa: ${PROGRAM_TYPE_RULES[detail.program.type].icon} ${detail.program.name}`
+                      : 'Treino avulso (fora de programa)'}
+                  </p>
+                  <WorkoutEditor
+                    detail={detail}
+                    onChanged={async (d) => {
+                      setDetail(d);
+                      await refresh();
+                    }}
+                    onDeleted={async () => {
+                      setDetail(null);
+                      await refresh();
+                    }}
+                    onAddExercise={() => setPicker(true)}
+                    onError={setError}
+                  />
+                </div>
+              ) : (
+                <div className="rounded-2xl border border-dashed border-line3 p-10 text-center text-muted2">
+                  <p className="text-3xl">📋</p>
+                  <p className="mt-2 font-semibold">Selecione um treino para editar</p>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {picker && detail && (

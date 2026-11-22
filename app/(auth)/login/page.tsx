@@ -48,13 +48,13 @@ export default function LoginPage() {
   return (
     <div className="app-shell safe-top items-center px-7 pb-8 select-none">
       <div className="mt-14 flex flex-col items-center">
-        <div className="font-display text-[15px] font-bold uppercase tracking-[0.2em] text-brand">
+        <div className="font-display text-[30px] font-extrabold uppercase tracking-[0.22em] text-brand">
           Ritmo
         </div>
-        <h1 className="mt-4 font-display text-[34px] font-extrabold tracking-tight text-ink">
-          Bora treinar
+        <h1 className="mt-6 text-center font-display text-[24px] font-extrabold tracking-tight text-ink">
+          Que bom te ver de novo 👋
         </h1>
-        <p className="mt-1 text-sm text-muted2">Digite seu PIN para entrar</p>
+        <p className="mt-1 text-sm font-semibold text-muted2">Digite seu PIN para entrar</p>
       </div>
 
       <div className="mt-8 flex gap-4">
@@ -83,8 +83,10 @@ export default function LoginPage() {
         ))}
         <Key label="⌫" muted onClick={() => press('del')} />
         <Key label="0" onClick={() => press('0')} />
-        <Key label={busy ? '…' : 'OK'} primary onClick={submit} disabled={busy} />
+        <Key label={busy ? '…' : '→'} primary onClick={submit} disabled={busy} />
       </div>
+
+      <p className="mt-7 text-center text-xs font-bold text-muted2">Esqueceu o PIN? Fale com seu personal</p>
     </div>
   );
 }

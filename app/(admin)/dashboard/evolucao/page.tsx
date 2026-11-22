@@ -58,6 +58,14 @@ export default function EvolucaoPage() {
     }));
   }, [data, exercise]);
 
+  // variação entre a primeira e a última carga do exercício escolhido
+  const firstLoad = loadSeries[0]?.value;
+  const lastLoad = loadSeries[loadSeries.length - 1]?.value;
+  const loadDifference = firstLoad && lastLoad && loadSeries.length > 1 ? lastLoad - firstLoad : null;
+  const loadDifferencePercentage =
+    loadDifference !== null && firstLoad ? Math.round((loadDifference / firstLoad) * 100) : null;
+  const weeklyTarget = Math.round((data?.sessions.target ?? 16) / 4);
+
   return (
     <>
       <PageHead
@@ -73,7 +81,10 @@ export default function EvolucaoPage() {
         {data && (
           <>
             <div className="grid gap-5 lg:grid-cols-2">
-              <Panel title="Frequência por semana">
+              <Panel
+                title="Frequência por semana"
+                action={<span className="text-xs font-bold text-muted2">meta: {weeklyTarget}/semana</span>}
+              >
                 <BarChart data={freqBars} />
               </Panel>
 
@@ -96,6 +107,14 @@ export default function EvolucaoPage() {
                 }
               >
                 <LineChart points={loadSeries} />
+                {loadDifference !== null && (
+                  <p className={`mt-3 text-sm font-extrabold ${loadDifference >= 0 ? 'text-done' : 'text-skip'}`}>
+                    {loadDifference >= 0 ? '▲' : '▼'} {loadDifference >= 0 ? '+' : ''}
+                    {loadDifference.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} kg
+                    {loadDifferencePercentage !== null ? ` (${loadDifferencePercentage >= 0 ? '+' : ''}${loadDifferencePercentage}%)` : ''}{' '}
+                    no período
+                  </p>
+                )}
               </Panel>
             </div>
 

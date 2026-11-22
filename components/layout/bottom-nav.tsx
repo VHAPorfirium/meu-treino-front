@@ -7,14 +7,22 @@ import { triggerHaptic } from '@/lib/haptics';
 export function BottomNav({
   items,
 }: {
-  items: { href: string; label: string; icon: string }[];
+  /** `alsoActiveFor`: outras rotas que acendem este item (ex.: histórico → Treinos). */
+  items: { href: string; label: string; icon: string; alsoActiveFor?: string[] }[];
 }) {
   const pathname = usePathname();
 
-  // ativo = item cujo href é o prefixo MAIS LONGO da rota atual
+  // ativo = item cujo href (ou rota extra) é o prefixo MAIS LONGO da rota atual
+  const matchesRoute = (route: string) => pathname === route || pathname.startsWith(route + '/');
   const activeHref = items
-    .filter((it) => pathname === it.href || pathname.startsWith(it.href + '/'))
-    .sort((a, b) => b.href.length - a.href.length)[0]?.href;
+    .map((it) => ({
+      href: it.href,
+      matchedLength: Math.max(
+        ...[it.href, ...(it.alsoActiveFor ?? [])].map((route) => (matchesRoute(route) ? route.length : -1)),
+      ),
+    }))
+    .filter((candidate) => candidate.matchedLength >= 0)
+    .sort((a, b) => b.matchedLength - a.matchedLength)[0]?.href;
 
   return (
     <nav className="safe-bottom sticky bottom-0 z-20 border-t border-line bg-paper/95 backdrop-blur transition-colors">

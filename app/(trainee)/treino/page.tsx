@@ -1,464 +1,335 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { type ReactNode, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import type {
-  CurrentProgram,
-  PatchExercisePayload,
-  ProgramReport,
-  TodayResponse,
-  WorkoutExerciseLog,
-  WorkoutLog,
-} from '@/lib/types';
-import { notesApi, programsApi, workoutLogsApi, workoutsApi } from '@/lib/api/endpoints';
-import { ApiError } from '@/lib/api/client';
-import { enqueueAndSend, flush, onPendingChange, wireAutoFlush } from '@/lib/offline/queue';
+import type { HistoryEntry, TodayResponse, Workout } from '@/lib/types';
+import { notesApi, workoutLogsApi, workoutsApi } from '@/lib/api/endpoints';
+import { useAuth } from '@/lib/auth/auth-context';
+import { useCurrentProgram } from '@/lib/programs/use-current-program';
+import { PROGRAM_TYPE_RULES } from '@/lib/programs/program-type-rules';
 import {
-  carregarRascunho,
-  descartarRascunho,
-  salvarExercicio,
-  salvarTimer,
-  type RascunhoExercicio,
-} from '@/lib/offline/rascunho';
-import { useWakeLock } from '@/lib/hooks/use-wake-lock';
+  collectCompletedDayKeys,
+  describeExerciseCount,
+  describeLastCompletion,
+  findLastCompletionByWorkoutId,
+  greetingForHour,
+  longWeekdayLabel,
+  shortWeekdayLabel,
+  workoutLetter,
+} from '@/lib/trainee/workout-history';
 import { AppHeader } from '@/components/layout/app-header';
-import { Button } from '@/components/ui/button';
-import { ExerciseCard } from '@/components/workout/exercise-card';
-import { RestTimer } from '@/components/workout/rest-timer';
-import { PushOptIn } from '@/components/layout/push-opt-in';
 import { ConnectionStatus } from '@/components/layout/connection-status';
 import { PwaInstallBanner } from '@/components/layout/pwa-install-banner';
-import { triggerHaptic } from '@/lib/haptics';
-import { unlockAudio } from '@/lib/audio';
-import { ProgramProgressBanner } from '@/components/programs/program-progress-banner';
-import { ChallengeCompletedCelebration } from '@/components/programs/challenge-completed-celebration';
+import { PushOptIn } from '@/components/layout/push-opt-in';
+import { SegmentedControl } from '@/components/ui/segmented-control';
+import { WeekStrip } from '@/components/trainee/week-strip';
+import { SectionTitle } from '@/components/trainee/section-title';
+import { Pill, WorkoutListItem } from '@/components/trainee/workout-list-item';
+import { WorkoutTile } from '@/components/trainee/workout-tile';
+import { ProgramHeroCard } from '@/components/trainee/program-hero-card';
 import {
-  markAchievementAsCelebrated,
-  wasAchievementCelebrated,
-} from '@/lib/programs/celebration-memory';
+  type RecommendedWorkout,
+  RecommendedWorkoutCard,
+} from '@/components/trainee/recommended-workout-card';
+import { ChallengeCompletedCelebration } from '@/components/programs/challenge-completed-celebration';
 
-/** '2026-09-21' -> 'segunda, 21/09' */
-function rotuloData(iso: string): string {
-  const [ano, mes, dia] = iso.split('-').map(Number);
-  const d = new Date(ano, mes - 1, dia);
-  return d.toLocaleDateString('pt-BR', {
-    weekday: 'long',
-    day: '2-digit',
-    month: '2-digit',
-  });
-}
+type HomeTab = 'program' | 'others';
 
 const TODAY_LABEL = () =>
-  new Date().toLocaleDateString('pt-BR', {
-    weekday: 'long',
-    day: '2-digit',
-    month: 'long',
-  });
+  new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' });
 
-export default function TreinoPage() {
-  const [data, setData] = useState<TodayResponse | null>(null);
-  const [log, setLog] = useState<WorkoutLog | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [pendingOps, setPendingOps] = useState(0);
-  const [pendingWe, setPendingWe] = useState<Set<string>>(new Set());
-  const [timer, setTimer] = useState<
-    { seconds: number; label: string; terminaEm?: number } | null
-  >(null);
-  // E13 — o que ela digitou e o app morreu antes de salvar
-  const [rascunhos, setRascunhos] = useState<Record<string, RascunhoExercicio>>({});
-  const [rascunhoPronto, setRascunhoPronto] = useState(false);
-  const [unreadNotes, setUnreadNotes] = useState(0);
-  // Programas — banner de "Dia X de Y" e comemoração ao concluir mesociclo/desafio
-  const [currentProgram, setCurrentProgram] = useState<CurrentProgram | null>(null);
-  const [celebration, setCelebration] = useState<
-    { assignmentId: string; programReport: ProgramReport } | null
-  >(null);
-
-  /**
-   * Busca o programa atual. Se ele acabou de ser concluído (aqui, em outro
-   * aparelho ou numa finalização que estava offline) e a conquista ainda não foi
-   * comemorada neste aparelho, abre a comemoração. Falha aqui nunca trava o treino.
-   */
-  const loadCurrentProgram = useCallback(async () => {
-    try {
-      const loadedProgram = await programsApi.current();
-      setCurrentProgram(loadedProgram);
-      if (
-        loadedProgram?.status === 'COMPLETED' &&
-        loadedProgram.report &&
-        !wasAchievementCelebrated(loadedProgram.assignmentId)
-      ) {
-        setCelebration({
-          assignmentId: loadedProgram.assignmentId,
-          programReport: loadedProgram.report,
-        });
-      }
-    } catch {
-      /* sem rede: o banner só não aparece */
-    }
-  }, []);
-
-  function openAchievementOfCurrentProgram() {
-    if (currentProgram?.report) {
-      setCelebration({
-        assignmentId: currentProgram.assignmentId,
-        programReport: currentProgram.report,
-      });
-    }
-  }
-
-  function closeCelebration() {
-    if (celebration) markAchievementAsCelebrated(celebration.assignmentId);
-    setCelebration(null);
-  }
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await workoutsApi.today(new Date().getDay());
-      setData(res);
-      setLog(res.workoutLog);
-    } catch (e) {
-      setError(
-        e instanceof ApiError
-          ? `Não foi possível carregar o treino (${e.message}).`
-          : 'Sem conexão — o treino de hoje não pôde ser carregado.',
-      );
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+/**
+ * Tela inicial do aluno: o treino recomendado do dia e a escolha do que fazer.
+ * Em desafio/mesociclo há duas abas (o programa e os treinos avulsos); no treino
+ * contínuo, um card com o recomendado e os outros treinos em grade.
+ */
+export default function TraineeHomePage() {
+  const { user } = useAuth();
+  const [todayResponse, setTodayResponse] = useState<TodayResponse | null>(null);
+  const [assignedWorkouts, setAssignedWorkouts] = useState<Workout[] | null>(null);
+  const [historyEntries, setHistoryEntries] = useState<HistoryEntry[]>([]);
+  const [unreadNotesCount, setUnreadNotesCount] = useState(0);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [selectedTab, setSelectedTab] = useState<HomeTab>('program');
+  const {
+    currentProgram,
+    celebration,
+    loadCurrentProgram,
+    openAchievementOfCurrentProgram,
+    closeCelebration,
+  } = useCurrentProgram();
 
   useEffect(() => {
-    load();
-    void loadCurrentProgram();
-    wireAutoFlush();
-    const off = onPendingChange((n) => {
-      setPendingOps(n);
-      if (n === 0) setPendingWe(new Set());
-    });
+    workoutsApi
+      .today(new Date().getDay())
+      .then(setTodayResponse)
+      .catch(() => setErrorMessage('Sem conexão — não foi possível carregar seus treinos.'));
+    workoutsApi
+      .mine()
+      .then(setAssignedWorkouts)
+      .catch(() => setAssignedWorkouts([]));
+    workoutLogsApi.myHistory().then(setHistoryEntries).catch(() => {});
     notesApi
       .mine()
-      .then((r) => setUnreadNotes(r.unread))
+      .then((notesResponse) => setUnreadNotesCount(notesResponse.unread))
       .catch(() => {});
-    return () => {
-      off();
-    };
-  }, [load, loadCurrentProgram]);
+    void loadCurrentProgram();
+  }, [loadCurrentProgram]);
 
-  /**
-   * E13 — ao (re)montar com uma sessão aberta, recupera o rascunho: o que foi
-   * digitado sem salvar e o descanso que estava correndo. O timer é retomado
-   * pelo **instante absoluto**, então volta com o tempo certo, não do zero.
-   */
-  useEffect(() => {
-    // sem sessão aberta não há rascunho a recuperar — libera a lista na hora
-    if (!log?.id || log.completed) {
-      setRascunhoPronto(true);
-      return;
-    }
-    let cancelado = false;
-    void carregarRascunho(log.id).then((r) => {
-      if (cancelado || !r) {
-        setRascunhoPronto(true);
-        return;
-      }
-      setRascunhos(r.exercicios ?? {});
-      if (r.timerTerminaEm && r.timerTerminaEm > Date.now()) {
-        setTimer({
-          seconds: Math.ceil((r.timerTerminaEm - Date.now()) / 1000),
-          label: r.timerRotulo ?? 'Descanso',
-          terminaEm: r.timerTerminaEm,
-        });
-      }
-      setRascunhoPronto(true);
-    });
-    return () => {
-      cancelado = true;
-    };
-  }, [log?.id, log?.completed]);
-
-  // E13 — grava cada digitação com atraso; a tela não pode esperar o IndexedDB
-  const gravar = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pendente = useRef<Record<string, RascunhoExercicio>>({});
-  const onRascunho = useCallback(
-    (weId: string, dados: RascunhoExercicio) => {
-      const logId = log?.id;
-      if (!logId) return;
-      pendente.current[weId] = { ...pendente.current[weId], ...dados };
-      if (gravar.current) clearTimeout(gravar.current);
-      gravar.current = setTimeout(() => {
-        const lote = pendente.current;
-        pendente.current = {};
-        for (const [id, d] of Object.entries(lote)) {
-          void salvarExercicio(logId, id, d);
-        }
-      }, 400);
-    },
-    [log?.id],
+  const completedDayKeys = useMemo(() => collectCompletedDayKeys(historyEntries), [historyEntries]);
+  const lastCompletionByWorkoutId = useMemo(
+    () => findLastCompletionByWorkoutId(historyEntries),
+    [historyEntries],
   );
 
-  // mantém a tela acesa durante o treino: ataca a CAUSA de o iOS matar o app
-  useWakeLock(Boolean(log) && !log?.completed);
+  const activeWorkouts = (assignedWorkouts ?? []).filter((workout) => workout.active);
+  const programWorkoutIds = new Set(currentProgram?.program.workouts.map((workout) => workout.id) ?? []);
+  const isInProgramWithDeadline = Boolean(currentProgram?.hasDeadline);
+  const programWorkouts = activeWorkouts.filter((workout) => programWorkoutIds.has(workout.id));
+  const otherWorkouts = activeWorkouts.filter((workout) => !programWorkoutIds.has(workout.id));
 
-  const logMap = useMemo(() => {
-    const m: Record<string, WorkoutExerciseLog> = {};
-    for (const e of log?.exerciseLogs ?? []) m[e.workoutExerciseId] = e;
-    return m;
-  }, [log]);
+  const todayWorkout = todayResponse?.workout ?? null;
+  const findWorkout = (workoutId: string) => activeWorkouts.find((workout) => workout.id === workoutId);
 
-  async function ensureLog(): Promise<WorkoutLog> {
-    if (log) return log;
-    const opened = await workoutLogsApi.open(data!.workout!.id);
-    setLog(opened);
-    return opened;
-  }
-
-  /** Marcação idempotente: tenta enviar; se estiver offline, fica na fila (E5). */
-  async function handlePatch(weId: string, payload: PatchExercisePayload) {
-    const current = await ensureLog();
-    const res = await enqueueAndSend({
-      method: 'PATCH',
-      path: `/workout-logs/${current.id}/exercises/${weId}`,
-      body: payload,
-      key: `patch:${current.id}:${weId}`, // a última marcação do exercício vence
-    });
-    setPendingWe((s) => {
-      const n = new Set(s);
-      if (res.queued) n.add(weId);
-      else n.delete(weId);
-      return n;
-    });
-    // atualiza o estado local (otimista) — vale tanto enviado quanto enfileirado
-    setLog((prev) => {
-      if (!prev) return prev;
-      const others = prev.exerciseLogs.filter((e) => e.workoutExerciseId !== weId);
-      const merged: WorkoutExerciseLog = {
-        id: logMap[weId]?.id ?? `local-${weId}`,
-        workoutExerciseId: weId,
-        status: payload.status,
-        actualExerciseId: payload.actualExerciseId ?? null,
-        loadUsed: payload.loadUsed ?? null,
-        setsCompleted: payload.setsCompleted ?? null,
-        note: payload.note ?? null,
-        sets: payload.sets?.map((s) => ({
-          setNumber: s.setNumber,
-          weight: s.weight ?? null,
-          reps: s.reps ?? null,
-        })),
+  /** No desafio, o recomendado precisa ser do desafio; senão vale o primeiro dele. */
+  function buildRecommendedWorkout(candidateWorkouts: Workout[]): RecommendedWorkout | null {
+    const todayWorkoutIsCandidate =
+      todayWorkout && candidateWorkouts.some((workout) => workout.id === todayWorkout.id);
+    if (todayWorkout && todayWorkoutIsCandidate) {
+      const assignedWorkout = findWorkout(todayWorkout.id);
+      return {
+        id: todayWorkout.id,
+        name: todayWorkout.name,
+        exerciseCountLabel: assignedWorkout ? describeExerciseCount(assignedWorkout) : '',
+        status: todayResponse?.status ?? 'nao_iniciado',
       };
-      return { ...prev, exerciseLogs: [...others, merged] };
-    });
-  }
-
-  async function start() {
-    unlockAudio();
-    triggerHaptic('success');
-    setBusy(true);
-    try {
-      await ensureLog();
-    } catch (e) {
-      // 409 (E9) = já concluído hoje em outro aparelho/aba. Recarrega em vez de
-      // insistir: a fonte da verdade é o servidor.
-      if (e instanceof ApiError && e.status === 409) {
-        setError(e.message);
-        await load();
-      } else {
-        setError(
-          e instanceof ApiError
-            ? e.message
-            : 'Sem conexão — conecte-se pra iniciar o treino.',
-        );
-      }
-    } finally {
-      setBusy(false);
     }
+    const firstCandidate = candidateWorkouts[0];
+    return firstCandidate
+      ? {
+          id: firstCandidate.id,
+          name: firstCandidate.name,
+          exerciseCountLabel: describeExerciseCount(firstCandidate),
+          status: 'nao_iniciado',
+        }
+      : null;
   }
 
-  async function complete() {
-    if (!log) return;
-    triggerHaptic('medium');
-    setBusy(true);
-    try {
-      // garante que marcações pendentes subam antes de fechar a sessão
-      const { left } = await flush();
-      if (left > 0) {
-        setError('Ainda há marcações aguardando rede. Conecte-se e tente de novo.');
-        return;
-      }
-      const done = await workoutLogsApi.complete(log.id);
-      triggerHaptic('success');
-      setLog({ ...log, completed: done.completed });
-      await descartarRascunho(); // E13 — sessão fechada, rascunho não ressuscita
-      setRascunhos({});
-      setTimer(null);
-      // recarrega pra pegar `status` e `proximaLiberacao` do servidor (E9)
-      await load();
-      // se este treino fechou o último dia do desafio/mesociclo, o programa
-      // volta como COMPLETED e a comemoração (com vibração forte) abre sozinha
-      await loadCurrentProgram();
-    } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Sem conexão — tente finalizar depois.');
-    } finally {
-      setBusy(false);
+  const firstName = user?.name.split(' ')[0] ?? '';
+  const isLoading = assignedWorkouts === null || (todayResponse === null && !errorMessage);
+  const programTabLabel = currentProgram
+    ? `${PROGRAM_TYPE_RULES[currentProgram.program.type].icon} ${PROGRAM_TYPE_RULES[currentProgram.program.type].label}`
+    : '';
+
+  function describeWorkoutBadge(workout: Workout, recommendedWorkoutId: string | undefined) {
+    if (workout.id === recommendedWorkoutId) return <Pill tone="brand">Hoje</Pill>;
+    const lastCompletion = lastCompletionByWorkoutId.get(workout.id);
+    const daysSinceLastCompletion = lastCompletion
+      ? (Date.now() - lastCompletion.getTime()) / (24 * 60 * 60 * 1000)
+      : Infinity;
+    if (lastCompletion && daysSinceLastCompletion < 7) {
+      return <Pill tone="done">✓ {shortWeekdayLabel(lastCompletion.getDay())}</Pill>;
     }
+    if (workout.dayOfWeek != null) return <Pill>{shortWeekdayLabel(workout.dayOfWeek)}</Pill>;
+    return <Pill>Livre</Pill>;
   }
-
-  const workout = data?.workout;
-  // E9 — o servidor é quem diz se o treino de hoje já foi concluído. O front não
-  // deduz mais isso da ausência de sessão (era o que fazia o treino "renascer").
-  const concluidoHoje = data?.status === 'concluido';
-  const total = workout?.exercises.length ?? 0;
-  const marked = log?.exerciseLogs.length ?? 0;
-  const pct = total ? Math.round((marked / total) * 100) : 0;
-  const pendingCount = total - marked;
 
   return (
     <>
-      <AppHeader eyebrow={TODAY_LABEL()} title={workout?.name ?? 'Treino de hoje'} />
+      <AppHeader eyebrow={TODAY_LABEL()} title={`${greetingForHour(new Date().getHours())}, ${firstName} 👋`} />
       <ConnectionStatus />
       <PwaInstallBanner />
 
-      <div className="space-y-3 p-5 pb-28">
-        {/* avisos: offline / recados */}
-        {pendingOps > 0 && (
-          <div className="rounded-2xl border border-line bg-card px-4 py-2.5 text-xs font-semibold text-muted">
-            ⏳ {pendingOps} marcaç{pendingOps > 1 ? 'ões' : 'ão'} salva{pendingOps > 1 ? 's' : ''} no
-            aparelho — envia sozinho quando a rede voltar.{' '}
-            <button onClick={() => void flush()} className="underline">
-              tentar agora
-            </button>
-          </div>
-        )}
-        {unreadNotes > 0 && (
+      <div className="space-y-3.5 p-5 pb-28">
+        {unreadNotesCount > 0 && (
           <Link
             href="/treino/recados"
-            className="block rounded-2xl border border-line bg-card px-4 py-2.5 text-sm font-bold text-ink"
+            className="block rounded-2xl border border-brand bg-card px-4 py-2.5 text-sm font-bold text-ink"
           >
-            📝 {unreadNotes} recado{unreadNotes > 1 ? 's' : ''} novo{unreadNotes > 1 ? 's' : ''} do
+            📝 {unreadNotesCount} recado{unreadNotesCount > 1 ? 's' : ''} novo{unreadNotesCount > 1 ? 's' : ''} do
             seu personal →
           </Link>
         )}
 
-        {currentProgram && (
-          <ProgramProgressBanner
-            currentProgram={currentProgram}
-            onOpenAchievement={openAchievementOfCurrentProgram}
-          />
-        )}
+        <WeekStrip completedDayKeys={completedDayKeys} />
 
-        {loading && <p className="py-10 text-center text-muted2">Carregando…</p>}
-        {error && (
+        {errorMessage && (
           <p className="rounded-2xl border border-line bg-card p-3 text-center text-sm font-semibold text-brand">
-            {error}
+            {errorMessage}
           </p>
         )}
+        {isLoading && !errorMessage && <p className="py-10 text-center text-muted2">Carregando…</p>}
 
-        {!loading && !error && !workout && (
-          <div className="py-16 text-center text-muted2">
+        {!isLoading && activeWorkouts.length === 0 && (
+          <div className="py-14 text-center text-muted2">
             <p className="text-4xl">🛌</p>
             <p className="mt-2 font-semibold">Nenhum treino atribuído a você.</p>
             <p className="mt-1 text-sm">Quando seu personal direcionar um treino, ele aparece aqui.</p>
           </div>
         )}
 
-        {workout && data?.isFallback && !log && (
-          <div className="rounded-2xl border border-skip bg-skip-bg px-4 py-3 text-sm font-semibold text-skip">
-            Sem treino marcado pra hoje — sugerido: <b>{workout.name}</b>.{' '}
-            <Link href="/treino/meus" className="underline">
-              Ver meus treinos
-            </Link>
-          </div>
-        )}
-
-        {workout && (
-          <div className="flex items-center justify-between rounded-2xl bg-inverse px-5 py-4">
-            <div>
-              <p className="text-[11px] font-bold uppercase tracking-wider text-on-inverse-muted">Progresso</p>
-              <p className="font-display text-[24px] font-extrabold text-on-inverse">
-                {marked} de {total} exercícios
-              </p>
-            </div>
-            <p className="font-display text-[30px] font-extrabold text-brand">{pct}%</p>
-          </div>
-        )}
-
-        {workout && concluidoHoje && (
-          <div className="rounded-2xl border border-done bg-done-bg p-4 text-center">
-            <p className="text-2xl">✅</p>
-            <p className="mt-1 font-extrabold text-done-ink">
-              Treino de hoje concluído!
-            </p>
-            <p className="text-sm text-muted">Mandou bem 💪</p>
-            {data?.proximaLiberacao && (
-              <p className="mt-2 text-xs font-bold text-muted2">
-                Volta a liberar {rotuloData(data.proximaLiberacao)}
-              </p>
-            )}
-          </div>
-        )}
-
-        {/* só oferece começar quando o servidor diz que ainda não começou */}
-        {workout && data?.status === 'nao_iniciado' && (
-          <Button className="w-full py-4 text-[17px]" disabled={busy} onClick={start}>
-            {busy ? 'Iniciando…' : 'Iniciar treino'}
-          </Button>
-        )}
-
-        {/* espera o rascunho: o card lê o que foi digitado só ao montar (E13) */}
-        {rascunhoPronto &&
-          workout?.exercises.map((item) => (
-          <ExerciseCard
-            key={item.id}
-            item={item}
-            log={logMap[item.id]}
-            disabled={concluidoHoje}
-            pending={pendingWe.has(item.id)}
-            onPatch={handlePatch}
-            rascunho={rascunhos[item.id]}
-            onRascunho={onRascunho}
-              onTimer={(s, label) => s && s > 0 && setTimer({ seconds: s, label })}
+        {!isLoading && activeWorkouts.length > 0 && isInProgramWithDeadline && currentProgram && (
+          <>
+            <SegmentedControl<HomeTab>
+              options={[
+                { value: 'program', label: programTabLabel },
+                { value: 'others', label: '📋 Outros treinos' },
+              ]}
+              selectedValue={selectedTab}
+              onChange={setSelectedTab}
             />
-          ))}
 
-        {workout && log && !concluidoHoje && (
-          <div className="pt-1">
-            <Button className="w-full py-4 text-[18px]" disabled={busy} onClick={complete}>
-              {busy ? 'Salvando…' : 'Finalizar treino'}
-            </Button>
-            {pendingCount > 0 && (
-              <p className="mt-2.5 text-center text-xs font-semibold text-muted2">
-                Faltam {pendingCount} exercício{pendingCount > 1 ? 's' : ''} pendente
-                {pendingCount > 1 ? 's' : ''}
-              </p>
+            {selectedTab === 'program' && (
+              <ProgramTabContent
+                recommendedWorkout={buildRecommendedWorkout(programWorkouts)}
+                programWorkouts={programWorkouts}
+                currentProgram={currentProgram}
+                onOpenAchievement={openAchievementOfCurrentProgram}
+                describeWorkoutBadge={describeWorkoutBadge}
+              />
             )}
-          </div>
+
+            {selectedTab === 'others' && (
+              <div className="space-y-2">
+                <p className="rounded-2xl bg-chip px-3 py-2.5 text-xs font-bold text-muted">
+                  ℹ️ Estes treinos não contam para o {PROGRAM_TYPE_RULES[currentProgram.program.type].label.toLowerCase()}.
+                  Use quando quiser treinar algo extra.
+                </p>
+                {otherWorkouts.length === 0 && (
+                  <p className="py-6 text-center text-sm font-semibold text-muted2">
+                    Nenhum treino extra por enquanto.
+                  </p>
+                )}
+                {otherWorkouts.map((workout, workoutIndex) => (
+                  <WorkoutListItem
+                    key={workout.id}
+                    href={`/treino/sessao/${workout.id}`}
+                    letter={workoutLetter(programWorkouts.length + workoutIndex)}
+                    title={workout.name}
+                    subtitle={describeExerciseCount(workout)}
+                    badge={describeWorkoutBadge(workout, undefined)}
+                  />
+                ))}
+              </div>
+            )}
+          </>
         )}
 
-        {workout && <PushOptIn />}
+        {!isLoading && activeWorkouts.length > 0 && !isInProgramWithDeadline && (
+          <ContinuousContent
+            recommendedWorkout={buildRecommendedWorkout(activeWorkouts)}
+            programName={currentProgram?.program.name ?? null}
+            activeWorkouts={activeWorkouts}
+            describeLastCompletionOf={(workoutId) => {
+              const lastCompletion = lastCompletionByWorkoutId.get(workoutId);
+              return lastCompletion ? `Último: ${describeLastCompletion(lastCompletion)}` : 'Nunca feito';
+            }}
+          />
+        )}
+
+        {activeWorkouts.length > 0 && <PushOptIn />}
       </div>
 
-      {timer && (
-        <RestTimer
-          seconds={timer.seconds}
-          label={timer.label}
-          terminaEm={timer.terminaEm}
-          onAlvo={(t) => log && void salvarTimer(log.id, t, timer.label)}
-          onClose={() => {
-            setTimer(null);
-            if (log) void salvarTimer(log.id, null);
-          }}
+      {celebration && (
+        <ChallengeCompletedCelebration programReport={celebration.programReport} onClose={closeCelebration} />
+      )}
+    </>
+  );
+}
+
+function ProgramTabContent({
+  recommendedWorkout,
+  programWorkouts,
+  currentProgram,
+  onOpenAchievement,
+  describeWorkoutBadge,
+}: {
+  recommendedWorkout: RecommendedWorkout | null;
+  programWorkouts: Workout[];
+  currentProgram: NonNullable<ReturnType<typeof useCurrentProgram>['currentProgram']>;
+  onOpenAchievement: () => void;
+  describeWorkoutBadge: (workout: Workout, recommendedWorkoutId: string | undefined) => ReactNode;
+}) {
+  return (
+    <>
+      <ProgramHeroCard
+        currentProgram={currentProgram}
+        recommendedWorkout={recommendedWorkout}
+        onOpenAchievement={onOpenAchievement}
+      />
+      {programWorkouts.length > 0 && (
+        <div>
+          <SectionTitle
+            action={
+              <Link href="/treino/meus" className="text-[12.5px] font-extrabold text-brand">
+                Ver tudo
+              </Link>
+            }
+          >
+            Sequência do {PROGRAM_TYPE_RULES[currentProgram.program.type].label.toLowerCase()}
+          </SectionTitle>
+          <div className="space-y-2">
+            {programWorkouts.map((workout, workoutIndex) => (
+              <WorkoutListItem
+                key={workout.id}
+                href={`/treino/sessao/${workout.id}`}
+                letter={workoutLetter(workoutIndex)}
+                title={workout.name}
+                subtitle={describeExerciseCount(workout)}
+                badge={describeWorkoutBadge(workout, recommendedWorkout?.id)}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+function ContinuousContent({
+  recommendedWorkout,
+  programName,
+  activeWorkouts,
+  describeLastCompletionOf,
+}: {
+  recommendedWorkout: RecommendedWorkout | null;
+  programName: string | null;
+  activeWorkouts: Workout[];
+  describeLastCompletionOf: (workoutId: string) => string;
+}) {
+  const otherWorkouts = activeWorkouts.filter((workout) => workout.id !== recommendedWorkout?.id);
+  return (
+    <>
+      {recommendedWorkout && (
+        <RecommendedWorkoutCard
+          recommendedWorkout={recommendedWorkout}
+          programName={programName}
+          weekdayLabel={longWeekdayLabel(new Date().getDay())}
         />
       )}
-
-      {celebration && (
-        <ChallengeCompletedCelebration
-          programReport={celebration.programReport}
-          onClose={closeCelebration}
-        />
+      {otherWorkouts.length > 0 && (
+        <div>
+          <SectionTitle
+            action={
+              <Link href="/treino/meus" className="text-[12.5px] font-extrabold text-brand">
+                Ver todos
+              </Link>
+            }
+          >
+            Prefere outro hoje?
+          </SectionTitle>
+          <div className="grid grid-cols-2 gap-2.5">
+            {otherWorkouts.map((workout) => (
+              <WorkoutTile
+                key={workout.id}
+                href={`/treino/sessao/${workout.id}`}
+                letter={workoutLetter(activeWorkouts.indexOf(workout))}
+                title={workout.name}
+                caption={describeLastCompletionOf(workout.id)}
+              />
+            ))}
+          </div>
+        </div>
       )}
     </>
   );

@@ -1,10 +1,15 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import type { CreateProgramPayload, TrainingProgram } from '@/lib/types';
+import type { CreateProgramPayload, ProgramType, TrainingProgram } from '@/lib/types';
 import { programsApi, usersApi, workoutsApi } from '@/lib/api/endpoints';
 import { ApiError } from '@/lib/api/client';
-import { formatProgramDuration } from '@/lib/programs/program-type-rules';
+import {
+  PROGRAM_TYPE_RULES,
+  PROGRAM_TYPES_IN_DISPLAY_ORDER,
+  formatProgramDuration,
+} from '@/lib/programs/program-type-rules';
+import { TraineeAvatar } from '@/components/dashboard/trainee-avatar';
 import { PageHead } from '@/components/dashboard/page-head';
 import { ProgramForm } from '@/components/dashboard/program-form';
 import { ProgramDetailPanel } from '@/components/dashboard/program-detail-panel';
@@ -23,6 +28,7 @@ export default function ProgramasPage() {
   const [workoutOptions, setWorkoutOptions] = useState<SelectableChipOption[] | null>(null);
   const [traineeOptions, setTraineeOptions] = useState<SelectableChipOption[] | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [typeFilter, setTypeFilter] = useState<ProgramType | 'ALL'>('ALL');
 
   const refreshPrograms = useCallback(async () => {
     setPrograms(await programsApi.list());
@@ -92,7 +98,7 @@ export default function ProgramasPage() {
         }
       />
 
-      <div className="mx-auto max-w-3xl space-y-3 p-6 md:p-8">
+      <div className="mx-auto max-w-6xl space-y-3.5 p-6 md:p-8">
         {errorMessage && (
           <div className="rounded-2xl border border-line bg-card p-3 text-sm font-semibold text-brand">
             {errorMessage}{' '}
@@ -115,41 +121,116 @@ export default function ProgramasPage() {
           <p className="py-10 text-center text-muted2">Carregando…</p>
         )}
 
-        {programs?.map((program) => {
-          const isExpanded = expandedProgram?.id === program.id;
-          const currentParticipantNames = program.assignments
-            .filter((assignment) => assignment.status !== 'ARCHIVED')
-            .map((assignment) => assignment.user.name.split(' ')[0]);
-          return (
-            <div key={program.id} className="rounded-2xl border border-line bg-card p-4">
-              <button className="flex w-full items-center gap-3 text-left" onClick={() => toggleProgram(program.id)}>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate font-extrabold">{program.name}</p>
-                  <p className="text-[13px] font-semibold text-muted2">
-                    {formatProgramDuration(program)} · {program.workouts.length} treino
-                    {program.workouts.length === 1 ? '' : 's'} ·{' '}
-                    {currentParticipantNames.length ? currentParticipantNames.join(', ') : 'sem aluno'}
-                  </p>
-                </div>
-                <ProgramTypeBadge programType={program.type} />
-                <span className="text-muted2">{isExpanded ? '▲' : '▼'}</span>
-              </button>
+        {programs && programs.length > 0 && (
+          <div className="flex flex-wrap gap-1.5">
+            {(['ALL', ...PROGRAM_TYPES_IN_DISPLAY_ORDER] as const).map((filterValue) => {
+              const filterCount =
+                filterValue === 'ALL'
+                  ? programs.length
+                  : programs.filter((program) => program.type === filterValue).length;
+              if (filterValue !== 'ALL' && filterCount === 0) return null;
+              return (
+                <button
+                  key={filterValue}
+                  type="button"
+                  onClick={() => setTypeFilter(filterValue)}
+                  className={`rounded-full px-3 py-1.5 text-xs font-extrabold transition ${
+                    typeFilter === filterValue ? 'bg-brand text-white shadow-brand' : 'bg-chip text-muted'
+                  }`}
+                >
+                  {filterValue === 'ALL'
+                    ? 'Todos'
+                    : `${PROGRAM_TYPE_RULES[filterValue].icon} ${PROGRAM_TYPE_RULES[filterValue].label}`}{' '}
+                  · {filterCount}
+                </button>
+              );
+            })}
+          </div>
+        )}
 
-              {isExpanded && expandedProgram && (
-                <ProgramDetailPanel
-                  program={expandedProgram}
-                  workoutOptions={workoutOptions}
-                  traineeOptions={traineeOptions}
-                  onChanged={() => reloadAfterChange(program.id)}
-                  onDeleted={async () => {
-                    setExpandedProgram(null);
-                    await Promise.all([refreshPrograms(), refreshWorkoutOptions()]);
-                  }}
-                />
-              )}
-            </div>
-          );
-        })}
+        <div className="grid gap-3.5 md:grid-cols-2 xl:grid-cols-3">
+          {programs
+            ?.filter((program) => typeFilter === 'ALL' || program.type === typeFilter)
+            .map((program) => {
+              const isExpanded = expandedProgram?.id === program.id;
+              const currentParticipations = program.assignments.filter(
+                (assignment) => assignment.status !== 'ARCHIVED',
+              );
+              const isDeadlineProgram = PROGRAM_TYPE_RULES[program.type].hasDeadline;
+              return (
+                <div
+                  key={program.id}
+                  className={`rounded-2xl border bg-card p-4 ${
+                    isExpanded ? 'md:col-span-2 xl:col-span-3' : ''
+                  } ${program.type === 'CHALLENGE' ? 'border-gold/60' : 'border-line'}`}
+                >
+                  <button className="block w-full text-left" onClick={() => toggleProgram(program.id)}>
+                    <div className="flex items-start justify-between gap-2">
+                      <ProgramTypeBadge programType={program.type} />
+                      <span className="text-muted2">{isExpanded ? '▲' : '▼'}</span>
+                    </div>
+                    <p className="mt-2.5 truncate text-base font-extrabold">{program.name}</p>
+                    <p className="text-[13px] font-semibold text-muted2">
+                      {formatProgramDuration(program)} · {program.workouts.length} treino
+                      {program.workouts.length === 1 ? '' : 's'} · {currentParticipations.length} participante
+                      {currentParticipations.length === 1 ? '' : 's'}
+                    </p>
+                    {currentParticipations.length > 0 && <div className="my-2.5 h-px bg-line" />}
+                    {isDeadlineProgram ? (
+                      <div className="space-y-2">
+                        {currentParticipations.slice(0, 4).map((assignment) => (
+                          <div key={assignment.id} className="flex items-center gap-2.5">
+                            <TraineeAvatar name={assignment.user.name} size={26} />
+                            <span className="min-w-0 flex-1 truncate text-[13px] font-bold">
+                              {assignment.user.name.split(' ')[0]}
+                            </span>
+                            {assignment.status === 'COMPLETED' ? (
+                              <span className="text-xs font-extrabold text-gold">🏆 concluído</span>
+                            ) : assignment.progress ? (
+                              <>
+                                <span className="text-xs font-bold text-muted2">
+                                  {assignment.progress.currentDayNumber}/{assignment.progress.totalDays}
+                                </span>
+                                <span className="h-1.5 w-16 overflow-hidden rounded-full bg-chip">
+                                  <span
+                                    className="block h-full rounded-full bg-gradient-to-r from-amber-400 to-amber-600"
+                                    style={{ width: `${assignment.progress.progressPercentage}%` }}
+                                  />
+                                </span>
+                              </>
+                            ) : null}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="flex">
+                        {currentParticipations.map((assignment, participantIndex) => (
+                          <span key={assignment.id} className={participantIndex > 0 ? '-ml-2' : ''}>
+                            <TraineeAvatar name={assignment.user.name} size={28} />
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </button>
+
+                  {isExpanded && expandedProgram && (
+                    <ProgramDetailPanel
+                      program={expandedProgram}
+                      workoutOptions={workoutOptions}
+                      traineeOptions={traineeOptions}
+                      onChanged={() => reloadAfterChange(program.id)}
+                      onDeleted={async () => {
+                        setExpandedProgram(null);
+                        await Promise.all([refreshPrograms(), refreshWorkoutOptions()]);
+                      }}
+                    />
+                  )}
+                </div>
+              );
+            })}
+        </div>
+
+        <RecentlyCompletedPrograms programs={programs ?? []} />
 
         {programs?.length === 0 && !isCreatingProgram && (
           <div className="py-10 text-center text-muted2">
@@ -162,5 +243,49 @@ export default function ProgramasPage() {
         )}
       </div>
     </>
+  );
+}
+
+/** Relatórios das jornadas concluídas mais recentes. */
+function RecentlyCompletedPrograms({ programs }: { programs: TrainingProgram[] }) {
+  const completedParticipations = programs
+    .flatMap((program) =>
+      program.assignments
+        .filter((assignment) => assignment.status === 'COMPLETED' && assignment.reportData)
+        .map((assignment) => ({ program, assignment })),
+    )
+    .sort(
+      (first, second) =>
+        new Date(second.assignment.endDate ?? 0).getTime() - new Date(first.assignment.endDate ?? 0).getTime(),
+    )
+    .slice(0, 5);
+
+  if (completedParticipations.length === 0) return null;
+
+  return (
+    <div className="rounded-2xl border border-line bg-card p-4">
+      <p className="mb-2 text-base font-extrabold">🏆 Concluídos recentemente</p>
+      <div className="divide-y divide-line">
+        {completedParticipations.map(({ program, assignment }) => {
+          const programReport = assignment.reportData!;
+          return (
+            <div key={assignment.id} className="flex items-center gap-3 py-2.5">
+              <TraineeAvatar name={assignment.user.name} size={30} />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-extrabold">
+                  {program.name} · {assignment.user.name.split(' ')[0]}
+                </p>
+                <p className="truncate text-xs font-bold text-muted2">
+                  {programReport.totalDays} dias · {programReport.completedWorkoutsCount} treinos
+                  {programReport.loadEvolutionPercentage != null
+                    ? ` · ${programReport.loadEvolutionPercentage >= 0 ? '+' : ''}${programReport.loadEvolutionPercentage}% de carga`
+                    : ''}
+                </p>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }

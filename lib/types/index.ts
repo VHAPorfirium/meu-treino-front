@@ -260,7 +260,7 @@ export interface HistoryEntry {
   id: string;
   date: string;
   completed: boolean;
-  workout: { id: string; name: string };
+  workout: { id: string; name: string; program?: ProgramReference | null };
   user: { id: string; name: string };
   exerciseLogs: {
     id: string;
@@ -407,4 +407,38 @@ export interface ProgramAchievement {
 /** Resposta de PATCH /workout-logs/:id/complete. */
 export interface CompletedWorkoutLog extends WorkoutLog {
   programCompletion: { programCompleted: boolean; report: ProgramReport | null } | null;
+}
+
+// ── Redesign: dados novos da API ────────────────────────────────────────────
+
+/** GET /workout-logs/last-performance — como o aluno fez cada exercício da última vez. */
+export interface LastPerformance {
+  performedAt: string;
+  loadUsed: number | null;
+  totalSeconds: number | null;
+  sets: { setNumber: number; weight: number | null; reps: number | null; durationSeconds: number | null }[];
+  /** Carga sugerida para hoje (kg). */
+  suggestedWeight: number | null;
+  /** increase = subir a carga · keep = repetir. */
+  suggestionKind: 'increase' | 'keep' | null;
+}
+
+/** Indexado pelo id do exercício no treino (workoutExerciseId). */
+export type LastPerformanceByWorkoutExerciseId = Record<string, LastPerformance>;
+
+/** GET /workout-logs/exercise-stats/:exerciseId */
+export interface ExerciseStats {
+  timesPerformed: number;
+  bestWeight: number | null;
+  evolutionLast30DaysPercentage: number | null;
+  lastPerformedAt: string | null;
+}
+
+/** GET /workout-logs/attention — bloco "Precisa de atenção" do dashboard. */
+export interface AttentionItem {
+  userId: string;
+  userName: string;
+  kind: 'inactive' | 'skipping';
+  description: string;
+  daysWithoutTraining: number | null;
 }

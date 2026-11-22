@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
 import type {
   ConfigExercicio,
@@ -46,8 +46,14 @@ export interface SelecaoMultipla {
 
 export function ExerciseBrowser({
   selecao,
+  cardActions,
+  onlyTheseExercises,
 }: {
   selecao?: SelecaoMultipla;
+  /** Ações extras embaixo de cada card do catálogo (favoritar, adicionar a um treino). */
+  cardActions?: (exercise: Exercise) => ReactNode;
+  /** Quando vem preenchido, mostra só estes exercícios (ex.: favoritos), sem paginação. */
+  onlyTheseExercises?: Exercise[] | null;
 }) {
   const [groups, setGroups] = useState<MuscleGroup[]>([]);
   const [equipments, setEquipments] = useState<EquipamentoOpcao[]>([]);
@@ -121,9 +127,10 @@ export function ExerciseBrowser({
     [groups],
   );
 
-  const items = data?.items ?? [];
-  const total = data?.total ?? 0;
-  const totalPages = data?.totalPages ?? 1;
+  const isShowingFixedList = Array.isArray(onlyTheseExercises);
+  const items = isShowingFixedList ? onlyTheseExercises : (data?.items ?? []);
+  const total = isShowingFixedList ? onlyTheseExercises.length : (data?.total ?? 0);
+  const totalPages = isShowingFixedList ? 1 : (data?.totalPages ?? 1);
 
   const irPara = useCallback(
     (p: number) => {
@@ -346,36 +353,41 @@ export function ExerciseBrowser({
           })}
         </div>
       ) : (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
           {items.map((ex) => (
-            <button
+            <div
               key={ex.id}
-              type="button"
-              onClick={() => setVendoGif(ex)}
-              title="Ver o exercício em movimento"
               className="overflow-hidden rounded-2xl border border-line bg-card text-left transition hover:border-line2"
             >
-              {ex.thumbnailUrl ? (
-                <Image
-                  src={ex.thumbnailUrl}
-                  alt={nomeExercicio(ex)}
-                  width={200}
-                  height={120}
-                  className="h-24 w-full bg-white object-cover"
-                  unoptimized
-                />
-              ) : (
-                <div className="h-24" style={{ background: STRIPE }} />
-              )}
-              <div className="p-3">
-                <p className="truncate text-[13px] font-extrabold capitalize leading-tight">
-                  {nomeExercicio(ex)}
-                </p>
-                <p className="mt-1 text-[11px] font-semibold capitalize text-muted2">
-                  {equipamentoExercicio(ex)}
-                </p>
-              </div>
-            </button>
+              <button
+                type="button"
+                onClick={() => setVendoGif(ex)}
+                title="Ver o exercício em movimento"
+                className="block w-full text-left"
+              >
+                {ex.thumbnailUrl ? (
+                  <Image
+                    src={ex.thumbnailUrl}
+                    alt={nomeExercicio(ex)}
+                    width={200}
+                    height={120}
+                    className="h-28 w-full bg-white object-cover"
+                    unoptimized
+                  />
+                ) : (
+                  <div className="h-28" style={{ background: STRIPE }} />
+                )}
+                <div className="px-3 pt-3">
+                  <p className="truncate text-[13px] font-extrabold capitalize leading-tight">
+                    {nomeExercicio(ex)}
+                  </p>
+                  <p className="mt-1 truncate text-[11px] font-semibold capitalize text-muted2">
+                    {musculoExercicio(ex)} · {equipamentoExercicio(ex)}
+                  </p>
+                </div>
+              </button>
+              <div className="px-3 pb-3 pt-2">{cardActions?.(ex)}</div>
+            </div>
           ))}
         </div>
       )}

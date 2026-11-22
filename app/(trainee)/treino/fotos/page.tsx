@@ -5,140 +5,183 @@ import type { ProgressPhoto } from '@/lib/types';
 import { photosApi } from '@/lib/api/endpoints';
 import { ApiError } from '@/lib/api/client';
 import { AppHeader } from '@/components/layout/app-header';
+import { SegmentedControl } from '@/components/ui/segmented-control';
+import { SectionTitle } from '@/components/trainee/section-title';
+import { PhotoComparison } from '@/components/trainee/photo-comparison';
 
-const fmt = (iso: string) =>
-  new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' });
+const formatShortDate = (isoDate: string) =>
+  new Date(isoDate).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }).replace('.', '').toUpperCase();
 
-const ALLOWED = ['jpg', 'jpeg', 'png', 'webp', 'heic'];
+const ALLOWED_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp', 'heic'];
+const MAXIMUM_PHOTO_SIZE_IN_BYTES = 15 * 1024 * 1024;
+
+type PhotosView = 'comparison' | 'timeline';
 
 /**
- * E6 — fotos de progresso. Upload DIRETO pro Supabase com URL assinada
- * (a foto não passa pela API); depois registra o caminho.
+ * Fotos de progresso: comparador antes × depois e linha do tempo.
+ * Upload DIRETO pro Supabase com URL assinada (a foto não passa pela API).
  */
 export default function FotosPage() {
-  const [items, setItems] = useState<ProgressPhoto[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [note, setNote] = useState('');
-  const fileRef = useRef<HTMLInputElement>(null);
+  const [photos, setPhotos] = useState<ProgressPhoto[] | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [photoNote, setPhotoNote] = useState('');
+  const [selectedView, setSelectedView] = useState<PhotosView>('comparison');
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const load = () =>
+  const loadPhotos = () =>
     photosApi
       .mine()
-      .then(setItems)
-      .catch((e) => setError(e instanceof ApiError ? e.message : 'Sem conexão'));
+      .then(setPhotos)
+      .catch((error) => setErrorMessage(error instanceof ApiError ? error.message : 'Sem conexão'));
 
   useEffect(() => {
-    void load();
+    void loadPhotos();
   }, []);
 
-  async function upload(file: File) {
-    const ext = (file.name.split('.').pop() ?? '').toLowerCase();
-    if (!ALLOWED.includes(ext)) {
-      setError('Formato não suportado (use jpg, png, webp ou heic).');
+  async function uploadPhoto(photoFile: File) {
+    const fileExtension = (photoFile.name.split('.').pop() ?? '').toLowerCase();
+    if (!ALLOWED_EXTENSIONS.includes(fileExtension)) {
+      setErrorMessage('Formato não suportado (use jpg, png, webp ou heic).');
       return;
     }
-    if (file.size > 15 * 1024 * 1024) {
-      setError('Foto muito grande (máx. 15 MB).');
+    if (photoFile.size > MAXIMUM_PHOTO_SIZE_IN_BYTES) {
+      setErrorMessage('Foto muito grande (máx. 15 MB).');
       return;
     }
-    setBusy(true);
-    setError(null);
+    setIsUploading(true);
+    setErrorMessage(null);
     try {
-      const { path, uploadUrl } = await photosApi.requestUpload(ext);
-      const put = await fetch(uploadUrl, {
+      const { path, uploadUrl } = await photosApi.requestUpload(fileExtension);
+      const uploadResponse = await fetch(uploadUrl, {
         method: 'PUT',
-        headers: { 'Content-Type': file.type || 'application/octet-stream' },
-        body: file,
+        headers: { 'Content-Type': photoFile.type || 'application/octet-stream' },
+        body: photoFile,
       });
-      if (!put.ok) throw new Error(`upload falhou (${put.status})`);
-      await photosApi.register({ path, note: note.trim() || undefined });
-      setNote('');
-      await load();
-    } catch (e) {
-      setError(e instanceof ApiError ? e.message : (e as Error).message ?? 'Falha no upload');
+      if (!uploadResponse.ok) throw new Error(`upload falhou (${uploadResponse.status})`);
+      await photosApi.register({ path, note: photoNote.trim() || undefined });
+      setPhotoNote('');
+      await loadPhotos();
+    } catch (error) {
+      setErrorMessage(error instanceof ApiError ? error.message : ((error as Error).message ?? 'Falha no upload'));
     } finally {
-      setBusy(false);
-      if (fileRef.current) fileRef.current.value = '';
+      setIsUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   }
 
-  async function remove(p: ProgressPhoto) {
+  async function removePhoto(photo: ProgressPhoto) {
     if (!confirm('Apagar esta foto?')) return;
     try {
-      await photosApi.remove(p.id);
-      setItems((it) => it?.filter((x) => x.id !== p.id) ?? null);
-    } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Não foi possível apagar');
+      await photosApi.remove(photo.id);
+      setPhotos((currentPhotos) => currentPhotos?.filter((currentPhoto) => currentPhoto.id !== photo.id) ?? null);
+    } catch (error) {
+      setErrorMessage(error instanceof ApiError ? error.message : 'Não foi possível apagar');
     }
   }
+
+  const photosByDate = [...(photos ?? [])].sort(
+    (first, second) => new Date(first.takenAt).getTime() - new Date(second.takenAt).getTime(),
+  );
+  const oldestPhoto = photosByDate[0];
+  const newestPhoto = photosByDate[photosByDate.length - 1];
+  const newestFirstPhotos = [...photosByDate].reverse();
 
   return (
     <>
-      <AppHeader eyebrow="Evolução" title="Fotos de progresso" />
-      <div className="space-y-3 p-5 pb-28">
-        <div className="space-y-2 rounded-2xl border border-line bg-card p-4">
+      <AppHeader eyebrow="Evolução" title="Fotos" />
+      <div className="space-y-3.5 p-5 pb-28">
+        <div className="flex gap-2">
           <input
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            placeholder="Observação (opcional) — ex: 12 semanas"
-            className="w-full rounded-xl border border-line bg-paper px-3.5 py-2.5 text-base font-medium text-ink placeholder:text-muted2 focus:border-brand focus:outline-none"
+            value={photoNote}
+            onChange={(event) => setPhotoNote(event.target.value)}
+            placeholder="Observação (opcional)"
+            className="min-w-0 flex-1 rounded-xl border border-line bg-card px-3.5 py-2.5 text-base font-medium text-ink placeholder:text-muted2 focus:border-brand focus:outline-none"
           />
           <input
-            ref={fileRef}
+            ref={fileInputRef}
             type="file"
             accept="image/*"
             capture="environment"
             hidden
-            onChange={(e) => e.target.files?.[0] && upload(e.target.files[0])}
+            onChange={(event) => event.target.files?.[0] && uploadPhoto(event.target.files[0])}
           />
           <button
-            onClick={() => fileRef.current?.click()}
-            disabled={busy}
-            className="w-full rounded-xl bg-brand py-3 text-sm font-extrabold text-white shadow-brand disabled:opacity-50"
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isUploading}
+            className="shrink-0 rounded-xl bg-brand px-4 text-sm font-extrabold text-white shadow-brand disabled:opacity-50"
           >
-            {busy ? 'Enviando…' : '📷 Adicionar foto'}
+            {isUploading ? 'Enviando…' : '＋ Nova foto'}
           </button>
-          <p className="text-center text-[11px] text-muted2">
-            Suas fotos ficam privadas — só você e seu personal veem.
-          </p>
         </div>
 
-        {error && (
+        {errorMessage && (
           <p className="rounded-2xl border border-line bg-card p-3 text-center text-sm font-semibold text-brand">
-            {error}
+            {errorMessage}
           </p>
         )}
-        {items === null && !error && <p className="py-6 text-center text-muted2">Carregando…</p>}
-        {items && items.length === 0 && (
-          <p className="py-10 text-center text-muted2">Nenhuma foto ainda.</p>
+        {photos === null && !errorMessage && <p className="py-6 text-center text-muted2">Carregando…</p>}
+        {photos?.length === 0 && (
+          <div className="py-12 text-center text-muted2">
+            <p className="text-4xl">📷</p>
+            <p className="mt-2 font-semibold">Nenhuma foto ainda.</p>
+            <p className="mt-1 text-sm">Tire a primeira hoje e compare daqui a algumas semanas.</p>
+          </div>
         )}
 
-        <div className="grid grid-cols-2 gap-3">
-          {items?.map((p) => (
-            <figure key={p.id} className="overflow-hidden rounded-2xl border border-line bg-card">
-              {p.url ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={p.url} alt={p.note ?? 'Foto de progresso'} className="aspect-[3/4] w-full object-cover" />
+        {photos && photos.length > 0 && (
+          <>
+            <SegmentedControl<PhotosView>
+              options={[
+                { value: 'comparison', label: 'Antes × Depois' },
+                { value: 'timeline', label: 'Linha do tempo' },
+              ]}
+              selectedValue={selectedView}
+              onChange={setSelectedView}
+            />
+
+            {selectedView === 'comparison' &&
+              (photosByDate.length >= 2 ? (
+                <PhotoComparison beforePhoto={oldestPhoto} afterPhoto={newestPhoto} />
               ) : (
-                <div className="aspect-[3/4] w-full bg-chip" />
-              )}
-              <figcaption className="flex items-start justify-between gap-2 p-2.5">
-                <div className="min-w-0">
-                  <p className="text-xs font-extrabold">{fmt(p.takenAt)}</p>
-                  {p.note && <p className="truncate text-[11px] text-muted2">{p.note}</p>}
-                </div>
-                <button
-                  onClick={() => remove(p)}
-                  aria-label="Apagar foto"
-                  className="shrink-0 text-xs font-bold text-brand"
-                >
-                  ✕
-                </button>
-              </figcaption>
-            </figure>
-          ))}
-        </div>
+                <p className="rounded-2xl bg-chip p-4 text-center text-sm font-bold text-muted">
+                  Adicione mais uma foto para comparar o antes e o depois.
+                </p>
+              ))}
+
+            <section>
+              <SectionTitle>Todas as fotos · {photos.length}</SectionTitle>
+              <div className={`grid gap-2 ${selectedView === 'timeline' ? 'grid-cols-2' : 'grid-cols-3'}`}>
+                {newestFirstPhotos.map((photo) => (
+                  <figure key={photo.id} className="relative overflow-hidden rounded-2xl bg-chip">
+                    {photo.url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={photo.url} alt={photo.note ?? 'Foto de progresso'} className="aspect-[3/4] w-full object-cover" />
+                    ) : (
+                      <div className="aspect-[3/4] w-full" />
+                    )}
+                    <figcaption className="absolute inset-x-1.5 bottom-1.5 flex items-center justify-between gap-1">
+                      <span className="truncate rounded-md bg-black/45 px-1.5 py-0.5 text-[10px] font-extrabold text-white">
+                        {formatShortDate(photo.takenAt)}
+                        {selectedView === 'timeline' && photo.note ? ` · ${photo.note}` : ''}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => removePhoto(photo)}
+                        aria-label="Apagar foto"
+                        className="shrink-0 rounded-md bg-black/45 px-1.5 py-0.5 text-[10px] font-extrabold text-white"
+                      >
+                        ✕
+                      </button>
+                    </figcaption>
+                  </figure>
+                ))}
+              </div>
+            </section>
+            <p className="text-center text-[11px] text-muted2">Suas fotos ficam privadas — só você e seu personal veem.</p>
+          </>
+        )}
       </div>
     </>
   );
