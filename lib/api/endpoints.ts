@@ -34,23 +34,64 @@ import type {
 const TTL_USUARIOS = 60 * 1000;
 
 export const authApi = {
-  // Login por PIN: o backend identifica o usuário e devolve o papel dele.
-  login: (pin: string) => api.post<LoginResponse>('/auth/login', { pin }),
+  // Login O(1) por CPF (ou apelido legado v1.0) + senha forte.
+  login: (identifier: string, password: string) =>
+    api.post<LoginResponse>('/auth/login', { identifier, password }),
+  changePassword: (currentPassword: string, newPassword: string) =>
+    api.post<{ ok: boolean; mustChangePassword: boolean }>('/auth/change-password', {
+      currentPassword,
+      newPassword,
+    }),
   logout: () => api.post<{ ok: boolean }>('/auth/logout'),
   me: () => api.get<AuthUser>('/auth/me'),
 };
 
 export const usersApi = {
-  // ADMIN — fonte do select "pra quem é o treino" e filtro por aluno (cacheado por 1 min)
-  list: (params: { role?: 'ADMIN' | 'TRAINEE' } = {}) =>
-    lembrar(`users:${params.role ?? 'all'}`, TTL_USUARIOS, () =>
-      api.get<UserSummary[]>(`/users${params.role ? `?role=${params.role}` : ''}`),
+  // ADMIN — fonte do select "pra quem é o treino" e gestão cadastral (cacheado por 1 min)
+  list: (params: { role?: 'ADMIN' | 'TRAINEE'; active?: boolean } = {}) => {
+    const q = new URLSearchParams();
+    if (params.role) q.set('role', params.role);
+    if (params.active !== undefined) q.set('active', String(params.active));
+    const qs = q.toString();
+    return lembrar(`users:${qs || 'all'}`, TTL_USUARIOS, () =>
+      api.get<UserSummary[]>(`/users${qs ? `?${qs}` : ''}`),
+    );
+  },
+  suggestUsername: (name: string) =>
+    api.get<{ username: string }>(
+      `/users/suggest-username?name=${encodeURIComponent(name)}`,
     ),
-  /** ADMIN — cadastra um aluno (o PIN precisa ser único: é ele que identifica no login) */
-  createTrainee: async (payload: { name: string; pin: string }) => {
+  /** ADMIN — cadastra aluno com CPF validado, senha forte e username único automático. */
+  createTrainee: async (payload: {
+    name: string;
+    cpf: string;
+    password: string;
+    username?: string;
+  }) => {
     const created = await api.post<UserSummary>('/users', payload);
     limpar('users:');
     return created;
+  },
+  update: async (
+    id: string,
+    payload: { name?: string; username?: string; cpf?: string },
+  ) => {
+    const updated = await api.patch<UserSummary>(`/users/${id}`, payload);
+    limpar('users:');
+    return updated;
+  },
+  setActive: async (id: string, active: boolean) => {
+    const updated = await api.patch<UserSummary>(`/users/${id}/status`, { active });
+    limpar('users:');
+    return updated;
+  },
+  resetPassword: async (id: string, newPassword: string) => {
+    const result = await api.post<{ ok: boolean; user: UserSummary }>(
+      `/users/${id}/reset-password`,
+      { newPassword },
+    );
+    limpar('users:');
+    return result;
   },
 };
 

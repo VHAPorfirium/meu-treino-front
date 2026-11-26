@@ -20,13 +20,15 @@ import {
   getUser,
   roleHome,
   saveSession,
+  userHome,
 } from './storage';
 
 interface AuthContextValue {
   user: AuthUser | null;
   loading: boolean;
-  login: (pin: string) => Promise<void>;
+  login: (identifier: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  completePasswordChange: () => void;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -78,13 +80,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  async function login(pin: string) {
+  async function login(identifier: string, password: string) {
     const previousUser = getUser();
-    const res = await authApi.login(pin); // backend identifica pelo PIN e seta o cookie httpOnly
+    const res = await authApi.login(identifier, password);
     const authUser: AuthUser = {
       userId: res.user.id,
       role: res.user.role,
       name: res.user.name,
+      username: res.user.username,
+      mustChangePassword: res.user.mustChangePassword,
     };
 
     limparCache();
@@ -107,7 +111,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (typeof navigator === 'undefined' || navigator.onLine) {
       void flush(authUser.userId);
     }
-    router.replace(roleHome(authUser.role));
+    router.replace(userHome(authUser));
+  }
+
+  function completePasswordChange() {
+    if (!user) return;
+    const updatedUser: AuthUser = { ...user, mustChangePassword: false };
+    saveSession(updatedUser);
+    setUser(updatedUser);
+    router.replace(roleHome(updatedUser.role));
   }
 
   async function logout() {
@@ -123,7 +135,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout }}>
+    <AuthContext.Provider
+      value={{ user, loading, login, logout, completePasswordChange }}
+    >
       {children}
     </AuthContext.Provider>
   );

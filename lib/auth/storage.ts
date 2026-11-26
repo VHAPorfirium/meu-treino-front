@@ -46,7 +46,13 @@ export function getUser(): AuthUser | null {
     ) {
       return null;
     }
-    return { userId: parsed.userId, name: parsed.name, role: parsed.role };
+    return {
+      userId: parsed.userId,
+      name: parsed.name,
+      role: parsed.role,
+      username: typeof parsed.username === 'string' ? parsed.username : '',
+      mustChangePassword: Boolean(parsed.mustChangePassword),
+    };
   } catch {
     return null;
   }
@@ -54,4 +60,8 @@ export function getUser(): AuthUser | null {
 
 export function roleHome(role: Role): string {
   return role === 'ADMIN' ? '/dashboard' : '/treino';
+}
+
+export function userHome(user: AuthUser): string {
+  return user.mustChangePassword ? '/trocar-senha' : roleHome(user.role);
 }

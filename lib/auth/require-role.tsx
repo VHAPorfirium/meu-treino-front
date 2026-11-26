@@ -22,10 +22,11 @@ export function RequireRole({
   useEffect(() => {
     if (loading) return;
     if (!user) router.replace('/login');
+    else if (user.mustChangePassword) router.replace('/trocar-senha');
     else if (user.role !== role) router.replace(roleHome(user.role));
   }, [user, loading, role, router]);
 
-  if (loading || !user || user.role !== role) {
+  if (loading || !user || user.mustChangePassword || user.role !== role) {
     return (
       <div className="app-shell items-center justify-center">
         <p className="text-muted2">Carregando…</p>

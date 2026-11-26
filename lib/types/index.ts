@@ -9,18 +9,30 @@ export interface AuthUser {
   userId: string;
   role: Role;
   name: string;
+  username: string;
+  mustChangePassword: boolean;
 }
 
 // O token vem em cookie httpOnly (não no corpo) — o front só recebe o usuário.
 export interface LoginResponse {
-  user: { id: string; name: string; role: Role };
+  user: {
+    id: string;
+    name: string;
+    username: string;
+    role: Role;
+    mustChangePassword: boolean;
+  };
 }
 
 /** Usuário resumido (sem dados sensíveis) — GET /users */
 export interface UserSummary {
   id: string;
   name: string;
+  username: string;
   role: Role;
+  active: boolean;
+  mustChangePassword: boolean;
+  cpfMasked: string | null;
 }
 
 /**
