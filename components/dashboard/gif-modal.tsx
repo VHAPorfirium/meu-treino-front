@@ -61,7 +61,10 @@ export function GifModal({
       role="presentation"
     >
       <div
-        className="max-h-[88vh] w-full max-w-md overflow-y-auto rounded-3xl bg-paper p-5"
+        role="dialog"
+        aria-modal="true"
+        aria-label={nomeExercicio(completo)}
+        className="max-h-[88dvh] w-full max-w-md overflow-y-auto rounded-3xl bg-paper p-5"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-3 flex items-start justify-between gap-3">

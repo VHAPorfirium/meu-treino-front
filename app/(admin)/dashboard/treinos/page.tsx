@@ -607,8 +607,24 @@ function AddExerciseModal({
     }
   }
 
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [onClose]);
+
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/55 md:items-center">
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Escolher exercícios"
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/55 md:items-center"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
       <div className="flex max-h-[88dvh] w-full max-w-lg flex-col rounded-t-3xl bg-paper md:rounded-3xl">
         <div className="flex shrink-0 items-center justify-between px-5 pb-3 pt-5">
           <h2 className="font-display text-[22px] font-extrabold">Escolher exercícios</h2>

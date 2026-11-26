@@ -77,8 +77,24 @@ export function AddToWorkoutModal({
     }
   }
 
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [onClose]);
+
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/55 md:items-center">
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Adicionar a um treino"
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/55 md:items-center"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
       <div className="flex max-h-[88dvh] w-full max-w-md flex-col rounded-t-3xl bg-paper md:rounded-3xl">
         <div className="flex items-start justify-between gap-3 px-5 pb-2 pt-5">
           <div className="min-w-0">
