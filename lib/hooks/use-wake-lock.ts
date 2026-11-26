@@ -33,7 +33,12 @@ export function useWakeLock(ativo: boolean): void {
     const pedir = async () => {
       if (descartado || document.visibilityState !== 'visible') return;
       try {
-        sentinela = await api.request('screen');
+        const adquirida = await api.request('screen');
+        if (descartado) {
+          void adquirida.release().catch(() => {});
+          return;
+        }
+        sentinela = adquirida;
       } catch {
         /* negado ou sem suporte — o treino segue normal */
       }

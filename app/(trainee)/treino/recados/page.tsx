@@ -41,12 +41,13 @@ export default function RecadosPage() {
       .catch((error) => setErrorMessage(error instanceof ApiError ? error.message : 'Sem conexão'));
   }, []);
 
-  const notesGroupedByDay: { dayLabel: string; dayNotes: TrainerNote[] }[] = [];
+  const notesGroupedByDay: { dayKey: string; dayLabel: string; dayNotes: TrainerNote[] }[] = [];
   for (const note of notes ?? []) {
+    const dayKey = toLocalDayKey(new Date(note.createdAt));
     const dayLabel = formatDayLabel(note.createdAt);
     const lastGroup = notesGroupedByDay[notesGroupedByDay.length - 1];
-    if (lastGroup?.dayLabel === dayLabel) lastGroup.dayNotes.push(note);
-    else notesGroupedByDay.push({ dayLabel, dayNotes: [note] });
+    if (lastGroup?.dayKey === dayKey) lastGroup.dayNotes.push(note);
+    else notesGroupedByDay.push({ dayKey, dayLabel, dayNotes: [note] });
   }
   const personalTrainerName = notes?.[0]?.from.name;
 
@@ -68,8 +69,8 @@ export default function RecadosPage() {
           </div>
         )}
 
-        {notesGroupedByDay.map(({ dayLabel, dayNotes }) => (
-          <section key={dayLabel} className="mb-3">
+        {notesGroupedByDay.map(({ dayKey, dayLabel, dayNotes }) => (
+          <section key={dayKey} className="mb-3">
             <p className="my-2 text-center">
               <span className="rounded-full bg-chip px-3 py-1 text-[11px] font-extrabold text-muted">{dayLabel}</span>
             </p>

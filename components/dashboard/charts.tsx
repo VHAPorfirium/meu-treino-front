@@ -1,6 +1,6 @@
 'use client';
 
-// Gráficos SVG inline, sem dependências. Paleta Ritmo (laranja/tinta sobre papel).
+// Gráficos inline, sem dependências. Adaptados automaticamente ao tema claro/escuro.
 
 export function BarChart({
   data,
@@ -14,62 +14,37 @@ export function BarChart({
   if (data.length === 0)
     return <p className="py-8 text-center text-sm text-muted2">Sem dados.</p>;
   const max = Math.max(...data.map((d) => d.value), 1);
-  const barW = 100 / data.length;
 
   return (
-    <div>
-      <svg
-        viewBox={`0 0 100 ${height}`}
-        className="w-full"
-        preserveAspectRatio="none"
-        style={{ height }}
-      >
-        {data.map((d, i) => {
-          const h = (d.value / max) * (height - 26);
-          const x = i * barW + barW * 0.18;
-          const w = barW * 0.64;
-          return (
-            <g key={i}>
-              <rect
-                x={x}
-                y={height - 22 - h}
-                width={w}
-                height={Math.max(h, 1)}
-                rx={2}
-                fill={color}
+    <div className="flex items-end gap-2" style={{ height }}>
+      {data.map((d, i) => {
+        const pct = Math.max(0, Math.min(100, (d.value / max) * 100));
+        return (
+          <div key={i} className="flex h-full min-w-0 flex-1 flex-col items-center gap-1">
+            <span className="text-[11px] font-extrabold text-muted">{d.value}</span>
+            <div className="flex w-full flex-1 items-end justify-center">
+              <div
+                className="w-full max-w-[36px] rounded-t-md"
+                style={{
+                  height: `${pct}%`,
+                  minHeight: d.value > 0 ? 4 : 2,
+                  backgroundColor: color,
+                }}
               />
-              <text
-                x={x + w / 2}
-                y={height - 22 - h - 3}
-                textAnchor="middle"
-                fontSize="6"
-                fontWeight="800"
-                fill="#5E5348"
-              >
-                {d.value}
-              </text>
-            </g>
-          );
-        })}
-      </svg>
-      <div className="flex" style={{ marginTop: -18 }}>
-        {data.map((d, i) => (
-          <span
-            key={i}
-            className="text-center text-[10px] font-bold text-muted2"
-            style={{ width: `${barW}%` }}
-          >
-            {d.label}
-          </span>
-        ))}
-      </div>
+            </div>
+            <span className="max-w-full truncate text-[10px] font-bold text-muted2">
+              {d.label}
+            </span>
+          </div>
+        );
+      })}
     </div>
   );
 }
 
 export function LineChart({
   points,
-  color = '#191512',
+  color = 'rgb(var(--color-ink))',
   height = 160,
 }: {
   points: { label: string; value: number }[];
@@ -81,11 +56,13 @@ export function LineChart({
   const max = Math.max(...points.map((p) => p.value), 1);
   const min = Math.min(...points.map((p) => p.value), 0);
   const range = max - min || 1;
-  const stepX = points.length > 1 ? 100 / (points.length - 1) : 0;
+  const padX = 8;
+  const plotW = 100 - padX * 2;
+  const stepX = points.length > 1 ? plotW / (points.length - 1) : 0;
 
   const coords = points.map((p, i) => {
-    const x = points.length > 1 ? i * stepX : 50;
-    const y = height - 24 - ((p.value - min) / range) * (height - 40);
+    const x = points.length > 1 ? padX + i * stepX : 50;
+    const y = height - 20 - ((p.value - min) / range) * (height - 44);
     return { x, y, ...p };
   });
   const path = coords
@@ -94,18 +71,18 @@ export function LineChart({
 
   return (
     <div>
-      <svg viewBox={`0 0 100 ${height}`} className="w-full" style={{ height }}>
-        <path d={path} fill="none" stroke={color} strokeWidth="1.8" />
+      <svg viewBox={`0 0 100 ${height}`} className="w-full overflow-visible" style={{ height }}>
+        <path d={path} fill="none" stroke={color} strokeWidth="1.8" strokeLinejoin="round" strokeLinecap="round" />
         {coords.map((c, i) => (
           <g key={i}>
-            <circle cx={c.x} cy={c.y} r="1.8" fill="#EE4E22" />
+            <circle cx={c.x} cy={c.y} r="2" fill="#EE4E22" />
             <text
               x={c.x}
-              y={c.y - 4}
+              y={c.y - 5}
               textAnchor="middle"
               fontSize="5.5"
               fontWeight="800"
-              fill="#5E5348"
+              fill="rgb(var(--color-muted))"
             >
               {c.value}
             </text>

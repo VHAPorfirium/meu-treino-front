@@ -25,10 +25,10 @@ export const viewport: Viewport = {
   ],
   width: 'device-width',
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
   viewportFit: 'cover',
 };
+
+const THEME_INIT_SCRIPT = `(function(){try{var p=localStorage.getItem('theme_preference');var d=document.documentElement;if(p==='dark'){d.classList.add('dark');d.classList.remove('light');}else if(p==='light'){d.classList.add('light');d.classList.remove('dark');}}catch(e){}})();`;
 
 export default function RootLayout({
   children,
@@ -38,6 +38,7 @@ export default function RootLayout({
   return (
     <html lang="pt-BR" suppressHydrationWarning>
       <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link
           rel="preconnect"

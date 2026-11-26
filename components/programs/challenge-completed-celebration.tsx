@@ -21,7 +21,12 @@ export function ChallengeCompletedCelebration({
 
   useEffect(() => {
     triggerHaptic('celebration');
-  }, []);
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [onClose]);
 
   async function handleShare() {
     setIsSharing(true);

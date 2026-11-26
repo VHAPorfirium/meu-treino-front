@@ -24,7 +24,7 @@ const STATUS_OPTIONS: { value: StatusFilter; label: string }[] = [
 ];
 
 const SELECT_CLASS_NAME =
-  'rounded-xl border border-line bg-card px-3 py-2 text-sm font-bold text-ink focus:border-brand focus:outline-none';
+  'max-w-full rounded-xl border border-line bg-card px-3 py-2 text-sm font-bold text-ink focus:border-brand focus:outline-none';
 
 function formatDateTime(isoDate: string) {
   const entryDate = new Date(isoDate);
@@ -87,7 +87,7 @@ export default function AdminHistoricoPage() {
           </button>
         }
       />
-      <div className="mx-auto max-w-6xl space-y-3.5 p-6 md:p-8">
+      <div className="mx-auto max-w-6xl space-y-3.5 p-4 sm:p-6 md:p-8">
         <div className="flex flex-wrap gap-2">
           <select value={traineeFilter} onChange={(event) => setTraineeFilter(event.target.value)} className={SELECT_CLASS_NAME}>
             <option value="all">Aluno: todos</option>

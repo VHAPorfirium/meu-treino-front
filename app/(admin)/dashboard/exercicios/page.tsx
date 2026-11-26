@@ -53,7 +53,7 @@ export default function ExerciciosPage() {
           </button>
         }
       />
-      <div className="mx-auto max-w-6xl space-y-3 p-6 md:p-8">
+      <div className="mx-auto max-w-6xl space-y-3 p-4 sm:p-6 md:p-8">
         {confirmationMessage && (
           <p className="rounded-2xl border border-done bg-done-bg p-3 text-sm font-bold text-done-ink">
             ✓ {confirmationMessage}{' '}

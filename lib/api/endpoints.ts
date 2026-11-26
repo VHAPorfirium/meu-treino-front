@@ -1,5 +1,5 @@
 import { api } from './client';
-import { TTL_CATALOGO, lembrar } from './cache-modulo';
+import { TTL_CATALOGO, lembrar, limpar } from './cache-modulo';
 import type {
   AttentionItem,
   ExerciseStats,
@@ -31,6 +31,8 @@ import type {
   WorkoutLog,
 } from '../types';
 
+const TTL_USUARIOS = 60 * 1000;
+
 export const authApi = {
   // Login por PIN: o backend identifica o usuário e devolve o papel dele.
   login: (pin: string) => api.post<LoginResponse>('/auth/login', { pin }),
@@ -39,11 +41,17 @@ export const authApi = {
 };
 
 export const usersApi = {
-  // ADMIN — fonte do select "pra quem é o treino"
+  // ADMIN — fonte do select "pra quem é o treino" e filtro por aluno (cacheado por 1 min)
   list: (params: { role?: 'ADMIN' | 'TRAINEE' } = {}) =>
-    api.get<UserSummary[]>(`/users${params.role ? `?role=${params.role}` : ''}`),
+    lembrar(`users:${params.role ?? 'all'}`, TTL_USUARIOS, () =>
+      api.get<UserSummary[]>(`/users${params.role ? `?role=${params.role}` : ''}`),
+    ),
   /** ADMIN — cadastra um aluno (o PIN precisa ser único: é ele que identifica no login) */
-  createTrainee: (payload: { name: string; pin: string }) => api.post<UserSummary>('/users', payload),
+  createTrainee: async (payload: { name: string; pin: string }) => {
+    const created = await api.post<UserSummary>('/users', payload);
+    limpar('users:');
+    return created;
+  },
 };
 
 export const exercisesApi = {

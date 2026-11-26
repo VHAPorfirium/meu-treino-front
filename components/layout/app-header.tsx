@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/lib/auth/auth-context';
 import { triggerHaptic } from '@/lib/haptics';
+import { applyThemePreference, readInitialIsDark } from '@/lib/theme';
 
 export function AppHeader({
   title,
@@ -13,52 +14,39 @@ export function AppHeader({
   subtitle?: string;
   eyebrow?: string;
 }) {
-  const { user, logout } = useAuth();
+  const { logout } = useAuth();
   const [isDark, setIsDark] = useState(false);
 
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const isSavedDark = localStorage.getItem('theme_preference') === 'dark';
-    const isSystemDark =
-      !localStorage.getItem('theme_preference') &&
-      window.matchMedia('(prefers-color-scheme: dark)').matches;
-
-    if (isSavedDark || isSystemDark) {
-      document.documentElement.classList.add('dark');
-      setIsDark(true);
-    }
+    const dark = readInitialIsDark();
+    setIsDark(dark);
   }, []);
 
   function toggleTheme() {
     triggerHaptic('light');
     const willBeDark = !isDark;
     setIsDark(willBeDark);
-    if (willBeDark) {
-      document.documentElement.classList.add('dark');
-      document.documentElement.classList.remove('light');
-      localStorage.setItem('theme_preference', 'dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-      document.documentElement.classList.add('light');
-      localStorage.setItem('theme_preference', 'light');
-    }
+    applyThemePreference(willBeDark);
   }
 
   return (
-    <header className="safe-top sticky top-0 z-20 border-b border-line bg-paper/95 px-5 py-3.5 backdrop-blur">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
+    <header className="safe-top sticky top-0 z-20 w-full border-b border-line bg-paper/95 px-4 pb-3.5 backdrop-blur sm:px-5">
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0 flex-1">
           {eyebrow && (
-            <p className="text-[12px] font-bold uppercase tracking-wider text-muted2">{eyebrow}</p>
+            <p className="truncate text-[11.5px] font-bold uppercase tracking-wider text-muted2">
+              {eyebrow}
+            </p>
           )}
-          <h1 className="font-display text-[24px] font-extrabold leading-tight tracking-tight text-ink">
+          <h1 className="truncate font-display text-[22px] font-extrabold leading-tight tracking-tight text-ink sm:text-[24px]">
             {title}
           </h1>
-          {subtitle && <p className="text-xs text-muted2 mt-0.5">{subtitle}</p>}
+          {subtitle && <p className="mt-0.5 truncate text-xs text-muted2">{subtitle}</p>}
         </div>
 
-        <div className="flex items-center gap-1.5 shrink-0">
+        <div className="flex shrink-0 items-center gap-1.5">
           <button
+            type="button"
             onClick={toggleTheme}
             aria-label="Alternar modo escuro"
             title="Alternar modo claro / escuro para academia"
@@ -67,6 +55,7 @@ export function AppHeader({
             {isDark ? '☀️' : '🌙'}
           </button>
           <button
+            type="button"
             onClick={() => {
               triggerHaptic('light');
               logout();

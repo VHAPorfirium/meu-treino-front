@@ -11,7 +11,7 @@ import type {
 } from '@/lib/types';
 import { workoutsApi } from '@/lib/api/endpoints';
 import { ApiError } from '@/lib/api/client';
-import { descrevePrescricao, modoSugerido, nomeExercicio } from '@/lib/exercicios/modo';
+import { modoSugerido, nomeExercicio } from '@/lib/exercicios/modo';
 import { PageHead } from '@/components/dashboard/page-head';
 import { ExerciseBrowser } from '@/components/dashboard/exercise-browser';
 import { AssigneeSelect } from '@/components/dashboard/assignee-select';
@@ -37,6 +37,7 @@ export default function TreinosPage() {
   const [workouts, setWorkouts] = useState<Workout[]>([]);
   const [detail, setDetail] = useState<WorkoutDetail | null>(null);
   const [creating, setCreating] = useState(false);
+  const [creatingBusy, setCreatingBusy] = useState(false);
   const [name, setName] = useState('');
   const [day, setDay] = useState<number | ''>('');
   const [picker, setPicker] = useState(false);
@@ -64,7 +65,8 @@ export default function TreinosPage() {
   }, [refresh]);
 
   async function createWorkout() {
-    if (!name.trim()) return;
+    if (!name.trim() || creatingBusy) return;
+    setCreatingBusy(true);
     try {
       const w = await workoutsApi.create({
         name: name.trim(),
@@ -83,11 +85,17 @@ export default function TreinosPage() {
       }
     } catch (e) {
       setError(msg(e, 'Não foi possível criar'));
+    } finally {
+      setCreatingBusy(false);
     }
   }
 
   async function openDetail(id: string) {
-    setDetail(await workoutsApi.get(id));
+    try {
+      setDetail(await workoutsApi.get(id));
+    } catch (e) {
+      setError(msg(e, 'Não foi possível abrir o treino'));
+    }
   }
 
   return (
@@ -105,7 +113,7 @@ export default function TreinosPage() {
         }
       />
 
-      <div className="mx-auto max-w-6xl space-y-3 p-6 md:p-8">
+      <div className="mx-auto max-w-6xl space-y-3 p-4 sm:p-6 md:p-8">
         {error && (
           <div className="rounded-2xl border border-line bg-card p-3 text-sm font-semibold text-brand">
             {error}{' '}
@@ -132,22 +140,24 @@ export default function TreinosPage() {
             <div className="flex gap-2">
               <button
                 onClick={() => setCreating(false)}
-                className="flex-1 rounded-xl border-2 border-ink py-2.5 text-sm font-extrabold"
+                disabled={creatingBusy}
+                className="flex-1 rounded-xl border-2 border-ink py-2.5 text-sm font-extrabold disabled:opacity-50"
               >
                 Cancelar
               </button>
               <button
                 onClick={createWorkout}
-                className="flex-1 rounded-xl bg-brand py-2.5 text-sm font-extrabold text-white"
+                disabled={creatingBusy || !name.trim()}
+                className="flex-1 rounded-xl bg-brand py-2.5 text-sm font-extrabold text-white disabled:opacity-50"
               >
-                Criar
+                {creatingBusy ? 'Criando…' : 'Criar'}
               </button>
             </div>
           </div>
         )}
 
-        <div className="grid gap-4 lg:grid-cols-[340px_1fr]">
-          <div className="space-y-2.5 lg:self-start">
+        <div className="grid min-w-0 gap-4 lg:grid-cols-[340px_1fr]">
+          <div className="min-w-0 space-y-2.5 lg:self-start">
             <input
               value={searchText}
               onChange={(event) => setSearchText(event.target.value)}
@@ -170,10 +180,10 @@ export default function TreinosPage() {
               return (
                 <div
                   key={w.id}
-                  className={`rounded-2xl border bg-card p-3 ${isSelected ? 'border-2 border-brand' : 'border-line'}`}
+                  className={`min-w-0 overflow-hidden rounded-2xl border bg-card p-3 ${isSelected ? 'border-2 border-brand' : 'border-line'}`}
                 >
                   <button
-                    className="flex w-full items-center gap-3 text-left"
+                    className="flex w-full min-w-0 items-center gap-3 text-left"
                     onClick={() => (isSelected ? setDetail(null) : openDetail(w.id))}
                   >
                     <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-chip font-display text-base font-extrabold text-ink">
@@ -229,9 +239,9 @@ export default function TreinosPage() {
           </div>
 
           {isWideScreen && (
-            <div className="lg:sticky lg:top-6 lg:self-start">
+            <div className="min-w-0 lg:sticky lg:top-6 lg:self-start">
               {detail ? (
-                <div className="rounded-2xl border border-line bg-card p-5">
+                <div className="min-w-0 rounded-2xl border border-line bg-card p-5">
                   <p className="text-xs font-bold text-muted2">
                     {detail.program
                       ? `Programa: ${PROGRAM_TYPE_RULES[detail.program.type].icon} ${detail.program.name}`
@@ -268,8 +278,12 @@ export default function TreinosPage() {
           onClose={() => setPicker(false)}
           onAdded={async () => {
             setPicker(false);
-            await openDetail(detail.id);
-            await refresh();
+            try {
+              await openDetail(detail.id);
+              await refresh();
+            } catch (e) {
+              setError(msg(e, 'Exercícios adicionados, mas não foi possível recarregar o treino'));
+            }
           }}
         />
       )}
@@ -342,11 +356,15 @@ function WorkoutEditor({
   }
 
   const reorder = async (ordered: WorkoutExerciseItem[]) => {
-    await workoutsApi.reorder(
-      detail.id,
-      ordered.map((we, i) => ({ workoutExerciseId: we.id, order: i + 1 })),
-    );
-    await reload();
+    try {
+      await workoutsApi.reorder(
+        detail.id,
+        ordered.map((we, i) => ({ workoutExerciseId: we.id, order: i + 1 })),
+      );
+      await reload();
+    } catch (e) {
+      onError(msg(e, 'Não foi possível reordenar os exercícios'));
+    }
   };
   const updateEx = async (
     weId: string,
@@ -358,16 +376,28 @@ function WorkoutEditor({
       restSeconds?: number | null;
     },
   ) => {
-    await workoutsApi.updateExercise(detail.id, weId, data);
-    await reload();
+    try {
+      await workoutsApi.updateExercise(detail.id, weId, data);
+      await reload();
+    } catch (e) {
+      const m = msg(e, 'Não foi possível atualizar o exercício');
+      onError(m);
+      throw new Error(m);
+    }
   };
   const removeEx = async (weId: string) => {
-    await workoutsApi.removeExercise(detail.id, weId);
-    await reload();
+    try {
+      await workoutsApi.removeExercise(detail.id, weId);
+      await reload();
+    } catch (e) {
+      const m = msg(e, 'Não foi possível remover o exercício');
+      onError(m);
+      throw new Error(m);
+    }
   };
 
   return (
-    <div className="mt-3 space-y-4 border-t border-line pt-3">
+    <div className="mt-3 min-w-0 space-y-4 border-t border-line pt-3">
       {/* nome + dia + ativo */}
       <div className="space-y-2">
         <input
@@ -392,7 +422,7 @@ function WorkoutEditor({
               label={d}
             />
           ))}
-          <span className="mx-1 h-5 w-px bg-line" />
+          <span className="mx-1 hidden h-5 w-px bg-line sm:inline-block" />
           <button
             onClick={toggleActive}
             disabled={busy}
@@ -413,7 +443,7 @@ function WorkoutEditor({
       />
 
       {/* exercícios (E1/E2) */}
-      <div>
+      <div className="min-w-0">
         <p className="mb-1.5 text-[11px] font-extrabold uppercase tracking-wide text-muted2">
           Exercícios {detail.exercises.length > 1 ? '· arraste pra reordenar' : ''}
         </p>
@@ -435,18 +465,18 @@ function WorkoutEditor({
       </div>
 
       {/* ações */}
-      <div className="flex gap-2 border-t border-line pt-3">
+      <div className="flex flex-wrap gap-2 border-t border-line pt-3">
         <button
           onClick={duplicate}
           disabled={busy}
-          className="flex-1 rounded-xl bg-chip py-2.5 text-sm font-extrabold text-ink disabled:opacity-50"
+          className="min-w-[120px] flex-1 rounded-xl bg-chip py-2.5 text-sm font-extrabold text-ink disabled:opacity-50"
         >
           Duplicar treino
         </button>
         <button
           onClick={remove}
           disabled={busy}
-          className="flex-1 rounded-xl bg-chip py-2.5 text-sm font-extrabold text-brand disabled:opacity-50"
+          className="min-w-[120px] flex-1 rounded-xl bg-chip py-2.5 text-sm font-extrabold text-brand disabled:opacity-50"
         >
           Excluir treino
         </button>
@@ -543,22 +573,27 @@ function AddExerciseModal({
       await workoutsApi.addExercisesBatch(
         workout.id,
         escolhidos.map(({ exercise, config }) => {
-          const rest = Number(config.rest);
-          const restSeconds = Number.isFinite(rest) && rest >= 0 ? rest : undefined;
+          const restTrimmed = config.rest.trim();
+          const rest = restTrimmed === '' ? NaN : Number(restTrimmed);
+          const restSeconds =
+            Number.isFinite(rest) && rest >= 0 ? Math.round(rest) : undefined;
 
           if (config.mode === 'TIME') {
             const min = Number(config.minutes);
             return {
               exerciseId: exercise.id,
               mode: 'TIME' as const,
-              durationSeconds: Math.round((min > 0 ? min : 20) * 60),
+              durationSeconds: Math.round(
+                (Number.isFinite(min) && min > 0 ? min : 20) * 60,
+              ),
               restSeconds,
             };
           }
+          const parsedSets = Math.round(Number(config.sets));
           return {
             exerciseId: exercise.id,
             mode: 'REPS' as const,
-            sets: Number(config.sets) > 0 ? Number(config.sets) : 3,
+            sets: Number.isFinite(parsedSets) && parsedSets >= 1 ? parsedSets : 3,
             reps: config.reps.trim() || '10-12',
             restSeconds,
           };
@@ -572,9 +607,25 @@ function AddExerciseModal({
     }
   }
 
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [onClose]);
+
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/55 md:items-center">
-      <div className="flex max-h-[88vh] w-full max-w-lg flex-col rounded-t-3xl bg-paper md:rounded-3xl">
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Escolher exercícios"
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/55 md:items-center"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div className="flex max-h-[88dvh] w-full max-w-lg flex-col rounded-t-3xl bg-paper md:rounded-3xl">
         <div className="flex shrink-0 items-center justify-between px-5 pb-3 pt-5">
           <h2 className="font-display text-[22px] font-extrabold">Escolher exercícios</h2>
           <button
@@ -590,7 +641,7 @@ function AddExerciseModal({
         </div>
 
         {/* barra fixa: a seleção continua visível mesmo com a lista rolada ou filtrada */}
-        <div className="shrink-0 space-y-2.5 rounded-b-3xl border-t border-line bg-paper p-4">
+        <div className="shrink-0 space-y-2.5 rounded-b-3xl border-t border-line bg-paper p-4 pb-[calc(env(safe-area-inset-bottom,0px)+16px)]">
           {escolhidos.length > 0 && (
             <div className="flex max-h-20 flex-wrap gap-1.5 overflow-y-auto">
               {escolhidos.map(({ exercise }) => (

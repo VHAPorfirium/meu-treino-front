@@ -18,9 +18,13 @@ export function PwaInstallBanner() {
     if (isStandalone) return;
 
     // Se a usuária já fechou recentemente
-    const dismissed = localStorage.getItem('pwa_banner_dismissed');
-    if (dismissed && Date.now() - Number(dismissed) < 7 * 24 * 60 * 60 * 1000) {
-      return;
+    try {
+      const dismissed = localStorage.getItem('pwa_banner_dismissed');
+      if (dismissed && Date.now() - Number(dismissed) < 7 * 24 * 60 * 60 * 1000) {
+        return;
+      }
+    } catch {
+      /* Safari privado / restrição de storage */
     }
 
     const ua = window.navigator.userAgent.toLowerCase();
@@ -35,28 +39,34 @@ export function PwaInstallBanner() {
   function dismiss() {
     triggerHaptic('light');
     setShow(false);
-    localStorage.setItem('pwa_banner_dismissed', String(Date.now()));
+    try {
+      localStorage.setItem('pwa_banner_dismissed', String(Date.now()));
+    } catch {
+      /* ignora falha de storage */
+    }
   }
 
   if (!show) return null;
 
   return (
-    <div className="relative mx-4 my-3 rounded-2xl border border-line bg-card p-4 shadow-md animate-in fade-in slide-in-from-bottom duration-300">
+    <div className="relative mx-4 my-3 rounded-2xl border border-line bg-card p-4 shadow-md">
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-3">
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-brand text-xl text-white font-display font-extrabold shadow-brand">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-brand font-display text-xl font-extrabold text-white shadow-brand">
             R
           </div>
           <div>
             <h3 className="text-sm font-extrabold text-ink">
               Instale o Ritmo no celular
             </h3>
-            <p className="text-xs text-muted leading-tight mt-0.5">
+            <p className="mt-0.5 text-xs leading-tight text-muted">
               Abra em tela cheia, use offline e treine sem distrações do navegador.
             </p>
           </div>
         </div>
         <button
+          type="button"
+          aria-label="Fechar aviso de instalação"
           onClick={dismiss}
           className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-chip text-xs font-bold text-muted2"
         >

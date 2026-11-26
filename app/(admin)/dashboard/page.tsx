@@ -113,7 +113,7 @@ export default function DashboardHome() {
         }
       />
 
-      <div className="mx-auto max-w-6xl space-y-5 p-6 md:p-8">
+      <div className="mx-auto max-w-6xl space-y-5 p-4 sm:p-6 md:p-8">
         {/* filtro por aluno — '' mostra todo mundo somado */}
         <FiltroAluno value={alunoId} onChange={setAlunoId} />
 
@@ -122,7 +122,7 @@ export default function DashboardHome() {
 
         {data && (
           <>
-            <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
+            <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-5">
               <StatCard
                 label="Frequência 30d"
                 value={sessions.last30days}
@@ -158,10 +158,10 @@ export default function DashboardHome() {
               />
             </div>
 
-            <div className="grid gap-5 lg:grid-cols-[1fr_360px]">
-              <div className="space-y-5">
-                <div className="rounded-2xl border border-line bg-card p-5">
-                  <div className="mb-4 flex items-center justify-between">
+            <div className="grid min-w-0 gap-5 lg:grid-cols-[1fr_360px]">
+              <div className="min-w-0 space-y-5">
+                <div className="rounded-2xl border border-line bg-card p-4 sm:p-5">
+                  <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
                     <h2 className="text-base font-extrabold">
                       Frequência · últimos 30 dias
                     </h2>
@@ -173,7 +173,7 @@ export default function DashboardHome() {
                   <Legend />
                 </div>
 
-                <div className="rounded-2xl border border-line bg-card p-5">
+                <div className="rounded-2xl border border-line bg-card p-4 sm:p-5">
                   <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
                     <div>
                       <h2 className="text-base font-extrabold">
@@ -181,7 +181,7 @@ export default function DashboardHome() {
                       </h2>
                       <p className="text-xs text-muted2">kg por sessão</p>
                     </div>
-                    <div className="no-scrollbar flex gap-2 overflow-x-auto">
+                    <div className="no-scrollbar flex max-w-full gap-2 overflow-x-auto">
                       {loadProgression.slice(0, 4).map((l) => (
                         <button
                           key={l.exercise}
@@ -201,11 +201,11 @@ export default function DashboardHome() {
                 </div>
               </div>
 
-              <div className="space-y-5">
+              <div className="min-w-0 space-y-5">
                 <AttentionPanel attentionItems={visibleAttentionItems} />
                 <ProgramsInProgressPanel programs={visiblePrograms} />
 
-                <div className="rounded-2xl border border-line bg-card p-5">
+                <div className="rounded-2xl border border-line bg-card p-4 sm:p-5">
                   <h2 className="mb-4 text-base font-extrabold">
                     Mais pulados e trocados
                   </h2>
@@ -213,34 +213,36 @@ export default function DashboardHome() {
                     <p className="text-sm text-muted2">Nada registrado ainda.</p>
                   ) : (
                     <div className="space-y-3.5">
-                      {ranking.map((r, i) => {
-                        const max = ranking[0].count || 1;
-                        const fg = r.type === 'skip' ? 'text-skip' : 'text-replace';
-                        const bar = r.type === 'skip' ? 'bg-skip' : 'bg-replace';
-                        return (
-                          <div key={i} className="space-y-1.5">
-                            <div className="flex items-center justify-between gap-2 text-sm">
-                              <span className="truncate font-semibold capitalize">
-                                {r.name}
-                              </span>
-                              <span className={`shrink-0 text-xs font-extrabold ${fg}`}>
-                                {r.count}× {r.type === 'skip' ? 'pulado' : 'trocado'}
-                              </span>
+                      {(() => {
+                        const max = Math.max(...ranking.map((item) => item.count), 1);
+                        return ranking.map((r, i) => {
+                          const fg = r.type === 'skip' ? 'text-skip' : 'text-replace';
+                          const bar = r.type === 'skip' ? 'bg-skip' : 'bg-replace';
+                          return (
+                            <div key={i} className="space-y-1.5">
+                              <div className="flex items-center justify-between gap-2 text-sm">
+                                <span className="truncate font-semibold capitalize">
+                                  {r.name}
+                                </span>
+                                <span className={`shrink-0 text-xs font-extrabold ${fg}`}>
+                                  {r.count}× {r.type === 'skip' ? 'pulado' : 'trocado'}
+                                </span>
+                              </div>
+                              <div className="h-2 overflow-hidden rounded-full bg-chip">
+                                <div
+                                  className={`h-full rounded-full ${bar}`}
+                                  style={{ width: `${(r.count / max) * 100}%` }}
+                                />
+                              </div>
                             </div>
-                            <div className="h-2 overflow-hidden rounded-full bg-chip">
-                              <div
-                                className={`h-full rounded-full ${bar}`}
-                                style={{ width: `${(r.count / max) * 100}%` }}
-                              />
-                            </div>
-                          </div>
-                        );
-                      })}
+                          );
+                        });
+                      })()}
                     </div>
                   )}
                 </div>
 
-                <div className="rounded-2xl border border-line bg-card p-5">
+                <div className="rounded-2xl border border-line bg-card p-4 sm:p-5">
                   <h2 className="mb-4 text-base font-extrabold">
                     Observações recentes
                   </h2>
@@ -290,12 +292,12 @@ function StatCard({
   hint: string;
 }) {
   return (
-    <div className="rounded-2xl border border-line bg-card p-5">
-      <p className="text-xs font-extrabold uppercase tracking-wide text-muted2">
+    <div className="min-w-0 rounded-2xl border border-line bg-card p-4 sm:p-5">
+      <p className="truncate text-[11px] font-extrabold uppercase tracking-wide text-muted2 sm:text-xs">
         {label}
       </p>
-      <div className="mt-1.5 flex items-baseline gap-2">
-        <span className="font-display text-[34px] font-extrabold leading-none">
+      <div className="mt-1.5 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+        <span className="font-display text-[28px] font-extrabold leading-none sm:text-[34px]">
           {value}
         </span>
         {unit && <span className="text-sm font-bold text-muted2">{unit}</span>}
@@ -341,7 +343,7 @@ function Heatmap({ cells }: { cells: { date: string; level: number }[] }) {
 
 function Legend() {
   return (
-    <div className="mt-3 flex items-center gap-4 text-[11px] font-semibold text-muted2">
+    <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[11px] font-semibold text-muted2">
       <span className="flex items-center gap-1.5">
         <span className="h-3 w-3 rounded bg-done" /> treino completo
       </span>
@@ -367,16 +369,19 @@ function LoadBars({ points }: { points: { label: string; kg: number }[] }) {
     <div className="flex h-44 items-end gap-2">
       {points.map((p, i) => {
         const last = i === points.length - 1;
+        const pct = Math.max(0, Math.min(100, (p.kg / max) * 100));
         return (
           <div
             key={i}
-            className="flex flex-1 flex-col items-center justify-end gap-1.5"
+            className="flex h-full min-w-0 flex-1 flex-col items-center gap-1.5"
           >
             <span className="font-display text-xs font-extrabold">{p.kg}</span>
-            <div
-              className={`w-full rounded-t-lg ${last ? 'bg-brand' : 'bg-ink'}`}
-              style={{ height: `${(p.kg / max) * 100}%`, minHeight: 4 }}
-            />
+            <div className="flex w-full flex-1 items-end">
+              <div
+                className={`w-full rounded-t-lg ${last ? 'bg-brand' : 'bg-ink'}`}
+                style={{ height: `${pct}%`, minHeight: 4 }}
+              />
+            </div>
             <span className="text-[10px] font-bold text-muted2">{p.label}</span>
           </div>
         );

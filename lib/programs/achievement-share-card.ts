@@ -86,5 +86,5 @@ export async function shareAchievement(programReport: ProgramReport): Promise<vo
   downloadLink.href = downloadUrl;
   downloadLink.download = imageFile.name;
   downloadLink.click();
-  URL.revokeObjectURL(downloadUrl);
+  setTimeout(() => URL.revokeObjectURL(downloadUrl), 1000);
 }

@@ -138,6 +138,8 @@
 html,
 body {
   height: 100%;
+  max-width: 100%;
+  overflow-x: clip; /* impede qualquer overflow horizontal sem quebrar position: sticky */
   overscroll-behavior-y: contain; /* Previne pull-to-refresh acidental no meio do treino */
 }
 
@@ -151,20 +153,60 @@ body {
 input,
 textarea {
   user-select: text; /* Permite digitar e selecionar normalmente nos inputs */
-  font-size: 16px !important; /* Previne auto-zoom indesejado no iOS Safari */
+}
+
+@media (pointer: coarse) {
+  input,
+  textarea,
+  select {
+    font-size: 16px; /* Previne auto-zoom indesejado no iOS Safari sem inflar o desktop */
+  }
 }
 
 /* container mobile (trainee) */
 .app-shell {
   @apply mx-auto flex min-h-screen w-full max-w-[440px] flex-col bg-paper;
+  overflow-x: clip;
   overscroll-behavior-y: contain;
 }
 
+/*
+ * Safe areas para iPhone (Dynamic Island / notch + barra inferior).
+ * Soma padding real ACIMA do env(safe-area-inset-top) em vez de max(), para
+ * que os botões do topo (ex.: Sair) nunca fiquem dentro da área translúcida
+ * do status bar quando o app é instalado como PWA standalone.
+ */
 .safe-top {
-  padding-top: max(env(safe-area-inset-top), 12px);
+  padding-top: calc(env(safe-area-inset-top, 0px) + 1rem);
 }
+
+@media (display-mode: standalone) {
+  .safe-top {
+    padding-top: calc(env(safe-area-inset-top, 0px) + 1.5rem);
+  }
+}
+
 .safe-bottom {
-  padding-bottom: max(env(safe-area-inset-bottom), 12px);
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 0.5rem);
+}
+
+@keyframes shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20%,
+  60% {
+    transform: translateX(-5px);
+  }
+  40%,
+  80% {
+    transform: translateX(5px);
+  }
+}
+
+.animate-shake {
+  animation: shake 0.35s ease-in-out;
 }
 
 /* utilitário de título display */

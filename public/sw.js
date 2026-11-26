@@ -1,7 +1,7 @@
 // Service worker — cacheia o app shell p/ abrir offline + recebe Web Push (E6).
 // Chamadas à API NÃO são cacheadas nem interceptadas: a fila offline (E5) vive na página
 // (lib/offline/queue.ts), porque Safari/iOS não tem Background Sync.
-const CACHE = 'meu-treino-v2';
+const CACHE = 'meu-treino-v3';
 const APP_SHELL = ['/', '/login', '/treino', '/manifest.webmanifest', '/icons/icon-192.png'];
 
 self.addEventListener('install', (event) => {
@@ -27,16 +27,18 @@ self.addEventListener('fetch', (event) => {
   if (request.method !== 'GET') return;
   const url = new URL(request.url);
 
-  // não intercepta a API
-  if (url.pathname.startsWith('/api')) return;
+  // não intercepta chamadas à API nem origens externas
+  if (url.origin !== self.location.origin || url.pathname.startsWith('/api')) return;
 
-  // navegação: network-first, cai pro cache offline
+  // navegação: network-first, cai pro cache offline; só cacheia respostas válidas
   if (request.mode === 'navigate') {
     event.respondWith(
       fetch(request)
         .then((res) => {
-          const copy = res.clone();
-          caches.open(CACHE).then((c) => c.put(request, copy));
+          if (res.ok && res.type === 'basic') {
+            const copy = res.clone();
+            caches.open(CACHE).then((c) => c.put(request, copy)).catch(() => {});
+          }
           return res;
         })
         .catch(() => caches.match(request).then((r) => r || caches.match('/'))),
@@ -44,10 +46,26 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // estáticos: cache-first
-  event.respondWith(
-    caches.match(request).then((cached) => cached || fetch(request)),
-  );
+  // estáticos imutáveis do Next e ícones: cache-first com preenchimento em runtime
+  const isCacheableStatic =
+    url.pathname.startsWith('/_next/static/') ||
+    url.pathname.startsWith('/icons/') ||
+    url.pathname === '/manifest.webmanifest';
+
+  if (isCacheableStatic) {
+    event.respondWith(
+      caches.match(request).then((cached) => {
+        if (cached) return cached;
+        return fetch(request).then((res) => {
+          if (res.ok && res.type === 'basic') {
+            const copy = res.clone();
+            caches.open(CACHE).then((c) => c.put(request, copy)).catch(() => {});
+          }
+          return res;
+        });
+      }),
+    );
+  }
 });
 
 // ── Web Push (E6) ─────────────────────────────────────────────────────────────
@@ -70,17 +88,29 @@ self.addEventListener('push', (event) => {
   );
 });
 
+function sanitizeNotificationUrl(rawUrl) {
+  try {
+    const resolved = new URL(String(rawUrl || '/treino'), self.location.origin);
+    if (resolved.origin !== self.location.origin) return '/treino';
+    return `${resolved.pathname}${resolved.search}${resolved.hash}`;
+  } catch {
+    return '/treino';
+  }
+}
+
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const url = (event.notification.data && event.notification.data.url) || '/treino';
+  const safeUrl = sanitizeNotificationUrl(event.notification.data && event.notification.data.url);
   event.waitUntil(
-    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(async (list) => {
       const existing = list.find((c) => 'focus' in c);
       if (existing) {
-        existing.navigate(url);
+        if ('navigate' in existing) {
+          await existing.navigate(safeUrl).catch(() => {});
+        }
         return existing.focus();
       }
-      return self.clients.openWindow(url);
+      return self.clients.openWindow(safeUrl);
     }),
   );
 });

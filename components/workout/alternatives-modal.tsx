@@ -31,8 +31,19 @@ export function AlternativesModal({
       .catch(() => setError('Não foi possível carregar alternativas'));
   }, [exerciseId]);
 
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [onClose]);
+
   return (
     <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Trocar exercício"
       className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm transition-opacity"
       onClick={(e) => {
         if (e.target === e.currentTarget) {
@@ -41,12 +52,12 @@ export function AlternativesModal({
         }
       }}
     >
-      <div className="w-full max-w-[440px] max-h-[85vh] flex flex-col rounded-t-3xl border-t border-line bg-paper p-5 pb-[max(env(safe-area-inset-bottom),20px)] shadow-2xl animate-in slide-in-from-bottom duration-200">
+      <div className="flex max-h-[85dvh] w-full max-w-[440px] flex-col rounded-t-3xl border-t border-line bg-paper p-5 pb-[calc(env(safe-area-inset-bottom,0px)+20px)] shadow-2xl">
         {/* Barra de arrasto (drag handle) */}
         <div className="mx-auto mb-3 h-1.5 w-12 shrink-0 rounded-full bg-line3" />
 
-        <div className="flex items-start justify-between gap-3 shrink-0 mb-3">
-          <div>
+        <div className="mb-3 flex shrink-0 items-start justify-between gap-3">
+          <div className="min-w-0">
             <h2 className="font-display text-[22px] font-extrabold leading-tight tracking-tight">
               Trocar exercício
             </h2>
@@ -55,11 +66,13 @@ export function AlternativesModal({
             </p>
           </div>
           <button
+            type="button"
+            aria-label="Fechar"
             onClick={() => {
               triggerHaptic('light');
               onClose();
             }}
-            className="flex h-9 w-9 items-center justify-center rounded-full bg-chip text-sm font-bold text-muted2"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-chip text-sm font-bold text-muted2"
           >
             ✕
           </button>

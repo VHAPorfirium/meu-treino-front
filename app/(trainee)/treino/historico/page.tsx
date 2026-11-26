@@ -230,7 +230,7 @@ function HistoryEntryCard({
             <div key={exerciseLog.id} className="flex items-center justify-between gap-2 text-sm">
               <span className="min-w-0 flex-1 truncate capitalize text-ink2">
                 {exerciseLog.status === 'REPLACED' && exerciseLog.actualExercise
-                  ? `${nomeExercicio(exerciseLog.workoutExercise.exercise)} → ${exerciseLog.actualExercise.name}`
+                  ? `${nomeExercicio(exerciseLog.workoutExercise.exercise)} → ${nomeExercicio(exerciseLog.actualExercise)}`
                   : nomeExercicio(exerciseLog.workoutExercise.exercise)}
                 {exerciseLog.totalSeconds ? (
                   <span className="font-bold text-muted2"> · {formataDuracao(exerciseLog.totalSeconds)}</span>

@@ -61,9 +61,12 @@ export default function EvolucaoPage() {
   // variação entre a primeira e a última carga do exercício escolhido
   const firstLoad = loadSeries[0]?.value;
   const lastLoad = loadSeries[loadSeries.length - 1]?.value;
-  const loadDifference = firstLoad && lastLoad && loadSeries.length > 1 ? lastLoad - firstLoad : null;
+  const loadDifference =
+    firstLoad != null && lastLoad != null && loadSeries.length > 1 ? lastLoad - firstLoad : null;
   const loadDifferencePercentage =
-    loadDifference !== null && firstLoad ? Math.round((loadDifference / firstLoad) * 100) : null;
+    loadDifference !== null && firstLoad != null && firstLoad > 0
+      ? Math.round((loadDifference / firstLoad) * 100)
+      : null;
   const weeklyTarget = Math.round((data?.sessions.target ?? 16) / 4);
 
   return (
@@ -72,7 +75,7 @@ export default function EvolucaoPage() {
         eyebrow="Acompanhamento"
         title={nomeAluno ? `Evolução · ${nomeAluno.split(' ')[0]}` : 'Evolução'}
       />
-      <div className="mx-auto max-w-6xl space-y-5 p-6 md:p-8">
+      <div className="mx-auto max-w-6xl space-y-5 p-4 sm:p-6 md:p-8">
         <FiltroAluno value={alunoId} onChange={setAlunoId} />
 
         {error && <p className="text-brand">{error}</p>}
@@ -80,7 +83,7 @@ export default function EvolucaoPage() {
 
         {data && (
           <>
-            <div className="grid gap-5 lg:grid-cols-2">
+            <div className="grid min-w-0 gap-5 lg:grid-cols-2">
               <Panel
                 title="Frequência por semana"
                 action={<span className="text-xs font-bold text-muted2">meta: {weeklyTarget}/semana</span>}
@@ -95,7 +98,7 @@ export default function EvolucaoPage() {
                     <select
                       value={exercise}
                       onChange={(e) => setExercise(e.target.value)}
-                      className="max-w-[55%] truncate rounded-full bg-chip px-3 py-1.5 text-xs font-bold capitalize text-muted"
+                      className="max-w-full truncate rounded-full bg-chip px-3 py-1.5 text-xs font-bold capitalize text-muted sm:max-w-[55%]"
                     >
                       {data.loadProgression.map((l) => (
                         <option key={l.exercise} value={l.exercise}>
@@ -118,7 +121,7 @@ export default function EvolucaoPage() {
               </Panel>
             </div>
 
-            <div className="grid gap-5 lg:grid-cols-2">
+            <div className="grid min-w-0 gap-5 lg:grid-cols-2">
               <Panel title="Mais trocados">
                 {data.mostReplaced.length === 0 ? (
                   <p className="text-sm text-muted2">Nenhuma troca registrada.</p>
@@ -132,7 +135,7 @@ export default function EvolucaoPage() {
                         <span className="min-w-0 flex-1 truncate capitalize font-semibold">
                           {r.from} <span className="text-replace">→</span> {r.to}
                         </span>
-                        <span className="font-extrabold text-replace">
+                        <span className="shrink-0 font-extrabold text-replace">
                           {r.count}×
                         </span>
                       </div>
@@ -149,12 +152,12 @@ export default function EvolucaoPage() {
                     {data.mostSkipped.map((s) => (
                       <div
                         key={s.exercise}
-                        className="flex items-center justify-between text-sm"
+                        className="flex items-center justify-between gap-2 text-sm"
                       >
-                        <span className="capitalize font-semibold">
+                        <span className="min-w-0 flex-1 truncate capitalize font-semibold">
                           {s.exercise}
                         </span>
-                        <span className="font-extrabold text-skip">{s.count}×</span>
+                        <span className="shrink-0 font-extrabold text-skip">{s.count}×</span>
                       </div>
                     ))}
                   </div>
@@ -178,8 +181,8 @@ function Panel({
   children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-2xl border border-line bg-card p-5">
-      <div className="mb-4 flex items-center justify-between gap-2">
+    <div className="min-w-0 rounded-2xl border border-line bg-card p-4 sm:p-5">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-base font-extrabold">{title}</h2>
         {action}
       </div>

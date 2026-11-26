@@ -42,5 +42,5 @@ export function downloadTextFile(fileContent: string, fileName: string, mimeType
   downloadLink.href = fileUrl;
   downloadLink.download = fileName;
   downloadLink.click();
-  URL.revokeObjectURL(fileUrl);
+  setTimeout(() => URL.revokeObjectURL(fileUrl), 1000);
 }

@@ -7,9 +7,9 @@ import { Sidebar } from '@/components/layout/sidebar';
 export default function AdminLayout({ children }: { children: ReactNode }) {
   return (
     <RequireRole role="ADMIN">
-      <div className="min-h-screen bg-sand md:flex">
+      <div className="min-h-screen w-full max-w-full overflow-x-clip bg-sand md:flex">
         <Sidebar />
-        <main className="min-w-0 flex-1">{children}</main>
+        <main className="min-w-0 w-full flex-1">{children}</main>
       </div>
     </RequireRole>
   );

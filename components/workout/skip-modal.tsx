@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { triggerHaptic } from '@/lib/haptics';
 
 const REASONS = [
@@ -22,8 +22,19 @@ export function SkipModal({
 }) {
   const [note, setNote] = useState('');
 
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [onClose]);
+
   return (
     <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Pular exercício"
       className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm transition-opacity"
       onClick={(e) => {
         if (e.target === e.currentTarget) {
@@ -32,30 +43,32 @@ export function SkipModal({
         }
       }}
     >
-      <div className="w-full max-w-[440px] rounded-t-3xl border-t border-line bg-paper p-5 pb-[max(env(safe-area-inset-bottom),20px)] shadow-2xl animate-in slide-in-from-bottom duration-200">
+      <div className="w-full max-w-[440px] rounded-t-3xl border-t border-line bg-paper p-5 pb-[calc(env(safe-area-inset-bottom,0px)+20px)] shadow-2xl">
         {/* Barra de arrasto (drag handle) */}
         <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-line3" />
 
         <div className="flex items-start justify-between gap-3">
-          <div className="flex items-center gap-3">
+          <div className="flex min-w-0 items-center gap-3">
             <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-skip-bg text-xl font-extrabold text-skip">
               ✕
             </div>
-            <div>
+            <div className="min-w-0">
               <h2 className="font-display text-[22px] font-extrabold leading-tight tracking-tight">
                 Pular exercício?
               </h2>
-              <p className="text-xs font-semibold capitalize text-muted2">
+              <p className="truncate text-xs font-semibold capitalize text-muted2">
                 {exerciseName}
               </p>
             </div>
           </div>
           <button
+            type="button"
+            aria-label="Fechar"
             onClick={() => {
               triggerHaptic('light');
               onClose();
             }}
-            className="flex h-9 w-9 items-center justify-center rounded-full bg-chip text-sm font-bold text-muted2"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-chip text-sm font-bold text-muted2"
           >
             ✕
           </button>
@@ -100,15 +113,17 @@ export function SkipModal({
         {/* Botões de ação ergonomicamente na zona do polegar */}
         <div className="mt-4 flex flex-col gap-2">
           <button
+            type="button"
             onClick={() => {
               triggerHaptic('warning');
               onConfirm(note.trim());
             }}
-            className="h-13 w-full rounded-2xl bg-skip py-3.5 text-base font-extrabold text-on-skip shadow-sm transition active:scale-[0.98]"
+            className="h-12 w-full rounded-2xl bg-skip py-3 text-base font-extrabold text-on-skip shadow-sm transition active:scale-[0.98]"
           >
             Confirmar pulo
           </button>
           <button
+            type="button"
             onClick={() => {
               triggerHaptic('light');
               onClose();
