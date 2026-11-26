@@ -75,9 +75,9 @@ export interface PasswordChecklist {
 /** Avaliação granular da política de senha forte (8+ chars, letra, número, especial). */
 export function passwordChecklist(password: string): PasswordChecklist {
   const minLength = password.length >= 8 && password.length <= 128;
-  const hasLetter = /\p{L}/u.test(password);
+  const hasLetter = /[A-Za-zÀ-ÖØ-öø-ÿ]/.test(password);
   const hasNumber = /\d/.test(password);
-  const hasSpecial = /[^\p{L}\p{N}\s]/u.test(password);
+  const hasSpecial = /[^A-Za-zÀ-ÖØ-öø-ÿ0-9\s]/.test(password);
   return {
     minLength,
     hasLetter,

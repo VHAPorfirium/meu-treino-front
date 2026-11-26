@@ -19,8 +19,8 @@ import {
   salvarTimer,
 } from './rascunho';
 
-const USER_A: AuthUser = { userId: 'user-a', name: 'Aluna A', role: 'TRAINEE' };
-const USER_B: AuthUser = { userId: 'user-b', name: 'Aluna B', role: 'TRAINEE' };
+const USER_A: AuthUser = { userId: 'user-a', name: 'Aluna A', username: 'aluna.a', role: 'TRAINEE', mustChangePassword: false };
+const USER_B: AuthUser = { userId: 'user-b', name: 'Aluna B', username: 'aluna.b', role: 'TRAINEE', mustChangePassword: false };
 
 describe('lib/offline/rascunho', () => {
   beforeEach(async () => {
