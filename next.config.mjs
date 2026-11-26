@@ -4,13 +4,31 @@
  * local cai no backend do Docker. API_UPSTREAM permite sobrescrever sem tocar na outra.
  */
 const API_UPSTREAM = (
-  process.env.API_UPSTREAM ??
-  process.env.NEXT_PUBLIC_API_URL ??
+  process.env.API_UPSTREAM?.trim() ||
+  process.env.NEXT_PUBLIC_API_URL?.trim() ||
   'http://localhost:3000/api'
 ).replace(/\/+$/, '');
 
+const isDev = process.env.NODE_ENV !== 'production';
+
+const contentSecurityPolicy = [
+  "default-src 'self'",
+  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ''}`,
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+  "font-src 'self' https://fonts.gstatic.com data:",
+  "img-src 'self' data: blob: https://raw.githubusercontent.com https://*.supabase.co",
+  "connect-src 'self' https://*.supabase.co https://fonts.googleapis.com https://fonts.gstatic.com",
+  "worker-src 'self'",
+  "manifest-src 'self'",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "frame-ancestors 'none'",
+].join('; ');
+
 /** @type {import('next').NextConfig} */
 const securityHeaders = [
+  { key: 'Content-Security-Policy', value: contentSecurityPolicy },
   { key: 'X-Content-Type-Options', value: 'nosniff' },
   { key: 'X-Frame-Options', value: 'DENY' },
   { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },

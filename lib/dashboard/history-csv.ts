@@ -1,9 +1,15 @@
 import type { HistoryEntry } from '@/lib/types';
 
-/** Escapa um valor para CSV (aspas, ponto e vírgula e quebras de linha). */
+/**
+ * Escapa um valor para CSV (aspas, ponto e vírgula, quebras de linha) e
+ * neutraliza CSV Formula Injection para abertura segura no Excel/Sheets.
+ */
 function escapeCsvValue(value: string | number): string {
-  const text = String(value);
-  return /[";\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+  let text = String(value);
+  if (typeof value === 'string' && (/^[\t\r ]*[=+\-@]/.test(text) || /^[\t\r]/.test(text))) {
+    text = `'${text}`;
+  }
+  return /[";\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
 }
 
 /**

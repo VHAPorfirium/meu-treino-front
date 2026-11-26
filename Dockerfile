@@ -12,6 +12,13 @@ FROM base AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+# Rewrites do Next.js (next.config.mjs) são resolvidos em tempo de build.
+# Passe --build-arg API_UPSTREAM=http://api:3000/api (ou NEXT_PUBLIC_API_URL)
+# ao construir a imagem para apontar o proxy /api/* ao backend correto.
+ARG API_UPSTREAM=""
+ARG NEXT_PUBLIC_API_URL=""
+ENV API_UPSTREAM=${API_UPSTREAM}
+ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN npm run build
 
