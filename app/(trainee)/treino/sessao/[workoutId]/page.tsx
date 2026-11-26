@@ -70,27 +70,63 @@ export default function WorkoutSessionPage() {
   const [isLastPerformanceLoaded, setIsLastPerformanceLoaded] = useState(false);
   const { celebration, loadCurrentProgram, closeCelebration } = useCurrentProgram();
   const openingLogRef = useRef<Promise<WorkoutLog> | null>(null);
+  const loadSeqRef = useRef(0);
 
   const load = useCallback(async () => {
+    const seq = ++loadSeqRef.current;
     setLoading(true);
+    setRascunhoPronto(false);
     setError(null);
     try {
       const res = await workoutsApi.session(workoutId);
+      if (seq !== loadSeqRef.current) return;
+
+      // E13 — recupera o rascunho ANTES de montar os <ExerciseCard>, pois cada card
+      // lê `rascunho` apenas nos initializers de useState. Evita a corrida em que
+      // `rascunhoPronto` virava `true` enquanto `loading` ainda era `true` e `log` era `null`.
+      let exerciciosRecuperados: Record<string, RascunhoExercicio> = {};
+      let timerRecuperado: { id: number; seconds: number; label: string; terminaEm?: number } | null =
+        null;
+
+      if (res.workoutLog?.id && !res.workoutLog.completed) {
+        const r = await carregarRascunho(res.workoutLog.id);
+        if (seq !== loadSeqRef.current) return;
+        if (r) {
+          exerciciosRecuperados = r.exercicios ?? {};
+          if (r.timerTerminaEm && r.timerTerminaEm > Date.now()) {
+            timerRecuperado = {
+              id: nextTimerId.current++,
+              seconds: Math.ceil((r.timerTerminaEm - Date.now()) / 1000),
+              label: r.timerRotulo ?? 'Descanso',
+              terminaEm: r.timerTerminaEm,
+            };
+          }
+        }
+      }
+
+      setRascunhos(exerciciosRecuperados);
+      if (timerRecuperado) {
+        setTimer(timerRecuperado);
+      }
       setData(res);
       setLog(res.workoutLog);
+      setRascunhoPronto(true);
     } catch (e) {
+      if (seq !== loadSeqRef.current) return;
       setError(
         e instanceof ApiError
           ? `Não foi possível carregar o treino (${e.message}).`
           : 'Sem conexão — o treino não pôde ser carregado.',
       );
     } finally {
-      setLoading(false);
+      if (seq === loadSeqRef.current) {
+        setLoading(false);
+      }
     }
   }, [workoutId]);
 
   useEffect(() => {
-    load();
+    void load();
     void loadCurrentProgram();
     wireAutoFlush();
     const off = onPendingChange((n) => {
@@ -104,42 +140,10 @@ export default function WorkoutSessionPage() {
       .catch(() => {})
       .finally(() => setIsLastPerformanceLoaded(true));
     return () => {
+      loadSeqRef.current += 1;
       off();
     };
   }, [load, loadCurrentProgram, workoutId]);
-
-  /**
-   * E13 — ao (re)montar com uma sessão aberta, recupera o rascunho: o que foi
-   * digitado sem salvar e o descanso que estava correndo. O timer é retomado
-   * pelo **instante absoluto**, então volta com o tempo certo, não do zero.
-   */
-  useEffect(() => {
-    // sem sessão aberta não há rascunho a recuperar — libera a lista na hora
-    if (!log?.id || log.completed) {
-      setRascunhoPronto(true);
-      return;
-    }
-    let cancelado = false;
-    void carregarRascunho(log.id).then((r) => {
-      if (cancelado || !r) {
-        setRascunhoPronto(true);
-        return;
-      }
-      setRascunhos(r.exercicios ?? {});
-      if (r.timerTerminaEm && r.timerTerminaEm > Date.now()) {
-        setTimer({
-          id: nextTimerId.current++,
-          seconds: Math.ceil((r.timerTerminaEm - Date.now()) / 1000),
-          label: r.timerRotulo ?? 'Descanso',
-          terminaEm: r.timerTerminaEm,
-        });
-      }
-      setRascunhoPronto(true);
-    });
-    return () => {
-      cancelado = true;
-    };
-  }, [log?.id, log?.completed]);
 
   // E13 — grava cada digitação com atraso; a tela não pode esperar o IndexedDB
   const gravar = useRef<ReturnType<typeof setTimeout> | null>(null);
