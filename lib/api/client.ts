@@ -40,10 +40,10 @@ function handleUnauthorized() {
   handlingUnauthorized = false;
 }
 
-async function request<T>(
+async function requestRaw<T>(
   path: string,
   options: RequestInit = {},
-): Promise<T> {
+): Promise<{ data: T; headers: Headers }> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
@@ -81,18 +81,32 @@ async function request<T>(
     throw new ApiError(res.status, msg);
   }
 
-  if (res.status === 204) return undefined as T;
+  if (res.status === 204) return { data: undefined as T, headers: res.headers };
   const text = await res.text();
-  if (!text) return undefined as T;
+  if (!text) return { data: undefined as T, headers: res.headers };
   try {
-    return JSON.parse(text) as T;
+    return { data: JSON.parse(text) as T, headers: res.headers };
   } catch {
     throw new ApiError(res.status, 'Resposta inválida do servidor');
   }
 }
 
+async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const { data } = await requestRaw<T>(path, options);
+  return data;
+}
+
 export const api = {
   get: <T>(path: string) => request<T>(path),
+  getWithTotal: async <T>(path: string): Promise<{ data: T; total: number | null }> => {
+    const { data, headers } = await requestRaw<T>(path);
+    const rawTotal = headers.get('X-Total-Count');
+    const parsedTotal = rawTotal !== null ? Number.parseInt(rawTotal, 10) : Number.NaN;
+    return {
+      data,
+      total: Number.isFinite(parsedTotal) && parsedTotal >= 0 ? parsedTotal : null,
+    };
+  },
   post: <T>(path: string, body?: unknown) =>
     request<T>(path, { method: 'POST', body: JSON.stringify(body ?? {}) }),
   patch: <T>(path: string, body?: unknown) =>

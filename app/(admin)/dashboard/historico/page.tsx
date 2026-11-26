@@ -1,14 +1,16 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import type { HistoryEntry } from '@/lib/types';
-import { workoutLogsApi } from '@/lib/api/endpoints';
+import type { HistoryEntry, UserSummary } from '@/lib/types';
+import { usersApi, workoutLogsApi } from '@/lib/api/endpoints';
 import { PROGRAM_TYPE_RULES } from '@/lib/programs/program-type-rules';
 import { buildHistoryCsv, downloadTextFile } from '@/lib/dashboard/history-csv';
 import { PageHead } from '@/components/dashboard/page-head';
 
 type PeriodFilter = '7' | '30' | '90' | 'all';
 type StatusFilter = 'all' | 'completed' | 'open';
+
+const HISTORY_PAGE_SIZE = 100;
 
 const PERIOD_OPTIONS: { value: PeriodFilter; label: string }[] = [
   { value: '7', label: 'Últimos 7 dias' },
@@ -34,9 +36,25 @@ function formatDateTime(isoDate: string) {
   )}`;
 }
 
-/** Todas as sessões, com filtros por aluno, período e status, e exportação em CSV. */
+function mergeUniqueEntries(existing: HistoryEntry[], incoming: HistoryEntry[]): HistoryEntry[] {
+  const seen = new Set(existing.map((entry) => entry.id));
+  const merged = [...existing];
+  for (const entry of incoming) {
+    if (!seen.has(entry.id)) {
+      seen.add(entry.id);
+      merged.push(entry);
+    }
+  }
+  return merged;
+}
+
+/** Todas as sessões, com filtros por aluno, período e status, paginação e exportação em CSV. */
 export default function AdminHistoricoPage() {
   const [historyEntries, setHistoryEntries] = useState<HistoryEntry[] | null>(null);
+  const [totalCount, setTotalCount] = useState<number | null>(null);
+  const [lastBatchSize, setLastBatchSize] = useState(0);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [registeredTrainees, setRegisteredTrainees] = useState<UserSummary[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [traineeFilter, setTraineeFilter] = useState('all');
   const [periodFilter, setPeriodFilter] = useState<PeriodFilter>('30');
@@ -44,16 +62,45 @@ export default function AdminHistoricoPage() {
 
   useEffect(() => {
     workoutLogsApi
-      .history()
-      .then(setHistoryEntries)
+      .historyPage({ limit: HISTORY_PAGE_SIZE, offset: 0 })
+      .then(({ items, total }) => {
+        setHistoryEntries(items);
+        setTotalCount(total);
+        setLastBatchSize(items.length);
+      })
       .catch(() => setErrorMessage('Não foi possível carregar o histórico.'));
+    usersApi.list({ role: 'TRAINEE' }).then(setRegisteredTrainees).catch(() => {});
   }, []);
+
+  const loadedCount = historyEntries?.length ?? 0;
+  const hasMore =
+    historyEntries !== null &&
+    (totalCount !== null ? loadedCount < totalCount : lastBatchSize === HISTORY_PAGE_SIZE);
+
+  async function loadMore() {
+    if (loadingMore || !historyEntries) return;
+    setLoadingMore(true);
+    try {
+      const { items, total } = await workoutLogsApi.historyPage({
+        limit: HISTORY_PAGE_SIZE,
+        offset: historyEntries.length,
+      });
+      setHistoryEntries((prev) => mergeUniqueEntries(prev ?? [], items));
+      if (total !== null) setTotalCount(total);
+      setLastBatchSize(items.length);
+    } catch {
+      setErrorMessage('Não foi possível carregar mais sessões.');
+    } finally {
+      setLoadingMore(false);
+    }
+  }
 
   const trainees = useMemo(() => {
     const traineeById = new Map<string, string>();
+    for (const trainee of registeredTrainees) traineeById.set(trainee.id, trainee.name);
     for (const historyEntry of historyEntries ?? []) traineeById.set(historyEntry.user.id, historyEntry.user.name);
     return Array.from(traineeById.entries()).sort((first, second) => first[1].localeCompare(second[1]));
-  }, [historyEntries]);
+  }, [historyEntries, registeredTrainees]);
 
   const filteredEntries = (historyEntries ?? []).filter((historyEntry) => {
     if (traineeFilter !== 'all' && historyEntry.user.id !== traineeFilter) return false;
@@ -122,6 +169,9 @@ export default function AdminHistoricoPage() {
           {historyEntries && (
             <span className="self-center text-xs font-bold text-muted2">
               {filteredEntries.length} sess{filteredEntries.length === 1 ? 'ão' : 'ões'}
+              {totalCount !== null && totalCount > loadedCount
+                ? ` · ${loadedCount} de ${totalCount} carregadas`
+                : ''}
             </span>
           )}
         </div>
@@ -130,65 +180,84 @@ export default function AdminHistoricoPage() {
         {!historyEntries && !errorMessage && <p className="text-muted2">Carregando…</p>}
 
         {historyEntries && (
-          <div className="overflow-x-auto rounded-2xl border border-line bg-card">
-            <table className="w-full min-w-[760px] border-collapse text-sm">
-              <thead>
-                <tr className="bg-tableHead text-left text-[11px] font-extrabold uppercase tracking-wide text-muted2">
-                  <th className="px-4 py-3">Data</th>
-                  <th className="px-4 py-3">Aluno</th>
-                  <th className="px-4 py-3">Treino</th>
-                  <th className="px-4 py-3">Programa</th>
-                  <th className="px-3 py-3 text-center">Feitos</th>
-                  <th className="px-3 py-3 text-center">Pulados</th>
-                  <th className="px-3 py-3 text-center">Trocados</th>
-                  <th className="px-4 py-3 text-right">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredEntries.length === 0 && (
-                  <tr>
-                    <td colSpan={8} className="px-4 py-10 text-center text-muted2">
-                      Nenhuma sessão com esses filtros.
-                    </td>
+          <>
+            <div className="overflow-x-auto rounded-2xl border border-line bg-card">
+              <table className="w-full min-w-[760px] border-collapse text-sm">
+                <thead>
+                  <tr className="bg-tableHead text-left text-[11px] font-extrabold uppercase tracking-wide text-muted2">
+                    <th className="px-4 py-3">Data</th>
+                    <th className="px-4 py-3">Aluno</th>
+                    <th className="px-4 py-3">Treino</th>
+                    <th className="px-4 py-3">Programa</th>
+                    <th className="px-3 py-3 text-center">Feitos</th>
+                    <th className="px-3 py-3 text-center">Pulados</th>
+                    <th className="px-3 py-3 text-center">Trocados</th>
+                    <th className="px-4 py-3 text-right">Status</th>
                   </tr>
-                )}
-                {filteredEntries.map((historyEntry) => {
-                  const doneCount = historyEntry.exerciseLogs.filter((exerciseLog) => exerciseLog.status === 'DONE').length;
-                  const skippedCount = historyEntry.exerciseLogs.filter((exerciseLog) => exerciseLog.status === 'SKIPPED').length;
-                  const replacedCount = historyEntry.exerciseLogs.filter((exerciseLog) => exerciseLog.status === 'REPLACED').length;
-                  const workoutProgram = historyEntry.workout.program;
-                  return (
-                    <tr key={historyEntry.id} className="border-t border-line font-bold">
-                      <td className="whitespace-nowrap px-4 py-3">{formatDateTime(historyEntry.date)}</td>
-                      <td className="px-4 py-3">{historyEntry.user.name}</td>
-                      <td className="px-4 py-3">{historyEntry.workout.name}</td>
-                      <td className="px-4 py-3">
-                        {workoutProgram ? (
-                          <span className={`whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-extrabold ${PROGRAM_TYPE_RULES[workoutProgram.type].badgeClassName}`}>
-                            {PROGRAM_TYPE_RULES[workoutProgram.type].icon} {workoutProgram.name}
-                          </span>
-                        ) : (
-                          <span className="text-xs text-muted2">Avulso</span>
-                        )}
-                      </td>
-                      <td className="px-3 py-3 text-center font-extrabold text-done">{doneCount}</td>
-                      <td className="px-3 py-3 text-center font-extrabold text-skip">{skippedCount}</td>
-                      <td className="px-3 py-3 text-center font-extrabold text-replace">{replacedCount}</td>
-                      <td className="px-4 py-3 text-right">
-                        <span
-                          className={`whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-extrabold ${
-                            historyEntry.completed ? 'bg-done-bg text-done-ink' : 'bg-skip-bg text-skip'
-                          }`}
-                        >
-                          {historyEntry.completed ? 'Concluído' : 'Em andamento'}
-                        </span>
+                </thead>
+                <tbody>
+                  {filteredEntries.length === 0 && (
+                    <tr>
+                      <td colSpan={8} className="px-4 py-10 text-center text-muted2">
+                        Nenhuma sessão com esses filtros.
                       </td>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                  )}
+                  {filteredEntries.map((historyEntry) => {
+                    const doneCount = historyEntry.exerciseLogs.filter((exerciseLog) => exerciseLog.status === 'DONE').length;
+                    const skippedCount = historyEntry.exerciseLogs.filter((exerciseLog) => exerciseLog.status === 'SKIPPED').length;
+                    const replacedCount = historyEntry.exerciseLogs.filter((exerciseLog) => exerciseLog.status === 'REPLACED').length;
+                    const workoutProgram = historyEntry.workout.program;
+                    return (
+                      <tr key={historyEntry.id} className="border-t border-line font-bold">
+                        <td className="whitespace-nowrap px-4 py-3">{formatDateTime(historyEntry.date)}</td>
+                        <td className="px-4 py-3">{historyEntry.user.name}</td>
+                        <td className="px-4 py-3">{historyEntry.workout.name}</td>
+                        <td className="px-4 py-3">
+                          {workoutProgram ? (
+                            <span className={`whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-extrabold ${PROGRAM_TYPE_RULES[workoutProgram.type].badgeClassName}`}>
+                              {PROGRAM_TYPE_RULES[workoutProgram.type].icon} {workoutProgram.name}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-muted2">Avulso</span>
+                          )}
+                        </td>
+                        <td className="px-3 py-3 text-center font-extrabold text-done">{doneCount}</td>
+                        <td className="px-3 py-3 text-center font-extrabold text-skip">{skippedCount}</td>
+                        <td className="px-3 py-3 text-center font-extrabold text-replace">{replacedCount}</td>
+                        <td className="px-4 py-3 text-right">
+                          <span
+                            className={`whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-extrabold ${
+                              historyEntry.completed ? 'bg-done-bg text-done-ink' : 'bg-skip-bg text-skip'
+                            }`}
+                          >
+                            {historyEntry.completed ? 'Concluído' : 'Em andamento'}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {hasMore && (
+              <div className="flex justify-center pt-1">
+                <button
+                  type="button"
+                  onClick={() => void loadMore()}
+                  disabled={loadingMore}
+                  className="rounded-xl bg-chip px-5 py-2.5 text-sm font-extrabold text-ink transition active:scale-95 disabled:opacity-50"
+                >
+                  {loadingMore
+                    ? 'Carregando…'
+                    : totalCount !== null
+                      ? `Carregar mais (${loadedCount}/${totalCount})`
+                      : 'Carregar mais sessões'}
+                </button>
+              </div>
+            )}
+          </>
         )}
       </div>
     </>

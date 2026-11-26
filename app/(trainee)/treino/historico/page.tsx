@@ -18,14 +18,30 @@ import { StatTile } from '@/components/trainee/stat-tile';
 import { Pill } from '@/components/trainee/workout-list-item';
 
 const WEEKDAY_INITIALS = ['S', 'T', 'Q', 'Q', 'S', 'S', 'D'];
+const HISTORY_PAGE_SIZE = 100;
 
 function isSameMonth(date: Date, referenceMonth: Date) {
   return date.getMonth() === referenceMonth.getMonth() && date.getFullYear() === referenceMonth.getFullYear();
 }
 
-/** Histórico do aluno: calendário do mês, números do mês e as sessões. */
+function mergeUniqueEntries(existing: HistoryEntry[], incoming: HistoryEntry[]): HistoryEntry[] {
+  const seen = new Set(existing.map((entry) => entry.id));
+  const merged = [...existing];
+  for (const entry of incoming) {
+    if (!seen.has(entry.id)) {
+      seen.add(entry.id);
+      merged.push(entry);
+    }
+  }
+  return merged;
+}
+
+/** Histórico do aluno: calendário do mês, números do mês e as sessões com paginação. */
 export default function HistoricoPage() {
   const [historyEntries, setHistoryEntries] = useState<HistoryEntry[] | null>(null);
+  const [totalCount, setTotalCount] = useState<number | null>(null);
+  const [lastBatchSize, setLastBatchSize] = useState(0);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [displayedMonth, setDisplayedMonth] = useState(() => {
     const today = new Date();
@@ -35,10 +51,37 @@ export default function HistoricoPage() {
 
   useEffect(() => {
     workoutLogsApi
-      .myHistory()
-      .then(setHistoryEntries)
+      .myHistoryPage({ limit: HISTORY_PAGE_SIZE, offset: 0 })
+      .then(({ items, total }) => {
+        setHistoryEntries(items);
+        setTotalCount(total);
+        setLastBatchSize(items.length);
+      })
       .catch(() => setErrorMessage('Não foi possível carregar o histórico.'));
   }, []);
+
+  const loadedCount = historyEntries?.length ?? 0;
+  const hasMore =
+    historyEntries !== null &&
+    (totalCount !== null ? loadedCount < totalCount : lastBatchSize === HISTORY_PAGE_SIZE);
+
+  async function loadMore() {
+    if (loadingMore || !historyEntries) return;
+    setLoadingMore(true);
+    try {
+      const { items, total } = await workoutLogsApi.myHistoryPage({
+        limit: HISTORY_PAGE_SIZE,
+        offset: historyEntries.length,
+      });
+      setHistoryEntries((prev) => mergeUniqueEntries(prev ?? [], items));
+      if (total !== null) setTotalCount(total);
+      setLastBatchSize(items.length);
+    } catch {
+      setErrorMessage('Não foi possível carregar sessões mais antigas.');
+    } finally {
+      setLoadingMore(false);
+    }
+  }
 
   const completedDayKeys = useMemo(() => collectCompletedDayKeys(historyEntries ?? []), [historyEntries]);
   const openDayKeys = useMemo(
@@ -119,7 +162,11 @@ export default function HistoricoPage() {
           {errorMessage && <p className="py-8 text-center text-brand">{errorMessage}</p>}
           {!historyEntries && !errorMessage && <p className="py-8 text-center text-muted2">Carregando…</p>}
           {historyEntries && entriesOfMonth.length === 0 && (
-            <p className="py-8 text-center text-sm font-semibold text-muted2">Nenhum treino neste mês.</p>
+            <p className="py-6 text-center text-sm font-semibold text-muted2">
+              {hasMore
+                ? 'Nenhum treino carregado neste mês. Carregue sessões mais antigas abaixo.'
+                : 'Nenhum treino neste mês.'}
+            </p>
           )}
           <div className="space-y-2">
             {entriesOfMonth.map((historyEntry) => (
@@ -133,6 +180,22 @@ export default function HistoricoPage() {
               />
             ))}
           </div>
+          {hasMore && (
+            <div className="mt-3 flex justify-center">
+              <button
+                type="button"
+                onClick={() => void loadMore()}
+                disabled={loadingMore}
+                className="w-full rounded-2xl bg-chip px-4 py-3 text-xs font-extrabold text-ink transition active:scale-[.99] disabled:opacity-50"
+              >
+                {loadingMore
+                  ? 'Carregando…'
+                  : totalCount !== null
+                    ? `Carregar sessões mais antigas (${loadedCount}/${totalCount})`
+                    : 'Carregar sessões mais antigas'}
+              </button>
+            </div>
+          )}
         </section>
       </div>
     </>
