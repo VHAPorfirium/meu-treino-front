@@ -16,7 +16,7 @@ import { enqueueAndSend, flush, onPendingChange, wireAutoFlush } from '@/lib/off
 import {
   carregarRascunho,
   descartarRascunho,
-  salvarExercicio,
+  salvarExerciciosEmLote,
   salvarTimer,
   type RascunhoExercicio,
 } from '@/lib/offline/rascunho';
@@ -57,8 +57,9 @@ export default function WorkoutSessionPage() {
   const [busy, setBusy] = useState(false);
   const [pendingOps, setPendingOps] = useState(0);
   const [pendingWe, setPendingWe] = useState<Set<string>>(new Set());
+  const nextTimerId = useRef(1);
   const [timer, setTimer] = useState<
-    { seconds: number; label: string; terminaEm?: number } | null
+    { id: number; seconds: number; label: string; terminaEm?: number } | null
   >(null);
   // E13 — o que ela digitou e o app morreu antes de salvar
   const [rascunhos, setRascunhos] = useState<Record<string, RascunhoExercicio>>({});
@@ -68,6 +69,7 @@ export default function WorkoutSessionPage() {
   // os cards leem a carga sugerida só ao montar: espera a resposta (ou a falha)
   const [isLastPerformanceLoaded, setIsLastPerformanceLoaded] = useState(false);
   const { celebration, loadCurrentProgram, closeCelebration } = useCurrentProgram();
+  const openingLogRef = useRef<Promise<WorkoutLog> | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -126,6 +128,7 @@ export default function WorkoutSessionPage() {
       setRascunhos(r.exercicios ?? {});
       if (r.timerTerminaEm && r.timerTerminaEm > Date.now()) {
         setTimer({
+          id: nextTimerId.current++,
           seconds: Math.ceil((r.timerTerminaEm - Date.now()) / 1000),
           label: r.timerRotulo ?? 'Descanso',
           terminaEm: r.timerTerminaEm,
@@ -141,21 +144,30 @@ export default function WorkoutSessionPage() {
   // E13 — grava cada digitação com atraso; a tela não pode esperar o IndexedDB
   const gravar = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendente = useRef<Record<string, RascunhoExercicio>>({});
+  const cancelarRascunhoPendente = useCallback(() => {
+    if (gravar.current) {
+      clearTimeout(gravar.current);
+      gravar.current = null;
+    }
+    pendente.current = {};
+  }, []);
+
+  useEffect(() => cancelarRascunhoPendente, [cancelarRascunhoPendente]);
+
   const onRascunho = useCallback(
     (weId: string, dados: RascunhoExercicio) => {
       const logId = log?.id;
-      if (!logId) return;
+      if (!logId || log?.completed) return;
       pendente.current[weId] = { ...pendente.current[weId], ...dados };
       if (gravar.current) clearTimeout(gravar.current);
       gravar.current = setTimeout(() => {
+        gravar.current = null;
         const lote = pendente.current;
         pendente.current = {};
-        for (const [id, d] of Object.entries(lote)) {
-          void salvarExercicio(logId, id, d);
-        }
+        void salvarExerciciosEmLote(logId, lote);
       }, 400);
     },
-    [log?.id],
+    [log?.id, log?.completed],
   );
 
   // mantém a tela acesa durante o treino: ataca a CAUSA de o iOS matar o app
@@ -169,46 +181,71 @@ export default function WorkoutSessionPage() {
 
   async function ensureLog(): Promise<WorkoutLog> {
     if (log) return log;
-    const opened = await workoutLogsApi.open(data!.workout!.id);
-    setLog(opened);
-    return opened;
+    if (openingLogRef.current) return openingLogRef.current;
+    const promise = workoutLogsApi
+      .open(data!.workout!.id)
+      .then((opened) => {
+        setLog(opened);
+        setData((prev) =>
+          prev && prev.status === 'nao_iniciado'
+            ? { ...prev, status: 'em_andamento', workoutLog: opened }
+            : prev,
+        );
+        return opened;
+      })
+      .finally(() => {
+        openingLogRef.current = null;
+      });
+    openingLogRef.current = promise;
+    return promise;
   }
 
   /** Marcação idempotente: tenta enviar; se estiver offline, fica na fila (E5). */
   async function handlePatch(weId: string, payload: PatchExercisePayload) {
-    const current = await ensureLog();
-    const res = await enqueueAndSend({
-      method: 'PATCH',
-      path: `/workout-logs/${current.id}/exercises/${weId}`,
-      body: payload,
-      key: `patch:${current.id}:${weId}`, // a última marcação do exercício vence
-    });
-    setPendingWe((s) => {
-      const n = new Set(s);
-      if (res.queued) n.add(weId);
-      else n.delete(weId);
-      return n;
-    });
-    // atualiza o estado local (otimista) — vale tanto enviado quanto enfileirado
-    setLog((prev) => {
-      if (!prev) return prev;
-      const others = prev.exerciseLogs.filter((e) => e.workoutExerciseId !== weId);
-      const merged: WorkoutExerciseLog = {
-        id: logMap[weId]?.id ?? `local-${weId}`,
-        workoutExerciseId: weId,
-        status: payload.status,
-        actualExerciseId: payload.actualExerciseId ?? null,
-        loadUsed: payload.loadUsed ?? null,
-        setsCompleted: payload.setsCompleted ?? null,
-        note: payload.note ?? null,
-        sets: payload.sets?.map((s) => ({
-          setNumber: s.setNumber,
-          weight: s.weight ?? null,
-          reps: s.reps ?? null,
-        })),
-      };
-      return { ...prev, exerciseLogs: [...others, merged] };
-    });
+    try {
+      const current = await ensureLog();
+      const res = await enqueueAndSend({
+        method: 'PATCH',
+        path: `/workout-logs/${current.id}/exercises/${weId}`,
+        body: payload,
+        key: `patch:${current.id}:${weId}`, // a última marcação do exercício vence
+      });
+      setError(null);
+      setPendingWe((s) => {
+        const n = new Set(s);
+        if (res.queued) n.add(weId);
+        else n.delete(weId);
+        return n;
+      });
+      // atualiza o estado local (otimista) — vale tanto enviado quanto enfileirado
+      setLog((prev) => {
+        if (!prev) return prev;
+        const others = prev.exerciseLogs.filter((e) => e.workoutExerciseId !== weId);
+        const merged: WorkoutExerciseLog = {
+          id: logMap[weId]?.id ?? `local-${weId}`,
+          workoutExerciseId: weId,
+          status: payload.status,
+          actualExerciseId: payload.actualExerciseId ?? null,
+          loadUsed: payload.loadUsed ?? null,
+          setsCompleted: payload.setsCompleted ?? null,
+          totalSeconds: payload.totalSeconds ?? null,
+          note: payload.note ?? null,
+          sets: payload.sets?.map((s) => ({
+            setNumber: s.setNumber,
+            weight: s.weight ?? null,
+            reps: s.reps ?? null,
+            durationSeconds: s.durationSeconds ?? null,
+          })),
+        };
+        return { ...prev, exerciseLogs: [...others, merged] };
+      });
+    } catch (e) {
+      setError(
+        e instanceof ApiError
+          ? e.message
+          : 'Sem conexão — conecte-se pra iniciar e salvar este exercício.',
+      );
+    }
   }
 
   async function start() {
@@ -248,6 +285,7 @@ export default function WorkoutSessionPage() {
       }
       const done = await workoutLogsApi.complete(log.id);
       triggerHaptic('success');
+      cancelarRascunhoPendente(); // cancela debounce antes de limpar para o rascunho não ressuscitar
       setLog({ ...log, completed: done.completed });
       await descartarRascunho(); // E13 — sessão fechada, rascunho não ressuscita
       setRascunhos({});
@@ -263,6 +301,13 @@ export default function WorkoutSessionPage() {
       setBusy(false);
     }
   }
+
+  const handleTimerAlvo = useCallback(
+    (terminaEm: number | null) => {
+      if (log?.id) void salvarTimer(log.id, terminaEm, timer?.label);
+    },
+    [log?.id, timer?.label],
+  );
 
   const workout = data?.workout;
   // E9 — o servidor é quem diz se o treino de hoje já foi concluído. O front não
@@ -355,7 +400,9 @@ export default function WorkoutSessionPage() {
               onRascunho={onRascunho}
               lastPerformance={lastPerformanceByWorkoutExerciseId[item.id]}
               isCurrent={item.id === currentExerciseId && Boolean(log)}
-              onTimer={(s, label) => s && s > 0 && setTimer({ seconds: s, label })}
+              onTimer={(s, label) =>
+                s && s > 0 && setTimer({ id: nextTimerId.current++, seconds: s, label })
+              }
             />
           ))}
 
@@ -376,10 +423,11 @@ export default function WorkoutSessionPage() {
 
       {timer && (
         <RestTimer
+          key={timer.id}
           seconds={timer.seconds}
           label={timer.label}
           terminaEm={timer.terminaEm}
-          onAlvo={(t) => log && void salvarTimer(log.id, t, timer.label)}
+          onAlvo={handleTimerAlvo}
           onClose={() => {
             setTimer(null);
             if (log) void salvarTimer(log.id, null);
