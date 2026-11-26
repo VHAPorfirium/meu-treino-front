@@ -9,7 +9,9 @@ export const metadata: Metadata = {
   manifest: '/manifest.webmanifest',
   appleWebApp: {
     capable: true,
-    statusBarStyle: 'black-translucent',
+    // `default` deixa o iOS adaptar cor dos ícones (escuros no modo claro, claros no escuro)
+    // respeitando `<meta name="theme-color">`, sem deixar o relógio branco invisível sobre bg-paper.
+    statusBarStyle: 'default',
     title: 'Ritmo',
   },
   icons: {
@@ -28,7 +30,7 @@ export const viewport: Viewport = {
   viewportFit: 'cover',
 };
 
-const THEME_INIT_SCRIPT = `(function(){try{var p=localStorage.getItem('theme_preference');var d=document.documentElement;if(p==='dark'){d.classList.add('dark');d.classList.remove('light');}else if(p==='light'){d.classList.add('light');d.classList.remove('dark');}}catch(e){}})();`;
+const THEME_INIT_SCRIPT = `(function(){try{var p=localStorage.getItem('theme_preference');var d=document.documentElement;if(p==='dark'||p==='light'){var isDark=p==='dark';d.classList.toggle('dark',isDark);d.classList.toggle('light',!isDark);var c=isDark?'#121214':'#FBF7F1';document.querySelectorAll('meta[name="theme-color"]').forEach(function(m){m.setAttribute('content',c);});}}catch(e){}})();`;
 
 export default function RootLayout({
   children,

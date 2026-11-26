@@ -159,7 +159,7 @@ textarea {
   input,
   textarea,
   select {
-    font-size: 16px; /* Previne auto-zoom indesejado no iOS Safari sem inflar o desktop */
+    font-size: 16px !important; /* Vence .text-sm/.text-xs no touch e previne auto-zoom no iOS Safari sem inflar o desktop */
   }
 }
 

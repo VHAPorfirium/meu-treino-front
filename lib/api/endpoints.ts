@@ -158,6 +158,14 @@ export const workoutsApi = {
     api.patch<{ ok: boolean }>(`/workouts/${workoutId}/exercises/reorder`, { items }),
 };
 
+function historyQueryString(opts?: { limit?: number; offset?: number }): string {
+  const params = new URLSearchParams();
+  if (opts?.limit !== undefined) params.set('limit', String(opts.limit));
+  if (opts?.offset !== undefined) params.set('offset', String(opts.offset));
+  const qs = params.toString();
+  return qs ? `?${qs}` : '';
+}
+
 export const workoutLogsApi = {
   open: (workoutId: string) =>
     api.post<WorkoutLog>('/workout-logs', { workoutId }),
@@ -168,7 +176,14 @@ export const workoutLogsApi = {
   ) => api.patch(`/workout-logs/${logId}/exercises/${weId}`, payload),
   complete: (logId: string) =>
     api.patch<CompletedWorkoutLog>(`/workout-logs/${logId}/complete`),
-  history: () => api.get<HistoryEntry[]>('/workout-logs/history'),
+  history: (opts?: { limit?: number; offset?: number }) =>
+    api.get<HistoryEntry[]>(`/workout-logs/history${historyQueryString(opts)}`),
+  historyPage: async (opts?: { limit?: number; offset?: number }) => {
+    const { data, total } = await api.getWithTotal<HistoryEntry[]>(
+      `/workout-logs/history${historyQueryString(opts)}`,
+    );
+    return { items: data, total };
+  },
   lastPerformance: (workoutId: string) =>
     api.get<LastPerformanceByWorkoutExerciseId>(
       `/workout-logs/last-performance?workoutId=${encodeURIComponent(workoutId)}`,
@@ -176,7 +191,14 @@ export const workoutLogsApi = {
   exerciseStats: (exerciseId: string) =>
     api.get<ExerciseStats>(`/workout-logs/exercise-stats/${exerciseId}`),
   attention: () => api.get<AttentionItem[]>('/workout-logs/attention'),
-  myHistory: () => api.get<HistoryEntry[]>('/workout-logs/my-history'),
+  myHistory: (opts?: { limit?: number; offset?: number }) =>
+    api.get<HistoryEntry[]>(`/workout-logs/my-history${historyQueryString(opts)}`),
+  myHistoryPage: async (opts?: { limit?: number; offset?: number }) => {
+    const { data, total } = await api.getWithTotal<HistoryEntry[]>(
+      `/workout-logs/my-history${historyQueryString(opts)}`,
+    );
+    return { items: data, total };
+  },
   /** Sem `userId` = agregado de todos os alunos; com `userId` = só aquele aluno. */
   progress: (userId?: string) =>
     api.get<ProgressSummary>(

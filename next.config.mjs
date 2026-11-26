@@ -44,6 +44,9 @@ const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false, // não expõe "X-Powered-By: Next.js"
   images: {
+    // Todos os <Image> do app já usam `unoptimized`; ativar globalmente fecha a
+    // superfície de ataque do endpoint `/_next/image` (Image Optimization API).
+    unoptimized: true,
     // GIFs/thumbs vêm do dataset (GitHub raw) ou do Supabase Storage
     remotePatterns: [
       { protocol: 'https', hostname: 'raw.githubusercontent.com' },

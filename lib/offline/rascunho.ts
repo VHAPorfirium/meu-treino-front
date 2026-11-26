@@ -1,5 +1,6 @@
 'use client';
 
+import { getUser } from '../auth/storage';
 import { db, STORE_RASCUNHO } from './queue';
 
 /**
@@ -17,7 +18,7 @@ import { db, STORE_RASCUNHO } from './queue';
  *
  * Aqui guardamos os dois. É rascunho local, não fonte da verdade: o servidor
  * continua mandando no que foi marcado. Por isso o rascunho é descartado assim
- * que a sessão é finalizada, e ignorado se for de outra sessão.
+ * que a sessão é finalizada, e ignorado se for de outra sessão ou de outro usuário.
  */
 
 const CHAVE = 'atual'; // só existe UMA sessão em andamento por vez
@@ -36,6 +37,7 @@ export interface RascunhoExercicio {
 export interface RascunhoSessao {
   id: typeof CHAVE;
   workoutLogId: string;
+  userId?: string;
   atualizadoEm: number;
   exercicios: Record<string, RascunhoExercicio>;
   /** instante absoluto (epoch ms) em que o descanso termina — não "segundos restantes" */
@@ -43,8 +45,14 @@ export interface RascunhoSessao {
   timerRotulo?: string | null;
 }
 
-function vazio(workoutLogId: string): RascunhoSessao {
-  return { id: CHAVE, workoutLogId, atualizadoEm: Date.now(), exercicios: {} };
+function vazio(workoutLogId: string, userId?: string): RascunhoSessao {
+  return {
+    id: CHAVE,
+    workoutLogId,
+    userId,
+    atualizadoEm: Date.now(),
+    exercicios: {},
+  };
 }
 
 /** Fila serializada para evitar corridas read-modify-write no IndexedDB. */
@@ -57,11 +65,12 @@ function enfileirar(operacao: () => Promise<void>): Promise<void> {
 }
 
 /**
- * Lê o rascunho da sessão informada. Se o guardado for de OUTRA sessão (ela
- * finalizou o treino de ontem e hoje é outro), descarta em vez de misturar.
+ * Lê o rascunho da sessão informada. Se o guardado for de OUTRA sessão ou de
+ * OUTRO usuário, descarta em vez de misturar.
  */
 export async function carregarRascunho(
   workoutLogId: string,
+  expectedUserId?: string,
 ): Promise<RascunhoSessao | null> {
   await filaOperacoes;
   const d = await db();
@@ -69,7 +78,11 @@ export async function carregarRascunho(
   try {
     const r = (await d.get(STORE_RASCUNHO, CHAVE)) as RascunhoSessao | undefined;
     if (!r) return null;
-    if (r.workoutLogId !== workoutLogId) {
+    const activeUserId = expectedUserId ?? getUser()?.userId;
+    if (
+      r.workoutLogId !== workoutLogId ||
+      (r.userId && activeUserId && r.userId !== activeUserId)
+    ) {
       await descartarRascunho();
       return null;
     }
@@ -87,10 +100,16 @@ function mesclar(
     const d = await db();
     if (!d) return;
     try {
+      const activeUserId = getUser()?.userId;
       const atual =
         ((await d.get(STORE_RASCUNHO, CHAVE)) as RascunhoSessao | undefined) ?? null;
+      const mesmoDono =
+        !atual?.userId || !activeUserId || atual.userId === activeUserId;
       const base =
-        atual && atual.workoutLogId === workoutLogId ? atual : vazio(workoutLogId);
+        atual && atual.workoutLogId === workoutLogId && mesmoDono
+          ? atual
+          : vazio(workoutLogId, activeUserId);
+      if (activeUserId) base.userId = activeUserId;
       muda(base);
       base.atualizadoEm = Date.now();
       await d.put(STORE_RASCUNHO, base);
@@ -146,13 +165,4 @@ export function descartarRascunho(): Promise<void> {
       /* ignore */
     }
   });
-}
-
-/** Agenda a gravação (a digitação chama isso a cada tecla). */
-export function gravarComAtraso(fn: () => void, ms = 400): () => void {
-  let t: ReturnType<typeof setTimeout> | null = null;
-  return () => {
-    if (t) clearTimeout(t);
-    t = setTimeout(fn, ms);
-  };
 }

@@ -35,12 +35,34 @@ export default function ConquistasPage() {
   const { currentProgram, loadCurrentProgram } = useCurrentProgram();
 
   useEffect(() => {
+    let cancelled = false;
     programsApi
       .achievements()
-      .then(setAchievements)
-      .catch(() => setAchievements([]));
-    workoutLogsApi.myHistory().then(setHistoryEntries).catch(() => {});
+      .then((list) => {
+        if (!cancelled) setAchievements(list);
+      })
+      .catch(() => {
+        if (!cancelled) setAchievements([]);
+      });
+
+    (async () => {
+      const pageSize = 200;
+      const all: HistoryEntry[] = [];
+      for (let page = 0; page < 10; page++) {
+        const { items, total } = await workoutLogsApi.myHistoryPage({
+          limit: pageSize,
+          offset: page * pageSize,
+        });
+        all.push(...items);
+        if (items.length < pageSize || (total !== null && all.length >= total)) break;
+      }
+      if (!cancelled) setHistoryEntries(all);
+    })().catch(() => {});
+
     void loadCurrentProgram();
+    return () => {
+      cancelled = true;
+    };
   }, [loadCurrentProgram]);
 
   const completedWorkoutsCount = historyEntries.filter((historyEntry) => historyEntry.completed).length;

@@ -56,13 +56,14 @@ export function LineChart({
   const max = Math.max(...points.map((p) => p.value), 1);
   const min = Math.min(...points.map((p) => p.value), 0);
   const range = max - min || 1;
-  const padX = 8;
-  const plotW = 100 - padX * 2;
+  const viewWidth = 400;
+  const padX = 24;
+  const plotW = viewWidth - padX * 2;
   const stepX = points.length > 1 ? plotW / (points.length - 1) : 0;
 
   const coords = points.map((p, i) => {
-    const x = points.length > 1 ? padX + i * stepX : 50;
-    const y = height - 20 - ((p.value - min) / range) * (height - 44);
+    const x = points.length > 1 ? padX + i * stepX : viewWidth / 2;
+    const y = height - 20 - ((p.value - min) / range) * (height - 46);
     return { x, y, ...p };
   });
   const path = coords
@@ -71,16 +72,27 @@ export function LineChart({
 
   return (
     <div>
-      <svg viewBox={`0 0 100 ${height}`} className="w-full overflow-visible" style={{ height }}>
-        <path d={path} fill="none" stroke={color} strokeWidth="1.8" strokeLinejoin="round" strokeLinecap="round" />
+      <svg
+        viewBox={`0 0 ${viewWidth} ${height}`}
+        className="w-full overflow-visible"
+        style={{ height }}
+      >
+        <path
+          d={path}
+          fill="none"
+          stroke={color}
+          strokeWidth="2.5"
+          strokeLinejoin="round"
+          strokeLinecap="round"
+        />
         {coords.map((c, i) => (
           <g key={i}>
-            <circle cx={c.x} cy={c.y} r="2" fill="#EE4E22" />
+            <circle cx={c.x} cy={c.y} r="4" fill="#EE4E22" />
             <text
               x={c.x}
-              y={c.y - 5}
+              y={c.y - 9}
               textAnchor="middle"
-              fontSize="5.5"
+              fontSize="11"
               fontWeight="800"
               fill="rgb(var(--color-muted))"
             >
