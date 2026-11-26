@@ -1,150 +1,174 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth/auth-context';
+import { userHome } from '@/lib/auth/storage';
+import {
+  formatLoginIdentifierInput,
+  isCpfLikeInput,
+  isValidCpf,
+} from '@/lib/auth/credentials';
 import { ApiError } from '@/lib/api/client';
 import { triggerHaptic } from '@/lib/haptics';
 import { unlockAudio } from '@/lib/audio';
 
 export default function LoginPage() {
-  const { login } = useAuth();
-  const [pin, setPin] = useState('');
+  const { user, loading, login } = useAuth();
+  const router = useRouter();
+  const [identifier, setIdentifier] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const press = useCallback(
-    (digit: string) => {
-      if (busy) return;
-      unlockAudio();
-      triggerHaptic('light');
-      setError(null);
-      if (digit === 'del') setPin((p) => p.slice(0, -1));
-      else setPin((p) => (p.length < 8 ? p + digit : p));
-    },
-    [busy],
-  );
+  useEffect(() => {
+    if (!loading && user) {
+      router.replace(userHome(user));
+    }
+  }, [user, loading, router]);
 
-  const submit = useCallback(async () => {
+  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
     if (busy) return;
     unlockAudio();
-    if (pin.length < 4) {
+
+    const trimmedId = identifier.trim();
+    if (!trimmedId) {
       triggerHaptic('warning');
-      setError('PIN tem no mínimo 4 dígitos');
+      setError('Informe seu CPF (ou apelido de acesso).');
       return;
     }
+    if (isCpfLikeInput(trimmedId) && !isValidCpf(trimmedId)) {
+      triggerHaptic('warning');
+      setError('CPF inválido. Confira os 11 dígitos.');
+      return;
+    }
+    if (!password) {
+      triggerHaptic('warning');
+      setError('Informe sua senha.');
+      return;
+    }
+
     triggerHaptic('medium');
     setBusy(true);
     setError(null);
     try {
-      await login(pin);
+      await login(trimmedId, password);
       triggerHaptic('success');
-    } catch (e) {
+    } catch (err) {
       triggerHaptic('warning');
-      setError(e instanceof ApiError ? e.message : 'Não foi possível entrar');
-      setPin('');
+      setError(
+        err instanceof ApiError ? err.message : 'Não foi possível entrar. Tente novamente.',
+      );
+      setPassword('');
     } finally {
       setBusy(false);
     }
-  }, [busy, login, pin]);
+  }
 
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.metaKey || e.ctrlKey || e.altKey) return;
-      if (/^[0-9]$/.test(e.key)) {
-        e.preventDefault();
-        press(e.key);
-      } else if (e.key === 'Backspace') {
-        e.preventDefault();
-        press('del');
-      } else if (e.key === 'Enter') {
-        e.preventDefault();
-        void submit();
-      }
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [press, submit]);
+  const inputClass =
+    'w-full rounded-xl border border-line bg-paper px-4 py-3 text-base font-semibold text-ink placeholder:text-muted2 focus:border-brand focus:outline-none transition';
 
   return (
-    <div className="app-shell safe-top safe-bottom items-center px-6 select-none sm:px-7">
-      <div className="mt-8 flex flex-col items-center sm:mt-14">
-        <div className="font-display text-[30px] font-extrabold uppercase tracking-[0.22em] text-brand">
-          Ritmo
+    <div className="app-shell safe-top safe-bottom items-center justify-center px-5 py-8 sm:px-6">
+      <div className="w-full max-w-md">
+        <div className="flex flex-col items-center text-center">
+          <div className="font-display text-[32px] font-extrabold uppercase tracking-[0.22em] text-brand">
+            Ritmo
+          </div>
+          <h1 className="mt-5 font-display text-[26px] font-extrabold tracking-tight text-ink">
+            Que bom te ver de novo
+          </h1>
+          <p className="mt-1.5 text-sm font-semibold text-muted2">
+            Entre com seu CPF e senha — seu perfil é identificado automaticamente.
+          </p>
         </div>
-        <h1 className="mt-6 text-center font-display text-[24px] font-extrabold tracking-tight text-ink">
-          Que bom te ver de novo 👋
-        </h1>
-        <p className="mt-1 text-sm font-semibold text-muted2">Digite seu PIN para entrar</p>
-      </div>
 
-      <div className="mt-8 flex gap-4" aria-label={`${pin.length} dígitos informados`}>
-        {Array.from({ length: 4 }).map((_, i) => (
-          <span
-            key={i}
-            className={`h-5 w-5 rounded-full transition-all duration-150 ${
-              i < pin.length
-                ? 'bg-ink scale-110'
-                : 'border-2 border-faint bg-transparent'
-            }`}
-          />
-        ))}
-        {pin.length > 4 && (
-          <span className="self-center text-sm font-bold text-muted2">
-            +{pin.length - 4}
-          </span>
-        )}
-      </div>
+        <form
+          onSubmit={handleSubmit}
+          noValidate
+          className="mt-7 space-y-4 rounded-3xl border border-line bg-card p-6 shadow-soft sm:p-7"
+        >
+          <div className="space-y-1.5">
+            <label htmlFor="login-identifier" className="block text-xs font-extrabold uppercase tracking-wide text-muted">
+              CPF
+            </label>
+            <input
+              id="login-identifier"
+              name="username"
+              type="text"
+              autoComplete="username"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+              inputMode="text"
+              placeholder="000.000.000-00"
+              value={identifier}
+              disabled={busy}
+              onChange={(e) => {
+                setError(null);
+                setIdentifier(formatLoginIdentifierInput(e.target.value));
+              }}
+              className={inputClass}
+            />
+            <p className="text-[11px] font-semibold text-muted2">
+              Conta antiga ainda sem CPF? Digite seu apelido de acesso.
+            </p>
+          </div>
 
-      {error && (
-        <p role="alert" className="mt-4 text-sm font-semibold text-brand animate-shake">
-          {error}
+          <div className="space-y-1.5">
+            <label htmlFor="login-password" className="block text-xs font-extrabold uppercase tracking-wide text-muted">
+              Senha
+            </label>
+            <div className="relative">
+              <input
+                id="login-password"
+                name="password"
+                type={showPassword ? 'text' : 'password'}
+                autoComplete="current-password"
+                placeholder="Sua senha"
+                value={password}
+                disabled={busy}
+                onChange={(e) => {
+                  setError(null);
+                  setPassword(e.target.value);
+                }}
+                className={`${inputClass} pr-20`}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((v) => !v)}
+                aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-lg px-2.5 py-1.5 text-xs font-extrabold text-muted hover:bg-chip hover:text-ink"
+              >
+                {showPassword ? 'Ocultar' : 'Mostrar'}
+              </button>
+            </div>
+          </div>
+
+          {error && (
+            <p
+              role="alert"
+              className="rounded-xl border border-brand/30 bg-brand/10 px-3.5 py-2.5 text-sm font-semibold text-brand animate-shake"
+            >
+              {error}
+            </p>
+          )}
+
+          <button
+            type="submit"
+            disabled={busy}
+            className="w-full rounded-xl bg-brand py-3.5 text-base font-extrabold text-white shadow-brand transition active:scale-[0.99] disabled:opacity-60"
+          >
+            {busy ? 'Entrando…' : 'Entrar'}
+          </button>
+        </form>
+
+        <p className="mt-6 text-center text-xs font-bold text-muted2">
+          Esqueceu sua senha? Peça a redefinição na recepção ou ao administrador.
         </p>
-      )}
-
-      <div className="mt-8 grid w-full max-w-xs grid-cols-3 gap-3.5">
-        {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((d) => (
-          <Key key={d} label={d} onClick={() => press(d)} disabled={busy} />
-        ))}
-        <Key label="⌫" ariaLabel="Apagar último dígito" muted onClick={() => press('del')} disabled={busy} />
-        <Key label="0" onClick={() => press('0')} disabled={busy} />
-        <Key label={busy ? '…' : '→'} ariaLabel="Entrar" primary onClick={submit} disabled={busy} />
       </div>
-
-      <p className="mt-7 text-center text-xs font-bold text-muted2">Esqueceu o PIN? Fale com seu personal</p>
     </div>
-  );
-}
-
-function Key({
-  label,
-  ariaLabel,
-  onClick,
-  primary,
-  muted,
-  disabled,
-}: {
-  label: string;
-  ariaLabel?: string;
-  onClick: () => void;
-  primary?: boolean;
-  muted?: boolean;
-  disabled?: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      aria-label={ariaLabel}
-      className={`flex h-[72px] items-center justify-center rounded-[20px] font-display text-[28px] font-bold transition active:scale-95 disabled:opacity-50 ${
-        primary
-          ? 'bg-brand text-white shadow-brand'
-          : muted
-            ? 'bg-transparent text-muted2'
-            : 'border border-line bg-card text-ink shadow-sm'
-      }`}
-    >
-      {label}
-    </button>
   );
 }
