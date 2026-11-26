@@ -4,9 +4,10 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/lib/auth/auth-context';
+import { roleLabel } from '@/lib/auth/storage';
 import { applyThemePreference, readInitialIsDark } from '@/lib/theme';
 
-/** Menu agrupado: o dia a dia, a montagem dos treinos e o acompanhamento. */
+/** Menu agrupado do Personal: o dia a dia, a montagem dos treinos e o acompanhamento. */
 const NAVIGATION_GROUPS = [
   { title: 'Hoje', links: [{ href: '/dashboard', label: 'Dashboard', icon: '📊' }] },
   {
@@ -36,8 +37,9 @@ function isActive(pathname: string, href: string) {
 
 export function Sidebar() {
   const pathname = usePathname();
-  const { user, logout } = useAuth();
+  const { user, linkedProfiles, switchProfile, logout } = useAuth();
   const [isDark, setIsDark] = useState(false);
+  const [switching, setSwitching] = useState(false);
 
   useEffect(() => {
     setIsDark(readInitialIsDark());
@@ -47,6 +49,16 @@ export function Sidebar() {
     const willBeDark = !isDark;
     setIsDark(willBeDark);
     applyThemePreference(willBeDark);
+  }
+
+  async function handleSwitch(targetRole: (typeof linkedProfiles)[number]['role']) {
+    if (switching) return;
+    setSwitching(true);
+    try {
+      await switchProfile(targetRole);
+    } finally {
+      setSwitching(false);
+    }
   }
 
   return (
@@ -91,21 +103,39 @@ export function Sidebar() {
             </div>
           ))}
         </nav>
-        <div className="mt-auto flex items-center gap-2.5 border-t border-white/10 pt-5">
-          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-brand text-sm font-extrabold text-white">
-            {(user?.name ?? 'A').charAt(0).toUpperCase()}
+
+        <div className="mt-auto space-y-3 border-t border-white/10 pt-4">
+          {linkedProfiles.map((p) => (
+            <button
+              key={p.role}
+              type="button"
+              disabled={switching}
+              onClick={() => void handleSwitch(p.role)}
+              className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-white/10 px-3 py-2 text-xs font-extrabold text-on-inverse transition hover:bg-white/15 disabled:opacity-50"
+            >
+              <span>⇄</span>
+              <span>Modo {roleLabel(p.role)}</span>
+            </button>
+          ))}
+
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-brand text-sm font-extrabold text-white">
+              {(user?.name ?? 'P').charAt(0).toUpperCase()}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-[13px] font-bold">{user?.name ?? 'Personal'}</p>
+              <p className="truncate text-[11px] text-on-inverse-muted">
+                @{user?.username || 'personal'}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={logout}
+              className="text-xs font-bold text-on-inverse-muted hover:text-on-inverse"
+            >
+              Sair
+            </button>
           </div>
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-[13px] font-bold">{user?.name ?? 'Admin'}</p>
-            <p className="text-[11px] text-on-inverse-muted">Personal</p>
-          </div>
-          <button
-            type="button"
-            onClick={logout}
-            className="text-xs font-bold text-on-inverse-muted hover:text-on-inverse"
-          >
-            Sair
-          </button>
         </div>
       </aside>
 
@@ -116,6 +146,17 @@ export function Sidebar() {
             RITMO
           </div>
           <div className="flex shrink-0 items-center gap-1.5">
+            {linkedProfiles.map((p) => (
+              <button
+                key={p.role}
+                type="button"
+                disabled={switching}
+                onClick={() => void handleSwitch(p.role)}
+                className="shrink-0 rounded-full bg-white/10 px-3 py-1.5 text-xs font-bold text-on-inverse transition active:scale-95 disabled:opacity-50"
+              >
+                ⇄ {roleLabel(p.role)}
+              </button>
+            ))}
             <button
               type="button"
               onClick={toggleTheme}
