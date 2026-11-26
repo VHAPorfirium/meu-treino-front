@@ -82,26 +82,27 @@ export function Sidebar() {
       </aside>
 
       {/* Mobile top bar */}
-      <div className="safe-top sticky top-0 z-30 bg-inverse px-4 pb-3.5 pt-2 text-on-inverse shadow-md md:hidden">
-        <div className="mb-3 flex items-center justify-between">
+      <header className="safe-top sticky top-0 z-30 w-full max-w-full bg-inverse px-4 pb-3 text-on-inverse shadow-md md:hidden">
+        <div className="mb-2.5 flex items-center justify-between gap-3">
           <div className="font-display text-[17px] font-extrabold tracking-[0.16em] text-brand">
             RITMO
           </div>
           <button
+            type="button"
             onClick={logout}
-            className="rounded-full bg-white/10 px-3.5 py-1.5 text-xs font-bold text-on-inverse transition active:scale-95"
+            className="shrink-0 rounded-full bg-white/10 px-3.5 py-1.5 text-xs font-bold text-on-inverse transition active:scale-95"
           >
             Sair
           </button>
         </div>
-        <nav className="no-scrollbar flex gap-2 overflow-x-auto">
+        <nav aria-label="Navegação do painel" className="flex flex-wrap gap-1.5">
           {NAV.map((n) => {
             const active = isActive(pathname, n.href);
             return (
               <Link
                 key={n.href}
                 href={n.href}
-                className={`shrink-0 rounded-full px-3.5 py-1.5 text-xs font-bold ${
+                className={`rounded-full px-3 py-1 text-xs font-bold transition active:scale-95 ${
                   active ? 'bg-brand text-white' : 'bg-white/10 text-on-inverse/80'
                 }`}
               >
@@ -110,7 +111,7 @@ export function Sidebar() {
             );
           })}
         </nav>
-      </div>
+      </header>
     </>
   );
 }

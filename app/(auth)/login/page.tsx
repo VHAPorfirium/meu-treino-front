@@ -46,8 +46,8 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="app-shell safe-top items-center px-7 pb-8 select-none">
-      <div className="mt-14 flex flex-col items-center">
+    <div className="app-shell safe-top safe-bottom items-center px-6 select-none sm:px-7">
+      <div className="mt-8 flex flex-col items-center sm:mt-14">
         <div className="font-display text-[30px] font-extrabold uppercase tracking-[0.22em] text-brand">
           Ritmo
         </div>

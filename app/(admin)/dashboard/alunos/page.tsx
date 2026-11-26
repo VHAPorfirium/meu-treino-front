@@ -113,7 +113,7 @@ export default function AlunosPage() {
           </button>
         }
       />
-      <div className="mx-auto max-w-6xl space-y-4 p-6 md:p-8">
+      <div className="mx-auto max-w-6xl space-y-4 p-4 sm:p-6 md:p-8">
         {errorMessage && (
           <p className="rounded-2xl border border-line bg-card p-3 text-sm font-semibold text-brand">
             {errorMessage}{' '}
@@ -133,8 +133,8 @@ export default function AlunosPage() {
           />
         )}
 
-        <div className="grid gap-4 md:grid-cols-[280px_1fr]">
-          <div className="rounded-2xl border border-line bg-card p-2.5 md:self-start">
+        <div className="grid min-w-0 gap-4 md:grid-cols-[280px_1fr]">
+          <div className="min-w-0 rounded-2xl border border-line bg-card p-2.5 md:self-start">
             <input
               value={searchText}
               onChange={(event) => setSearchText(event.target.value)}
@@ -467,7 +467,7 @@ function NoteComposer({
   return (
     <div className="space-y-2">
       <p className="text-xs font-extrabold uppercase tracking-wide text-muted2">Enviar recado</p>
-      <div className="flex gap-2">
+      <div className="flex flex-col gap-2 sm:flex-row">
         <textarea
           value={noteText}
           onChange={(event) => onChangeNoteText(event.target.value)}

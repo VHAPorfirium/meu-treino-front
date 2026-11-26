@@ -105,7 +105,7 @@ export default function TreinosPage() {
         }
       />
 
-      <div className="mx-auto max-w-6xl space-y-3 p-6 md:p-8">
+      <div className="mx-auto max-w-6xl space-y-3 p-4 sm:p-6 md:p-8">
         {error && (
           <div className="rounded-2xl border border-line bg-card p-3 text-sm font-semibold text-brand">
             {error}{' '}
@@ -146,8 +146,8 @@ export default function TreinosPage() {
           </div>
         )}
 
-        <div className="grid gap-4 lg:grid-cols-[340px_1fr]">
-          <div className="space-y-2.5 lg:self-start">
+        <div className="grid min-w-0 gap-4 lg:grid-cols-[340px_1fr]">
+          <div className="min-w-0 space-y-2.5 lg:self-start">
             <input
               value={searchText}
               onChange={(event) => setSearchText(event.target.value)}
@@ -170,10 +170,10 @@ export default function TreinosPage() {
               return (
                 <div
                   key={w.id}
-                  className={`rounded-2xl border bg-card p-3 ${isSelected ? 'border-2 border-brand' : 'border-line'}`}
+                  className={`min-w-0 overflow-hidden rounded-2xl border bg-card p-3 ${isSelected ? 'border-2 border-brand' : 'border-line'}`}
                 >
                   <button
-                    className="flex w-full items-center gap-3 text-left"
+                    className="flex w-full min-w-0 items-center gap-3 text-left"
                     onClick={() => (isSelected ? setDetail(null) : openDetail(w.id))}
                   >
                     <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-chip font-display text-base font-extrabold text-ink">
@@ -229,9 +229,9 @@ export default function TreinosPage() {
           </div>
 
           {isWideScreen && (
-            <div className="lg:sticky lg:top-6 lg:self-start">
+            <div className="min-w-0 lg:sticky lg:top-6 lg:self-start">
               {detail ? (
-                <div className="rounded-2xl border border-line bg-card p-5">
+                <div className="min-w-0 rounded-2xl border border-line bg-card p-5">
                   <p className="text-xs font-bold text-muted2">
                     {detail.program
                       ? `Programa: ${PROGRAM_TYPE_RULES[detail.program.type].icon} ${detail.program.name}`
@@ -367,7 +367,7 @@ function WorkoutEditor({
   };
 
   return (
-    <div className="mt-3 space-y-4 border-t border-line pt-3">
+    <div className="mt-3 min-w-0 space-y-4 border-t border-line pt-3">
       {/* nome + dia + ativo */}
       <div className="space-y-2">
         <input
@@ -392,7 +392,7 @@ function WorkoutEditor({
               label={d}
             />
           ))}
-          <span className="mx-1 h-5 w-px bg-line" />
+          <span className="mx-1 hidden h-5 w-px bg-line sm:inline-block" />
           <button
             onClick={toggleActive}
             disabled={busy}
@@ -413,7 +413,7 @@ function WorkoutEditor({
       />
 
       {/* exercícios (E1/E2) */}
-      <div>
+      <div className="min-w-0">
         <p className="mb-1.5 text-[11px] font-extrabold uppercase tracking-wide text-muted2">
           Exercícios {detail.exercises.length > 1 ? '· arraste pra reordenar' : ''}
         </p>
@@ -435,18 +435,18 @@ function WorkoutEditor({
       </div>
 
       {/* ações */}
-      <div className="flex gap-2 border-t border-line pt-3">
+      <div className="flex flex-wrap gap-2 border-t border-line pt-3">
         <button
           onClick={duplicate}
           disabled={busy}
-          className="flex-1 rounded-xl bg-chip py-2.5 text-sm font-extrabold text-ink disabled:opacity-50"
+          className="min-w-[120px] flex-1 rounded-xl bg-chip py-2.5 text-sm font-extrabold text-ink disabled:opacity-50"
         >
           Duplicar treino
         </button>
         <button
           onClick={remove}
           disabled={busy}
-          className="flex-1 rounded-xl bg-chip py-2.5 text-sm font-extrabold text-brand disabled:opacity-50"
+          className="min-w-[120px] flex-1 rounded-xl bg-chip py-2.5 text-sm font-extrabold text-brand disabled:opacity-50"
         >
           Excluir treino
         </button>
@@ -574,7 +574,7 @@ function AddExerciseModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/55 md:items-center">
-      <div className="flex max-h-[88vh] w-full max-w-lg flex-col rounded-t-3xl bg-paper md:rounded-3xl">
+      <div className="flex max-h-[88dvh] w-full max-w-lg flex-col rounded-t-3xl bg-paper md:rounded-3xl">
         <div className="flex shrink-0 items-center justify-between px-5 pb-3 pt-5">
           <h2 className="font-display text-[22px] font-extrabold">Escolher exercícios</h2>
           <button
@@ -590,7 +590,7 @@ function AddExerciseModal({
         </div>
 
         {/* barra fixa: a seleção continua visível mesmo com a lista rolada ou filtrada */}
-        <div className="shrink-0 space-y-2.5 rounded-b-3xl border-t border-line bg-paper p-4">
+        <div className="shrink-0 space-y-2.5 rounded-b-3xl border-t border-line bg-paper p-4 pb-[calc(env(safe-area-inset-bottom,0px)+16px)]">
           {escolhidos.length > 0 && (
             <div className="flex max-h-20 flex-wrap gap-1.5 overflow-y-auto">
               {escolhidos.map(({ exercise }) => (

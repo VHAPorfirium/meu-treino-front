@@ -188,10 +188,10 @@ function ParticipantRow({
   const startDateLabel = new Date(assignment.startDate).toLocaleDateString('pt-BR');
   return (
     <div className="rounded-xl border border-line bg-paper px-3 py-2.5">
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <p className="min-w-0 flex-1 truncate text-sm font-extrabold">{assignment.user.name}</p>
         <span
-          className={`rounded-full px-2.5 py-0.5 text-[11px] font-extrabold ${STATUS_CLASS_NAME[assignment.status]}`}
+          className={`shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-extrabold ${STATUS_CLASS_NAME[assignment.status]}`}
         >
           {STATUS_LABEL[assignment.status]}
         </span>
@@ -199,7 +199,7 @@ function ParticipantRow({
           type="button"
           disabled={disabled}
           onClick={onArchive}
-          className="text-xs font-bold text-muted2 underline disabled:opacity-60"
+          className="shrink-0 text-xs font-bold text-muted2 underline disabled:opacity-60"
         >
           encerrar
         </button>

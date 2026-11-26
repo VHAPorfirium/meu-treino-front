@@ -21,7 +21,7 @@ export default function TraineeLayout({ children }: { children: ReactNode }) {
   return (
     <RequireRole role="TRAINEE">
       <div className="app-shell">
-        <main className="flex-1">{children}</main>
+        <main className="min-w-0 flex-1">{children}</main>
         {!isInWorkoutSession && <BottomNav items={TRAINEE_NAVIGATION_ITEMS} />}
       </div>
     </RequireRole>

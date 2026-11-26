@@ -91,7 +91,7 @@ export default function FotosPage() {
     <>
       <AppHeader eyebrow="Evolução" title="Fotos" />
       <div className="space-y-3.5 p-5 pb-28">
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2 sm:flex-nowrap">
           <input
             value={photoNote}
             onChange={(event) => setPhotoNote(event.target.value)}
@@ -102,7 +102,6 @@ export default function FotosPage() {
             ref={fileInputRef}
             type="file"
             accept="image/*"
-            capture="environment"
             hidden
             onChange={(event) => event.target.files?.[0] && uploadPhoto(event.target.files[0])}
           />
@@ -110,7 +109,7 @@ export default function FotosPage() {
             type="button"
             onClick={() => fileInputRef.current?.click()}
             disabled={isUploading}
-            className="shrink-0 rounded-xl bg-brand px-4 text-sm font-extrabold text-white shadow-brand disabled:opacity-50"
+            className="shrink-0 rounded-xl bg-brand px-4 py-2.5 text-sm font-extrabold text-white shadow-brand disabled:opacity-50"
           >
             {isUploading ? 'Enviando…' : '＋ Nova foto'}
           </button>

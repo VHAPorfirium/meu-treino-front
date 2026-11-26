@@ -72,7 +72,7 @@ export default function ExercicioDetailPage() {
 
   return (
     <>
-      <header className="safe-top sticky top-0 z-20 flex items-center justify-between border-b border-line bg-paper/95 px-5 py-3 backdrop-blur">
+      <header className="safe-top sticky top-0 z-20 flex w-full items-center justify-between border-b border-line bg-paper/95 px-4 pb-3 backdrop-blur sm:px-5">
         <button
           type="button"
           onClick={() => router.back()}

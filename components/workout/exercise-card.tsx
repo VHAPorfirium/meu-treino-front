@@ -453,7 +453,7 @@ export function ExerciseCard({
               <span className="text-[11px] font-extrabold text-muted2">
                 Série #{activeRowIdx + 1}:
               </span>
-              <div className="flex items-center gap-1">
+              <div className="flex flex-wrap items-center gap-1">
                 <button
                   type="button"
                   disabled={disabled || saving}
@@ -527,7 +527,7 @@ export function ExerciseCard({
                       onBlur={() => void persist()}
                       placeholder={i > 0 && rows[i - 1].weight ? rows[i - 1].weight : 'kg'}
                       disabled={disabled}
-                      className="w-full rounded-xl border-2 border-line2 bg-card px-2.5 py-2 text-center text-base font-bold text-ink placeholder:font-medium placeholder:text-faint disabled:opacity-60"
+                      className="min-w-0 w-full rounded-xl border-2 border-line2 bg-card px-2.5 py-2 text-center text-base font-bold text-ink placeholder:font-medium placeholder:text-faint disabled:opacity-60"
                     />
                     <input
                       inputMode="numeric"
@@ -537,7 +537,7 @@ export function ExerciseCard({
                       onBlur={() => void persist()}
                       placeholder={item.reps ?? ''}
                       disabled={disabled}
-                      className="w-full rounded-xl border-2 border-line2 bg-card px-2.5 py-2 text-center text-base font-bold text-ink placeholder:font-medium placeholder:text-faint disabled:opacity-60"
+                      className="min-w-0 w-full rounded-xl border-2 border-line2 bg-card px-2.5 py-2 text-center text-base font-bold text-ink placeholder:font-medium placeholder:text-faint disabled:opacity-60"
                     />
                     <button
                       type="button"

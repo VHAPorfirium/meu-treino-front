@@ -98,7 +98,7 @@ export default function ProgramasPage() {
         }
       />
 
-      <div className="mx-auto max-w-6xl space-y-3.5 p-6 md:p-8">
+      <div className="mx-auto max-w-6xl space-y-3.5 p-4 sm:p-6 md:p-8">
         {errorMessage && (
           <div className="rounded-2xl border border-line bg-card p-3 text-sm font-semibold text-brand">
             {errorMessage}{' '}
@@ -148,7 +148,7 @@ export default function ProgramasPage() {
           </div>
         )}
 
-        <div className="grid gap-3.5 md:grid-cols-2 xl:grid-cols-3">
+        <div className="grid min-w-0 gap-3.5 md:grid-cols-2 xl:grid-cols-3">
           {programs
             ?.filter((program) => typeFilter === 'ALL' || program.type === typeFilter)
             .map((program) => {
@@ -160,7 +160,7 @@ export default function ProgramasPage() {
               return (
                 <div
                   key={program.id}
-                  className={`rounded-2xl border bg-card p-4 ${
+                  className={`min-w-0 rounded-2xl border bg-card p-4 ${
                     isExpanded ? 'md:col-span-2 xl:col-span-3' : ''
                   } ${program.type === 'CHALLENGE' ? 'border-gold/60' : 'border-line'}`}
                 >

@@ -173,7 +173,7 @@ export function ExerciseBrowser({
         <select
           value={equipment}
           onChange={(e) => setEquipment(e.target.value)}
-          className="rounded-full border border-line2 bg-card px-3 py-1.5 text-xs font-bold capitalize text-ink"
+          className="max-w-full rounded-full border border-line2 bg-card px-3 py-1.5 text-xs font-bold capitalize text-ink"
           aria-label="Filtrar por equipamento"
         >
           <option value="">Todos os equipamentos</option>
@@ -188,7 +188,7 @@ export function ExerciseBrowser({
         <select
           value={pageSize}
           onChange={(e) => setPageSize(Number(e.target.value))}
-          className="rounded-full border border-line2 bg-card px-3 py-1.5 text-xs font-bold text-ink"
+          className="max-w-full rounded-full border border-line2 bg-card px-3 py-1.5 text-xs font-bold text-ink"
           aria-label="Exercícios por página"
         >
           {PAGE_SIZES.map((n) => (
@@ -213,7 +213,7 @@ export function ExerciseBrowser({
 
         {/* contador — deixa explícito que dá pra chegar em todos */}
         {!loading && !error && (
-          <span className="ml-auto text-xs font-semibold text-muted2">
+          <span className="w-full text-xs font-semibold text-muted2 sm:ml-auto sm:w-auto">
             {total === 0
               ? 'nenhum resultado'
               : `${nf.format(total)} exercício${total > 1 ? 's' : ''}${

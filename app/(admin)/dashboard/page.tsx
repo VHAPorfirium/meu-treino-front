@@ -113,7 +113,7 @@ export default function DashboardHome() {
         }
       />
 
-      <div className="mx-auto max-w-6xl space-y-5 p-6 md:p-8">
+      <div className="mx-auto max-w-6xl space-y-5 p-4 sm:p-6 md:p-8">
         {/* filtro por aluno — '' mostra todo mundo somado */}
         <FiltroAluno value={alunoId} onChange={setAlunoId} />
 
@@ -122,7 +122,7 @@ export default function DashboardHome() {
 
         {data && (
           <>
-            <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
+            <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-5">
               <StatCard
                 label="Frequência 30d"
                 value={sessions.last30days}
@@ -158,10 +158,10 @@ export default function DashboardHome() {
               />
             </div>
 
-            <div className="grid gap-5 lg:grid-cols-[1fr_360px]">
-              <div className="space-y-5">
-                <div className="rounded-2xl border border-line bg-card p-5">
-                  <div className="mb-4 flex items-center justify-between">
+            <div className="grid min-w-0 gap-5 lg:grid-cols-[1fr_360px]">
+              <div className="min-w-0 space-y-5">
+                <div className="rounded-2xl border border-line bg-card p-4 sm:p-5">
+                  <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
                     <h2 className="text-base font-extrabold">
                       Frequência · últimos 30 dias
                     </h2>
@@ -173,7 +173,7 @@ export default function DashboardHome() {
                   <Legend />
                 </div>
 
-                <div className="rounded-2xl border border-line bg-card p-5">
+                <div className="rounded-2xl border border-line bg-card p-4 sm:p-5">
                   <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
                     <div>
                       <h2 className="text-base font-extrabold">
@@ -181,7 +181,7 @@ export default function DashboardHome() {
                       </h2>
                       <p className="text-xs text-muted2">kg por sessão</p>
                     </div>
-                    <div className="no-scrollbar flex gap-2 overflow-x-auto">
+                    <div className="no-scrollbar flex max-w-full gap-2 overflow-x-auto">
                       {loadProgression.slice(0, 4).map((l) => (
                         <button
                           key={l.exercise}
@@ -201,11 +201,11 @@ export default function DashboardHome() {
                 </div>
               </div>
 
-              <div className="space-y-5">
+              <div className="min-w-0 space-y-5">
                 <AttentionPanel attentionItems={visibleAttentionItems} />
                 <ProgramsInProgressPanel programs={visiblePrograms} />
 
-                <div className="rounded-2xl border border-line bg-card p-5">
+                <div className="rounded-2xl border border-line bg-card p-4 sm:p-5">
                   <h2 className="mb-4 text-base font-extrabold">
                     Mais pulados e trocados
                   </h2>
@@ -290,12 +290,12 @@ function StatCard({
   hint: string;
 }) {
   return (
-    <div className="rounded-2xl border border-line bg-card p-5">
-      <p className="text-xs font-extrabold uppercase tracking-wide text-muted2">
+    <div className="min-w-0 rounded-2xl border border-line bg-card p-4 sm:p-5">
+      <p className="truncate text-[11px] font-extrabold uppercase tracking-wide text-muted2 sm:text-xs">
         {label}
       </p>
-      <div className="mt-1.5 flex items-baseline gap-2">
-        <span className="font-display text-[34px] font-extrabold leading-none">
+      <div className="mt-1.5 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+        <span className="font-display text-[28px] font-extrabold leading-none sm:text-[34px]">
           {value}
         </span>
         {unit && <span className="text-sm font-bold text-muted2">{unit}</span>}
@@ -341,7 +341,7 @@ function Heatmap({ cells }: { cells: { date: string; level: number }[] }) {
 
 function Legend() {
   return (
-    <div className="mt-3 flex items-center gap-4 text-[11px] font-semibold text-muted2">
+    <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[11px] font-semibold text-muted2">
       <span className="flex items-center gap-1.5">
         <span className="h-3 w-3 rounded bg-done" /> treino completo
       </span>

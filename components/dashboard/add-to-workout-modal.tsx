@@ -72,7 +72,7 @@ export function AddToWorkoutModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/55 md:items-center">
-      <div className="flex max-h-[88vh] w-full max-w-md flex-col rounded-t-3xl bg-paper md:rounded-3xl">
+      <div className="flex max-h-[88dvh] w-full max-w-md flex-col rounded-t-3xl bg-paper md:rounded-3xl">
         <div className="flex items-start justify-between gap-3 px-5 pb-2 pt-5">
           <div className="min-w-0">
             <p className="text-xs font-extrabold uppercase tracking-wide text-muted2">Adicionar a um treino</p>
@@ -132,7 +132,7 @@ export function AddToWorkoutModal({
           {errorMessage && <p className="text-sm font-semibold text-brand">{errorMessage}</p>}
         </div>
 
-        <div className="border-t border-line p-4">
+        <div className="border-t border-line p-4 pb-[calc(env(safe-area-inset-bottom,0px)+16px)]">
           <button
             type="button"
             onClick={confirmAddition}

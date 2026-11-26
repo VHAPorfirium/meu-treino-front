@@ -36,7 +36,7 @@ export function SelectableChipList({
               disabled={disabled}
               onClick={() => onToggle(option.id)}
               aria-pressed={isSelected}
-              className={`rounded-full px-3 py-1.5 text-xs font-bold transition disabled:opacity-60 ${
+              className={`max-w-full rounded-full px-3 py-1.5 text-left text-xs font-bold transition disabled:opacity-60 ${
                 isSelected ? 'bg-brand text-white shadow-brand' : 'bg-chip text-muted'
               }`}
             >
