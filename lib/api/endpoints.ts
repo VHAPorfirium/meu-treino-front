@@ -6,6 +6,7 @@ import type {
   LastPerformanceByWorkoutExerciseId,
   AddExerciseBatchItem,
   AlternativeExercise,
+  AuthUser,
   CompletedWorkoutLog,
   CreateProgramPayload,
   CurrentProgram,
@@ -34,6 +35,7 @@ export const authApi = {
   // Login por PIN: o backend identifica o usuário e devolve o papel dele.
   login: (pin: string) => api.post<LoginResponse>('/auth/login', { pin }),
   logout: () => api.post<{ ok: boolean }>('/auth/logout'),
+  me: () => api.get<AuthUser>('/auth/me'),
 };
 
 export const usersApi = {

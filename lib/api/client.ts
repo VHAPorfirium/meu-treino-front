@@ -1,4 +1,6 @@
 import { clearSession } from '../auth/storage';
+import { clearOfflineStores } from '../offline/db';
+import { clearCelebratedAchievements } from '../programs/celebration-memory';
 import { limpar as limparCache } from './cache-modulo';
 
 /**
@@ -8,6 +10,7 @@ import { limpar as limparCache } from './cache-modulo';
  * cookie de terceiro entre domínios diferentes (ex: Vercel ↔ VPS).
  */
 const BASE = '/api';
+const REQUEST_TIMEOUT_MS = 15_000;
 
 export class ApiError extends Error {
   constructor(
@@ -18,34 +21,49 @@ export class ApiError extends Error {
   }
 }
 
+let handlingUnauthorized = false;
+
 /**
- * Sessão inválida/expirada: limpa o usuário local e volta pro login.
- * Sem isso o app ficava "logado" (roteamento usa o mt_user) com todas as
- * listas vazias, porque cada chamada protegida falhava em silêncio com 401.
+ * Sessão inválida/expirada: limpa o usuário local, cache, comemorações e stores
+ * offline (IndexedDB) antes de voltar pro login — nenhum dado sobrevive entre usuários.
  */
 function handleUnauthorized() {
-  if (typeof window === 'undefined') return;
+  if (typeof window === 'undefined' || handlingUnauthorized) return;
+  handlingUnauthorized = true;
   clearSession();
-  limparCache(); // sessão caiu: o cache da aba vai junto
-  if (!window.location.pathname.startsWith('/login')) {
-    window.location.replace('/login');
-  }
+  limparCache();
+  clearCelebratedAchievements();
+  void clearOfflineStores().finally(() => {
+    handlingUnauthorized = false;
+    if (!window.location.pathname.startsWith('/login')) {
+      window.location.replace('/login');
+    }
+  });
 }
 
 async function request<T>(
   path: string,
   options: RequestInit = {},
 ): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(options.headers as Record<string, string>),
-    },
-    // envia/recebe o cookie httpOnly de sessão (JWT)
-    credentials: 'include',
-    cache: 'no-store',
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+  let res: Response;
+  try {
+    res = await fetch(`${BASE}${path}`, {
+      ...options,
+      signal: options.signal ?? controller.signal,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(options.headers as Record<string, string>),
+      },
+      // envia/recebe o cookie httpOnly de sessão (JWT)
+      credentials: 'include',
+      cache: 'no-store',
+    });
+  } finally {
+    clearTimeout(timeoutId);
+  }
 
   if (!res.ok) {
     let msg = `Erro ${res.status}`;
@@ -65,7 +83,13 @@ async function request<T>(
   }
 
   if (res.status === 204) return undefined as T;
-  return res.json() as Promise<T>;
+  const text = await res.text();
+  if (!text) return undefined as T;
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    throw new ApiError(res.status, 'Resposta inválida do servidor');
+  }
 }
 
 export const api = {

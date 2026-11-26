@@ -19,6 +19,8 @@ type Entrada = { valor: unknown; expiraEm: number };
 
 const memoria = new Map<string, Entrada>();
 const emVoo = new Map<string, Promise<unknown>>();
+/** Incrementado em `limpar()`: impede que uma request iniciada antes do logout regrave o cache. */
+let geracao = 0;
 
 /** 6 h — o mesmo TTL do cache do servidor, pra não haver duas verdades. */
 export const TTL_CATALOGO = 6 * 60 * 60 * 1000;
@@ -36,12 +38,17 @@ export async function lembrar<T>(
   const jaEmVoo = emVoo.get(chave) as Promise<T> | undefined;
   if (jaEmVoo) return jaEmVoo;
 
+  const geracaoInicial = geracao;
   const promessa = produzir()
     .then((valor) => {
-      memoria.set(chave, { valor, expiraEm: Date.now() + ttlMs });
+      if (geracao === geracaoInicial) {
+        memoria.set(chave, { valor, expiraEm: Date.now() + ttlMs });
+      }
       return valor;
     })
-    .finally(() => emVoo.delete(chave));
+    .finally(() => {
+      if (emVoo.get(chave) === promessa) emVoo.delete(chave);
+    });
 
   emVoo.set(chave, promessa);
   return promessa;
@@ -49,6 +56,7 @@ export async function lembrar<T>(
 
 /** Esvazia o cache. Sem argumento, tudo; com prefixo, só o que casar. */
 export function limpar(prefixo?: string): void {
+  geracao++;
   if (!prefixo) {
     memoria.clear();
     emVoo.clear();
@@ -56,5 +64,8 @@ export function limpar(prefixo?: string): void {
   }
   for (const chave of Array.from(memoria.keys())) {
     if (chave.startsWith(prefixo)) memoria.delete(chave);
+  }
+  for (const chave of Array.from(emVoo.keys())) {
+    if (chave.startsWith(prefixo)) emVoo.delete(chave);
   }
 }

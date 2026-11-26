@@ -20,3 +20,19 @@ export function markAchievementAsCelebrated(assignmentId: string): void {
     /* armazenamento indisponível: no pior caso a comemoração aparece de novo */
   }
 }
+
+/** Remove todas as marcas de comemoração deste aparelho (chamado no logout/401). */
+export function clearCelebratedAchievements(): void {
+  try {
+    const keysToRemove: string[] = [];
+    for (let i = 0; i < window.localStorage.length; i++) {
+      const key = window.localStorage.key(i);
+      if (key?.startsWith(CELEBRATED_KEY_PREFIX)) keysToRemove.push(key);
+    }
+    for (const key of keysToRemove) {
+      window.localStorage.removeItem(key);
+    }
+  } catch {
+    /* armazenamento indisponível */
+  }
+}
