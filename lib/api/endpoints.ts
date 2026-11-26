@@ -364,3 +364,27 @@ export const programsApi = {
   archiveAssignment: (assignmentId: string) =>
     api.patch<{ ok: boolean }>(`/programs/assignments/${assignmentId}/archive`),
 };
+
+export interface HealthDbSummary {
+  status: 'ok' | 'degraded';
+  ts: string;
+  tableCount?: number;
+  missingTables?: string[];
+  missingColumns?: string[];
+  migrations?: { name: string; applied: boolean; rolledBack: boolean }[];
+}
+
+export interface HealthCacheSummary {
+  enabled: boolean;
+  entradas: number;
+  hits: number;
+  misses: number;
+  taxaAcerto: number;
+  emVoo: number;
+}
+
+export const healthApi = {
+  db: () => api.get<HealthDbSummary>('/health/db'),
+  cache: () => api.get<HealthCacheSummary>('/health/cache'),
+};
+
