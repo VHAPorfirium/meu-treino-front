@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { flush, onPendingChange } from '@/lib/offline/queue';
 import { triggerHaptic } from '@/lib/haptics';
 
@@ -9,6 +9,21 @@ export function ConnectionStatus() {
   const [pending, setPending] = useState(0);
   const [syncing, setSyncing] = useState(false);
   const [justSynced, setJustSynced] = useState(false);
+  const syncingRef = useRef(false);
+  const syncedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleFlush = useCallback(async () => {
+    if (syncingRef.current) return;
+    triggerHaptic('light');
+    syncingRef.current = true;
+    setSyncing(true);
+    try {
+      await flush();
+    } finally {
+      syncingRef.current = false;
+      setSyncing(false);
+    }
+  }, []);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -26,9 +41,13 @@ export function ConnectionStatus() {
     window.addEventListener('offline', handleOffline);
     const unbind = onPendingChange((count) => {
       setPending(count);
-      if (count === 0 && syncing) {
+      if (count === 0 && syncingRef.current) {
         setJustSynced(true);
-        setTimeout(() => setJustSynced(false), 2500);
+        if (syncedTimerRef.current) clearTimeout(syncedTimerRef.current);
+        syncedTimerRef.current = setTimeout(() => {
+          syncedTimerRef.current = null;
+          setJustSynced(false);
+        }, 2500);
       }
     });
 
@@ -36,52 +55,49 @@ export function ConnectionStatus() {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
       unbind();
+      if (syncedTimerRef.current) {
+        clearTimeout(syncedTimerRef.current);
+        syncedTimerRef.current = null;
+      }
     };
-  }, [syncing]);
-
-  async function handleFlush() {
-    if (syncing) return;
-    triggerHaptic('light');
-    setSyncing(true);
-    try {
-      await flush();
-    } finally {
-      setSyncing(false);
-    }
-  }
+  }, [handleFlush]);
 
   if (online && pending === 0 && !justSynced) {
     return null;
   }
 
   return (
-    <div className="sticky top-0 z-30 w-full animate-in slide-in-from-top duration-200">
+    <div className="w-full">
       {!online ? (
-        <div className="flex items-center justify-between bg-skip px-4 py-2 text-xs font-bold text-on-skip shadow-md">
-          <div className="flex items-center gap-2">
+        <div className="flex items-center justify-between gap-2 bg-skip px-4 py-2 text-xs font-bold text-on-skip shadow-md">
+          <div className="flex min-w-0 items-center gap-2">
             <span className="animate-pulse text-sm">⚡</span>
-            <span>
+            <span className="truncate">
               Modo Offline · {pending} altera{pending === 1 ? 'ção' : 'ções'} salva{pending === 1 ? '' : 's'} no aparelho
             </span>
           </div>
           <button
+            type="button"
             onClick={handleFlush}
             disabled={syncing}
-            className="rounded-full bg-white/20 px-2.5 py-1 text-[11px] font-extrabold text-on-skip transition active:scale-95"
+            className="shrink-0 rounded-full bg-white/20 px-2.5 py-1 text-[11px] font-extrabold text-on-skip transition active:scale-95"
           >
             {syncing ? 'Verificando…' : 'Tentar agora'}
           </button>
         </div>
       ) : pending > 0 ? (
-        <div className="flex items-center justify-between bg-brand px-4 py-2 text-xs font-bold text-white shadow-md">
-          <div className="flex items-center gap-2">
+        <div className="flex items-center justify-between gap-2 bg-brand px-4 py-2 text-xs font-bold text-white shadow-md">
+          <div className="flex min-w-0 items-center gap-2">
             <span className="animate-spin text-sm">🔄</span>
-            <span>Sincronizando {pending} marcações com o servidor…</span>
+            <span className="truncate">
+              Sincronizando {pending} marcaç{pending === 1 ? 'ão' : 'ões'} com o servidor…
+            </span>
           </div>
           <button
+            type="button"
             onClick={handleFlush}
             disabled={syncing}
-            className="rounded-full bg-white/20 px-2.5 py-1 text-[11px] font-extrabold text-on-skip transition active:scale-95"
+            className="shrink-0 rounded-full bg-white/20 px-2.5 py-1 text-[11px] font-extrabold text-white transition active:scale-95"
           >
             Sincronizar
           </button>

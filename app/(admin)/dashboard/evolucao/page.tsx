@@ -61,9 +61,12 @@ export default function EvolucaoPage() {
   // variação entre a primeira e a última carga do exercício escolhido
   const firstLoad = loadSeries[0]?.value;
   const lastLoad = loadSeries[loadSeries.length - 1]?.value;
-  const loadDifference = firstLoad && lastLoad && loadSeries.length > 1 ? lastLoad - firstLoad : null;
+  const loadDifference =
+    firstLoad != null && lastLoad != null && loadSeries.length > 1 ? lastLoad - firstLoad : null;
   const loadDifferencePercentage =
-    loadDifference !== null && firstLoad ? Math.round((loadDifference / firstLoad) * 100) : null;
+    loadDifference !== null && firstLoad != null && firstLoad > 0
+      ? Math.round((loadDifference / firstLoad) * 100)
+      : null;
   const weeklyTarget = Math.round((data?.sessions.target ?? 16) / 4);
 
   return (

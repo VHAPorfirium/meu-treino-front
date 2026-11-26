@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/lib/auth/auth-context';
 import { triggerHaptic } from '@/lib/haptics';
+import { applyThemePreference, readInitialIsDark } from '@/lib/theme';
 
 export function AppHeader({
   title,
@@ -17,45 +18,15 @@ export function AppHeader({
   const [isDark, setIsDark] = useState(false);
 
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-    let saved: string | null = null;
-    try {
-      saved = localStorage.getItem('theme_preference');
-    } catch {
-      /* Safari privado / restrição de storage */
-    }
-    const isSavedDark = saved === 'dark';
-    const isSavedLight = saved === 'light';
-    const isSystemDark =
-      !saved && window.matchMedia('(prefers-color-scheme: dark)').matches;
-
-    if (isSavedDark || isSystemDark) {
-      document.documentElement.classList.add('dark');
-      document.documentElement.classList.remove('light');
-      setIsDark(true);
-    } else if (isSavedLight) {
-      document.documentElement.classList.remove('dark');
-      document.documentElement.classList.add('light');
-      setIsDark(false);
-    }
+    const dark = readInitialIsDark();
+    setIsDark(dark);
   }, []);
 
   function toggleTheme() {
     triggerHaptic('light');
     const willBeDark = !isDark;
     setIsDark(willBeDark);
-    if (willBeDark) {
-      document.documentElement.classList.add('dark');
-      document.documentElement.classList.remove('light');
-    } else {
-      document.documentElement.classList.remove('dark');
-      document.documentElement.classList.add('light');
-    }
-    try {
-      localStorage.setItem('theme_preference', willBeDark ? 'dark' : 'light');
-    } catch {
-      /* ignora falha de storage */
-    }
+    applyThemePreference(willBeDark);
   }
 
   return (

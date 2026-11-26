@@ -11,7 +11,7 @@ import type {
 } from '@/lib/types';
 import { workoutsApi } from '@/lib/api/endpoints';
 import { ApiError } from '@/lib/api/client';
-import { descrevePrescricao, modoSugerido, nomeExercicio } from '@/lib/exercicios/modo';
+import { modoSugerido, nomeExercicio } from '@/lib/exercicios/modo';
 import { PageHead } from '@/components/dashboard/page-head';
 import { ExerciseBrowser } from '@/components/dashboard/exercise-browser';
 import { AssigneeSelect } from '@/components/dashboard/assignee-select';
@@ -37,6 +37,7 @@ export default function TreinosPage() {
   const [workouts, setWorkouts] = useState<Workout[]>([]);
   const [detail, setDetail] = useState<WorkoutDetail | null>(null);
   const [creating, setCreating] = useState(false);
+  const [creatingBusy, setCreatingBusy] = useState(false);
   const [name, setName] = useState('');
   const [day, setDay] = useState<number | ''>('');
   const [picker, setPicker] = useState(false);
@@ -64,7 +65,8 @@ export default function TreinosPage() {
   }, [refresh]);
 
   async function createWorkout() {
-    if (!name.trim()) return;
+    if (!name.trim() || creatingBusy) return;
+    setCreatingBusy(true);
     try {
       const w = await workoutsApi.create({
         name: name.trim(),
@@ -83,11 +85,17 @@ export default function TreinosPage() {
       }
     } catch (e) {
       setError(msg(e, 'Não foi possível criar'));
+    } finally {
+      setCreatingBusy(false);
     }
   }
 
   async function openDetail(id: string) {
-    setDetail(await workoutsApi.get(id));
+    try {
+      setDetail(await workoutsApi.get(id));
+    } catch (e) {
+      setError(msg(e, 'Não foi possível abrir o treino'));
+    }
   }
 
   return (
@@ -132,15 +140,17 @@ export default function TreinosPage() {
             <div className="flex gap-2">
               <button
                 onClick={() => setCreating(false)}
-                className="flex-1 rounded-xl border-2 border-ink py-2.5 text-sm font-extrabold"
+                disabled={creatingBusy}
+                className="flex-1 rounded-xl border-2 border-ink py-2.5 text-sm font-extrabold disabled:opacity-50"
               >
                 Cancelar
               </button>
               <button
                 onClick={createWorkout}
-                className="flex-1 rounded-xl bg-brand py-2.5 text-sm font-extrabold text-white"
+                disabled={creatingBusy || !name.trim()}
+                className="flex-1 rounded-xl bg-brand py-2.5 text-sm font-extrabold text-white disabled:opacity-50"
               >
-                Criar
+                {creatingBusy ? 'Criando…' : 'Criar'}
               </button>
             </div>
           </div>
@@ -268,8 +278,12 @@ export default function TreinosPage() {
           onClose={() => setPicker(false)}
           onAdded={async () => {
             setPicker(false);
-            await openDetail(detail.id);
-            await refresh();
+            try {
+              await openDetail(detail.id);
+              await refresh();
+            } catch (e) {
+              setError(msg(e, 'Exercícios adicionados, mas não foi possível recarregar o treino'));
+            }
           }}
         />
       )}
@@ -342,11 +356,15 @@ function WorkoutEditor({
   }
 
   const reorder = async (ordered: WorkoutExerciseItem[]) => {
-    await workoutsApi.reorder(
-      detail.id,
-      ordered.map((we, i) => ({ workoutExerciseId: we.id, order: i + 1 })),
-    );
-    await reload();
+    try {
+      await workoutsApi.reorder(
+        detail.id,
+        ordered.map((we, i) => ({ workoutExerciseId: we.id, order: i + 1 })),
+      );
+      await reload();
+    } catch (e) {
+      onError(msg(e, 'Não foi possível reordenar os exercícios'));
+    }
   };
   const updateEx = async (
     weId: string,
@@ -358,12 +376,24 @@ function WorkoutEditor({
       restSeconds?: number | null;
     },
   ) => {
-    await workoutsApi.updateExercise(detail.id, weId, data);
-    await reload();
+    try {
+      await workoutsApi.updateExercise(detail.id, weId, data);
+      await reload();
+    } catch (e) {
+      const m = msg(e, 'Não foi possível atualizar o exercício');
+      onError(m);
+      throw new Error(m);
+    }
   };
   const removeEx = async (weId: string) => {
-    await workoutsApi.removeExercise(detail.id, weId);
-    await reload();
+    try {
+      await workoutsApi.removeExercise(detail.id, weId);
+      await reload();
+    } catch (e) {
+      const m = msg(e, 'Não foi possível remover o exercício');
+      onError(m);
+      throw new Error(m);
+    }
   };
 
   return (
@@ -543,22 +573,27 @@ function AddExerciseModal({
       await workoutsApi.addExercisesBatch(
         workout.id,
         escolhidos.map(({ exercise, config }) => {
-          const rest = Number(config.rest);
-          const restSeconds = Number.isFinite(rest) && rest >= 0 ? rest : undefined;
+          const restTrimmed = config.rest.trim();
+          const rest = restTrimmed === '' ? NaN : Number(restTrimmed);
+          const restSeconds =
+            Number.isFinite(rest) && rest >= 0 ? Math.round(rest) : undefined;
 
           if (config.mode === 'TIME') {
             const min = Number(config.minutes);
             return {
               exerciseId: exercise.id,
               mode: 'TIME' as const,
-              durationSeconds: Math.round((min > 0 ? min : 20) * 60),
+              durationSeconds: Math.round(
+                (Number.isFinite(min) && min > 0 ? min : 20) * 60,
+              ),
               restSeconds,
             };
           }
+          const parsedSets = Math.round(Number(config.sets));
           return {
             exerciseId: exercise.id,
             mode: 'REPS' as const,
-            sets: Number(config.sets) > 0 ? Number(config.sets) : 3,
+            sets: Number.isFinite(parsedSets) && parsedSets >= 1 ? parsedSets : 3,
             reps: config.reps.trim() || '10-12',
             restSeconds,
           };

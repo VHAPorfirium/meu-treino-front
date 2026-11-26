@@ -213,34 +213,36 @@ export default function DashboardHome() {
                     <p className="text-sm text-muted2">Nada registrado ainda.</p>
                   ) : (
                     <div className="space-y-3.5">
-                      {ranking.map((r, i) => {
-                        const max = ranking[0].count || 1;
-                        const fg = r.type === 'skip' ? 'text-skip' : 'text-replace';
-                        const bar = r.type === 'skip' ? 'bg-skip' : 'bg-replace';
-                        return (
-                          <div key={i} className="space-y-1.5">
-                            <div className="flex items-center justify-between gap-2 text-sm">
-                              <span className="truncate font-semibold capitalize">
-                                {r.name}
-                              </span>
-                              <span className={`shrink-0 text-xs font-extrabold ${fg}`}>
-                                {r.count}× {r.type === 'skip' ? 'pulado' : 'trocado'}
-                              </span>
+                      {(() => {
+                        const max = Math.max(...ranking.map((item) => item.count), 1);
+                        return ranking.map((r, i) => {
+                          const fg = r.type === 'skip' ? 'text-skip' : 'text-replace';
+                          const bar = r.type === 'skip' ? 'bg-skip' : 'bg-replace';
+                          return (
+                            <div key={i} className="space-y-1.5">
+                              <div className="flex items-center justify-between gap-2 text-sm">
+                                <span className="truncate font-semibold capitalize">
+                                  {r.name}
+                                </span>
+                                <span className={`shrink-0 text-xs font-extrabold ${fg}`}>
+                                  {r.count}× {r.type === 'skip' ? 'pulado' : 'trocado'}
+                                </span>
+                              </div>
+                              <div className="h-2 overflow-hidden rounded-full bg-chip">
+                                <div
+                                  className={`h-full rounded-full ${bar}`}
+                                  style={{ width: `${(r.count / max) * 100}%` }}
+                                />
+                              </div>
                             </div>
-                            <div className="h-2 overflow-hidden rounded-full bg-chip">
-                              <div
-                                className={`h-full rounded-full ${bar}`}
-                                style={{ width: `${(r.count / max) * 100}%` }}
-                              />
-                            </div>
-                          </div>
-                        );
-                      })}
+                          );
+                        });
+                      })()}
                     </div>
                   )}
                 </div>
 
-                <div className="rounded-2xl border border-line bg-card p-5">
+                <div className="rounded-2xl border border-line bg-card p-4 sm:p-5">
                   <h2 className="mb-4 text-base font-extrabold">
                     Observações recentes
                   </h2>
@@ -367,16 +369,19 @@ function LoadBars({ points }: { points: { label: string; kg: number }[] }) {
     <div className="flex h-44 items-end gap-2">
       {points.map((p, i) => {
         const last = i === points.length - 1;
+        const pct = Math.max(0, Math.min(100, (p.kg / max) * 100));
         return (
           <div
             key={i}
-            className="flex flex-1 flex-col items-center justify-end gap-1.5"
+            className="flex h-full min-w-0 flex-1 flex-col items-center gap-1.5"
           >
             <span className="font-display text-xs font-extrabold">{p.kg}</span>
-            <div
-              className={`w-full rounded-t-lg ${last ? 'bg-brand' : 'bg-ink'}`}
-              style={{ height: `${(p.kg / max) * 100}%`, minHeight: 4 }}
-            />
+            <div className="flex w-full flex-1 items-end">
+              <div
+                className={`w-full rounded-t-lg ${last ? 'bg-brand' : 'bg-ink'}`}
+                style={{ height: `${pct}%`, minHeight: 4 }}
+              />
+            </div>
             <span className="text-[10px] font-bold text-muted2">{p.label}</span>
           </div>
         );

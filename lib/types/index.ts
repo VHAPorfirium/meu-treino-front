@@ -270,8 +270,8 @@ export interface HistoryEntry {
     totalSeconds?: number | null;
     note: string | null;
     sets?: SetLog[];
-    workoutExercise: { exercise: { name: string } };
-    actualExercise: { id: string; name: string } | null;
+    workoutExercise: { exercise: { name: string; namePt?: string | null } };
+    actualExercise: { id: string; name: string; namePt?: string | null } | null;
   }[];
 }
 

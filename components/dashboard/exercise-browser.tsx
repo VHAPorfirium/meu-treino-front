@@ -81,19 +81,22 @@ export function ExerciseBrowser({
     exercisesApi.equipment().then(setEquipments).catch(() => {});
   }, [attempt]);
 
-  // debounce da busca
+  const isShowingFixedList = Array.isArray(onlyTheseExercises);
+
+  // debounce da busca + volta pra página 1 numa única transição de estado
   useEffect(() => {
-    const t = setTimeout(() => setDebounced(search), 350);
+    const t = setTimeout(() => {
+      setDebounced(search);
+      setPage(1);
+    }, 350);
     return () => clearTimeout(t);
   }, [search]);
 
-  // qualquer mudança de filtro volta pra página 1 (senão você ficaria numa
-  // página que não existe mais no novo recorte e veria lista vazia)
   useEffect(() => {
-    setPage(1);
-  }, [group, equipment, debounced, pageSize]);
-
-  useEffect(() => {
+    if (isShowingFixedList) {
+      setLoading(false);
+      return;
+    }
     let cancelado = false;
     setLoading(true);
     setError(null);
@@ -120,16 +123,40 @@ export function ExerciseBrowser({
     return () => {
       cancelado = true;
     };
-  }, [group, equipment, debounced, page, pageSize, attempt]);
+  }, [group, equipment, debounced, page, pageSize, attempt, isShowingFixedList]);
 
   const chips = useMemo(
     () => [{ id: '', name: '', displayName: 'Todos', exerciseCount: 0 }, ...groups],
     [groups],
   );
 
-  const isShowingFixedList = Array.isArray(onlyTheseExercises);
-  const items = isShowingFixedList ? onlyTheseExercises : (data?.items ?? []);
-  const total = isShowingFixedList ? onlyTheseExercises.length : (data?.total ?? 0);
+  const filteredFixedList = useMemo(() => {
+    if (!isShowingFixedList) return [];
+    const q = debounced.trim().toLocaleLowerCase('pt-BR');
+    return onlyTheseExercises.filter((ex) => {
+      if (group && ex.bodyPart !== group) return false;
+      if (equipment && ex.equipment !== equipment) return false;
+      if (q) {
+        const haystack = [
+          ex.name,
+          ex.namePt,
+          ex.target,
+          ex.targetPt,
+          ex.equipment,
+          ex.equipmentPt,
+          ex.bodyPart,
+        ]
+          .filter(Boolean)
+          .join(' ')
+          .toLocaleLowerCase('pt-BR');
+        if (!haystack.includes(q)) return false;
+      }
+      return true;
+    });
+  }, [isShowingFixedList, onlyTheseExercises, group, equipment, debounced]);
+
+  const items = isShowingFixedList ? filteredFixedList : (data?.items ?? []);
+  const total = isShowingFixedList ? filteredFixedList.length : (data?.total ?? 0);
   const totalPages = isShowingFixedList ? 1 : (data?.totalPages ?? 1);
 
   const irPara = useCallback(
@@ -158,7 +185,10 @@ export function ExerciseBrowser({
         {chips.map((g) => (
           <button
             key={g.id || 'all'}
-            onClick={() => setGroup(g.name)}
+            onClick={() => {
+              setGroup(g.name);
+              setPage(1);
+            }}
             className={`rounded-full px-3.5 py-1.5 text-xs font-bold transition active:scale-95 ${
               group === g.name ? 'bg-brand text-white shadow-sm' : 'bg-chip text-muted hover:text-ink'
             }`}
@@ -172,7 +202,10 @@ export function ExerciseBrowser({
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <select
           value={equipment}
-          onChange={(e) => setEquipment(e.target.value)}
+          onChange={(e) => {
+            setEquipment(e.target.value);
+            setPage(1);
+          }}
           className="max-w-full rounded-full border border-line2 bg-card px-3 py-1.5 text-xs font-bold capitalize text-ink"
           aria-label="Filtrar por equipamento"
         >
@@ -185,18 +218,23 @@ export function ExerciseBrowser({
           ))}
         </select>
 
-        <select
-          value={pageSize}
-          onChange={(e) => setPageSize(Number(e.target.value))}
-          className="max-w-full rounded-full border border-line2 bg-card px-3 py-1.5 text-xs font-bold text-ink"
-          aria-label="Exercícios por página"
-        >
-          {PAGE_SIZES.map((n) => (
-            <option key={n} value={n}>
-              {n} por página
-            </option>
-          ))}
-        </select>
+        {!isShowingFixedList && (
+          <select
+            value={pageSize}
+            onChange={(e) => {
+              setPageSize(Number(e.target.value));
+              setPage(1);
+            }}
+            className="max-w-full rounded-full border border-line2 bg-card px-3 py-1.5 text-xs font-bold text-ink"
+            aria-label="Exercícios por página"
+          >
+            {PAGE_SIZES.map((n) => (
+              <option key={n} value={n}>
+                {n} por página
+              </option>
+            ))}
+          </select>
+        )}
 
         {temFiltro && (
           <button
@@ -204,6 +242,8 @@ export function ExerciseBrowser({
               setGroup('');
               setEquipment('');
               setSearch('');
+              setDebounced('');
+              setPage(1);
             }}
             className="rounded-full bg-chip px-3 py-1.5 text-xs font-bold text-muted"
           >
@@ -218,7 +258,7 @@ export function ExerciseBrowser({
               ? 'nenhum resultado'
               : `${nf.format(total)} exercício${total > 1 ? 's' : ''}${
                   temFiltro ? ' (filtrado)' : ''
-                } · página ${data?.page ?? 1} de ${nf.format(totalPages)}`}
+                }${isShowingFixedList ? '' : ` · página ${data?.page ?? 1} de ${nf.format(totalPages)}`}`}
           </span>
         )}
       </div>

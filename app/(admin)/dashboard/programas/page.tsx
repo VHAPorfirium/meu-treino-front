@@ -221,7 +221,17 @@ export default function ProgramasPage() {
                       onChanged={() => reloadAfterChange(program.id)}
                       onDeleted={async () => {
                         setExpandedProgram(null);
-                        await Promise.all([refreshPrograms(), refreshWorkoutOptions()]);
+                        const [updatedPrograms] = await Promise.all([
+                          programsApi.list(),
+                          refreshWorkoutOptions(),
+                        ]);
+                        setPrograms(updatedPrograms);
+                        if (
+                          typeFilter !== 'ALL' &&
+                          !updatedPrograms.some((item) => item.type === typeFilter)
+                        ) {
+                          setTypeFilter('ALL');
+                        }
                       }}
                     />
                   )}

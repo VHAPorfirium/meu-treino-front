@@ -42,22 +42,29 @@ export function AddToWorkoutModal({
     if (!selectedWorkout) return setErrorMessage('Escolha um treino.');
     setIsSaving(true);
     setErrorMessage(null);
-    const parsedRestSeconds = Number(restSeconds);
+    const restTrimmed = restSeconds.trim();
+    const parsedRestSeconds = restTrimmed === '' ? NaN : Number(restTrimmed);
     const restSecondsOrUndefined =
-      Number.isFinite(parsedRestSeconds) && parsedRestSeconds >= 0 ? parsedRestSeconds : undefined;
+      Number.isFinite(parsedRestSeconds) && parsedRestSeconds >= 0
+        ? Math.round(parsedRestSeconds)
+        : undefined;
+    const parsedSets = Math.round(Number(setsCount));
+    const parsedMinutes = Number(durationMinutes);
     try {
       await workoutsApi.addExercisesBatch(selectedWorkout.id, [
         exerciseMode === 'TIME'
           ? {
               exerciseId: exercise.id,
               mode: 'TIME',
-              durationSeconds: Math.round((Number(durationMinutes) > 0 ? Number(durationMinutes) : 20) * 60),
+              durationSeconds: Math.round(
+                (Number.isFinite(parsedMinutes) && parsedMinutes > 0 ? parsedMinutes : 20) * 60,
+              ),
               restSeconds: restSecondsOrUndefined,
             }
           : {
               exerciseId: exercise.id,
               mode: 'REPS',
-              sets: Number(setsCount) > 0 ? Number(setsCount) : 3,
+              sets: Number.isFinite(parsedSets) && parsedSets >= 1 ? parsedSets : 3,
               reps: repetitions.trim() || '10-12',
               restSeconds: restSecondsOrUndefined,
             },

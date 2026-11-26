@@ -39,19 +39,38 @@ export default function ExercicioDetailPage() {
 
   useEffect(() => {
     if (!exerciseId) return;
+    let cancelado = false;
+    setExercise(null);
+    setAlternatives([]);
+    setExerciseStats(null);
+    setAreAllStepsVisible(false);
+    setErrorMessage(null);
+
     Promise.all([exercisesApi.get(exerciseId), exercisesApi.alternatives(exerciseId)])
       .then(([loadedExercise, loadedAlternatives]) => {
+        if (cancelado) return;
         setExercise(loadedExercise);
         setAlternatives(loadedAlternatives);
       })
-      .catch(() => setErrorMessage('Não foi possível carregar o exercício.'));
-    workoutLogsApi.exerciseStats(exerciseId).then(setExerciseStats).catch(() => {});
+      .catch(() => !cancelado && setErrorMessage('Não foi possível carregar o exercício.'));
+    workoutLogsApi
+      .exerciseStats(exerciseId)
+      .then((stats) => !cancelado && setExerciseStats(stats))
+      .catch(() => {});
     exercisesApi
       .favorites()
-      .then((favoriteExercises) =>
-        setIsFavorite(favoriteExercises.some((favoriteExercise) => favoriteExercise.id === exerciseId)),
+      .then(
+        (favoriteExercises) =>
+          !cancelado &&
+          setIsFavorite(
+            favoriteExercises.some((favoriteExercise) => favoriteExercise.id === exerciseId),
+          ),
       )
       .catch(() => {});
+
+    return () => {
+      cancelado = true;
+    };
   }, [exerciseId]);
 
   async function toggleFavorite() {
@@ -119,13 +138,17 @@ export default function ExercicioDetailPage() {
                 {nomeExercicio(exercise)}
               </h1>
               <div className="mt-2 flex flex-wrap gap-1.5">
-                {[exercise.bodyPart, musculoExercicio(exercise), equipamentoExercicio(exercise)]
-                  .filter(Boolean)
-                  .map((chipLabel) => (
-                    <span key={chipLabel} className="rounded-full bg-chip px-3 py-1.5 text-xs font-extrabold capitalize text-muted">
-                      {chipLabel}
-                    </span>
-                  ))}
+                {Array.from(
+                  new Set(
+                    [exercise.bodyPart, musculoExercicio(exercise), equipamentoExercicio(exercise)].filter(
+                      Boolean,
+                    ),
+                  ),
+                ).map((chipLabel) => (
+                  <span key={chipLabel} className="rounded-full bg-chip px-3 py-1.5 text-xs font-extrabold capitalize text-muted">
+                    {chipLabel}
+                  </span>
+                ))}
               </div>
             </div>
 
