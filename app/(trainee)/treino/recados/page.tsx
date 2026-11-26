@@ -49,14 +49,21 @@ export default function RecadosPage() {
     if (lastGroup?.dayKey === dayKey) lastGroup.dayNotes.push(note);
     else notesGroupedByDay.push({ dayKey, dayLabel, dayNotes: [note] });
   }
-  const personalTrainerName = notes?.[0]?.from.name;
+  const currentTrainerNote = notes?.find((n) => n.isCurrentTrainer !== false);
+  const personalTrainerName = currentTrainerNote?.from.name;
 
   return (
     <>
       <AppHeader
-        eyebrow="Do seu personal"
+        eyebrow="Recados"
         title="Recados"
-        subtitle={personalTrainerName ? `Conversa com ${personalTrainerName}` : undefined}
+        subtitle={
+          personalTrainerName
+            ? `Conversa com ${personalTrainerName}`
+            : notes && notes.length > 0
+              ? 'Histórico de recados anteriores'
+              : undefined
+        }
       />
       <div className="p-5 pb-28">
         {notes === null && !errorMessage && <p className="py-10 text-center text-muted2">Carregando…</p>}
@@ -76,6 +83,7 @@ export default function RecadosPage() {
             </p>
             {dayNotes.map((note) => {
               const isUnread = unreadNoteIds.has(note.id);
+              const isPreviousTrainer = note.isCurrentTrainer === false;
               return (
                 <div key={note.id} className="mb-3">
                   {isUnread && <p className="mb-1 ml-1 text-[11px] font-extrabold uppercase tracking-wider text-brand">● Novo</p>}
@@ -86,8 +94,15 @@ export default function RecadosPage() {
                   >
                     {note.text}
                   </div>
-                  <p className="ml-1 mt-1 text-[11px] font-bold text-muted2">
-                    {note.from.name} · {formatTime(note.createdAt)}
+                  <p className="ml-1 mt-1 flex flex-wrap items-center gap-1.5 text-[11px] font-bold text-muted2">
+                    <span>
+                      {note.from.name} · {formatTime(note.createdAt)}
+                    </span>
+                    {isPreviousTrainer && (
+                      <span className="rounded-full bg-chip px-2 py-0.5 text-[10px] font-extrabold text-muted">
+                        Personal anterior
+                      </span>
+                    )}
                   </p>
                 </div>
               );

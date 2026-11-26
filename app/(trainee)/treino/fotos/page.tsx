@@ -178,7 +178,9 @@ export default function FotosPage() {
                 ))}
               </div>
             </section>
-            <p className="text-center text-[11px] text-muted2">Suas fotos ficam privadas — só você e seu personal veem.</p>
+            <p className="text-center text-[11px] text-muted2">
+              Suas fotos ficam privadas — só você e o personal do vínculo atual veem.
+            </p>
           </>
         )}
       </div>

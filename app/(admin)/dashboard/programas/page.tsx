@@ -166,7 +166,14 @@ export default function ProgramasPage() {
                 >
                   <button className="block w-full text-left" onClick={() => toggleProgram(program.id)}>
                     <div className="flex items-start justify-between gap-2">
-                      <ProgramTypeBadge programType={program.type} />
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <ProgramTypeBadge programType={program.type} />
+                        {program.clonedFromId && (
+                          <span className="rounded-full bg-chip px-2 py-0.5 text-[10px] font-extrabold text-muted">
+                            Portado
+                          </span>
+                        )}
+                      </div>
                       <span className="text-muted2">{isExpanded ? '▲' : '▼'}</span>
                     </div>
                     <p className="mt-2.5 truncate text-base font-extrabold">{program.name}</p>
