@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/lib/auth/auth-context';
+import { roleLabel } from '@/lib/auth/storage';
 import { triggerHaptic } from '@/lib/haptics';
 import { applyThemePreference, readInitialIsDark } from '@/lib/theme';
 
@@ -14,8 +15,9 @@ export function AppHeader({
   subtitle?: string;
   eyebrow?: string;
 }) {
-  const { logout } = useAuth();
+  const { linkedProfiles, switchProfile, logout } = useAuth();
   const [isDark, setIsDark] = useState(false);
+  const [switching, setSwitching] = useState(false);
 
   useEffect(() => {
     const dark = readInitialIsDark();
@@ -27,6 +29,17 @@ export function AppHeader({
     const willBeDark = !isDark;
     setIsDark(willBeDark);
     applyThemePreference(willBeDark);
+  }
+
+  async function handleSwitch(targetRole: (typeof linkedProfiles)[number]['role']) {
+    if (switching) return;
+    triggerHaptic('light');
+    setSwitching(true);
+    try {
+      await switchProfile(targetRole);
+    } finally {
+      setSwitching(false);
+    }
   }
 
   return (
@@ -45,6 +58,18 @@ export function AppHeader({
         </div>
 
         <div className="flex shrink-0 items-center gap-1.5">
+          {linkedProfiles.map((p) => (
+            <button
+              key={p.role}
+              type="button"
+              disabled={switching}
+              onClick={() => void handleSwitch(p.role)}
+              title={`Alternar para ${roleLabel(p.role)} (@${p.username})`}
+              className="rounded-full bg-brand/10 px-3 py-1.5 text-xs font-extrabold text-brand transition active:scale-95 disabled:opacity-50"
+            >
+              ⇄ {roleLabel(p.role)}
+            </button>
+          ))}
           <button
             type="button"
             onClick={toggleTheme}

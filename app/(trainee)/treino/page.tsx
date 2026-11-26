@@ -1,9 +1,20 @@
 'use client';
 
-import { type ReactNode, useEffect, useMemo, useState } from 'react';
+import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import type { HistoryEntry, TodayResponse, Workout } from '@/lib/types';
-import { notesApi, workoutLogsApi, workoutsApi } from '@/lib/api/endpoints';
+import type {
+  HistoryEntry,
+  TodayResponse,
+  TrainerTraineeLink,
+  Workout,
+} from '@/lib/types';
+import {
+  linksApi,
+  notesApi,
+  workoutLogsApi,
+  workoutsApi,
+} from '@/lib/api/endpoints';
+import { ApiError } from '@/lib/api/client';
 import { useAuth } from '@/lib/auth/auth-context';
 import { useCurrentProgram } from '@/lib/programs/use-current-program';
 import { PROGRAM_TYPE_RULES } from '@/lib/programs/program-type-rules';
@@ -39,9 +50,7 @@ const TODAY_LABEL = () =>
   new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' });
 
 /**
- * Tela inicial do aluno: o treino recomendado do dia e a escolha do que fazer.
- * Em desafio/mesociclo há duas abas (o programa e os treinos avulsos); no treino
- * contínuo, um card com o recomendado e os outros treinos em grade.
+ * Tela inicial do aluno: convites de vínculo, treino recomendado do dia e gestão do personal.
  */
 export default function TraineeHomePage() {
   const { user } = useAuth();
@@ -49,6 +58,13 @@ export default function TraineeHomePage() {
   const [assignedWorkouts, setAssignedWorkouts] = useState<Workout[] | null>(null);
   const [historyEntries, setHistoryEntries] = useState<HistoryEntry[]>([]);
   const [unreadNotesCount, setUnreadNotesCount] = useState(0);
+  const [pendingLinks, setPendingLinks] = useState<TrainerTraineeLink[]>([]);
+  const [currentLink, setCurrentLink] = useState<TrainerTraineeLink | null>(null);
+  const [linkLoaded, setLinkLoaded] = useState(false);
+  const [linkBusyId, setLinkBusyId] = useState<string | null>(null);
+  const [confirmEndLink, setConfirmEndLink] = useState(false);
+  const [linkFeedback, setLinkFeedback] = useState<string | null>(null);
+  const [copiedHandle, setCopiedHandle] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [selectedTab, setSelectedTab] = useState<HomeTab>('program');
   const {
@@ -59,7 +75,7 @@ export default function TraineeHomePage() {
     closeCelebration,
   } = useCurrentProgram();
 
-  useEffect(() => {
+  const reloadWorkoutsAndProgram = useCallback(() => {
     workoutsApi
       .today(new Date().getDay())
       .then(setTodayResponse)
@@ -75,6 +91,111 @@ export default function TraineeHomePage() {
       .catch(() => {});
     void loadCurrentProgram();
   }, [loadCurrentProgram]);
+
+  const reloadLinks = useCallback(() => {
+    Promise.all([
+      linksApi.pending().catch(() => [] as TrainerTraineeLink[]),
+      linksApi.current().catch(() => ({ link: null as TrainerTraineeLink | null })),
+    ]).then(([pending, current]) => {
+      setPendingLinks(pending);
+      setCurrentLink(current.link);
+      setLinkLoaded(true);
+    });
+  }, []);
+
+  useEffect(() => {
+    reloadWorkoutsAndProgram();
+    reloadLinks();
+  }, [reloadWorkoutsAndProgram, reloadLinks]);
+
+  async function handleAcceptLink(link: TrainerTraineeLink) {
+    setLinkBusyId(link.id);
+    setErrorMessage(null);
+    try {
+      const res = await linksApi.accept(link.id);
+      const portedParts: string[] = [];
+      if (res.portedWorkoutsCount > 0) {
+        portedParts.push(
+          `${res.portedWorkoutsCount} treino${res.portedWorkoutsCount > 1 ? 's' : ''}`,
+        );
+      }
+      if (res.portedProgram) {
+        portedParts.push('seu programa ativo');
+      }
+      const portedSuffix =
+        portedParts.length > 0
+          ? ` ${portedParts.join(' e ')} ${
+              res.portedWorkoutsCount > 1 || portedParts.length > 1
+                ? 'foram portados'
+                : 'foi portado'
+            } para o novo personal.`
+          : '';
+      setLinkFeedback(
+        `Vínculo confirmado com ${link.trainer?.name ?? 'seu novo personal'}!${portedSuffix}`,
+      );
+      reloadLinks();
+      reloadWorkoutsAndProgram();
+    } catch (error) {
+      setErrorMessage(
+        error instanceof ApiError
+          ? error.message
+          : 'Não foi possível aceitar o convite.',
+      );
+    } finally {
+      setLinkBusyId(null);
+    }
+  }
+
+  async function handleRejectLink(link: TrainerTraineeLink) {
+    setLinkBusyId(link.id);
+    setErrorMessage(null);
+    try {
+      await linksApi.reject(link.id);
+      setLinkFeedback(`Convite de ${link.trainer?.name ?? 'personal'} recusado.`);
+      reloadLinks();
+    } catch (error) {
+      setErrorMessage(
+        error instanceof ApiError
+          ? error.message
+          : 'Não foi possível recusar o convite.',
+      );
+    } finally {
+      setLinkBusyId(null);
+    }
+  }
+
+  async function handleEndCurrentLink() {
+    if (!currentLink) return;
+    setLinkBusyId(currentLink.id);
+    setErrorMessage(null);
+    try {
+      await linksApi.end(currentLink.id);
+      setConfirmEndLink(false);
+      setLinkFeedback(
+        'Vínculo encerrado. Seus treinos, histórico e fotos continuam salvos com você.',
+      );
+      reloadLinks();
+    } catch (error) {
+      setErrorMessage(
+        error instanceof ApiError
+          ? error.message
+          : 'Não foi possível encerrar o vínculo.',
+      );
+    } finally {
+      setLinkBusyId(null);
+    }
+  }
+
+  async function copyOwnUsername() {
+    if (!user?.username) return;
+    try {
+      await navigator.clipboard.writeText(`@${user.username}`);
+      setCopiedHandle(true);
+      setTimeout(() => setCopiedHandle(false), 2000);
+    } catch {
+      /* fallback silencioso */
+    }
+  }
 
   const completedDayKeys = useMemo(() => collectCompletedDayKeys(historyEntries), [historyEntries]);
   const lastCompletionByWorkoutId = useMemo(
@@ -141,6 +262,61 @@ export default function TraineeHomePage() {
       <PwaInstallBanner />
 
       <div className="space-y-3.5 p-5 pb-28">
+        {/* Convites pendentes de vínculo de personal */}
+        {pendingLinks.map((link) => (
+          <div
+            key={link.id}
+            className="space-y-2.5 rounded-2xl border-2 border-brand bg-card p-4 shadow-soft"
+          >
+            <p className="text-[11px] font-extrabold uppercase tracking-wide text-brand">
+              🤝 Convite de vínculo
+            </p>
+            <p className="text-sm font-extrabold text-ink">
+              {link.trainer?.name ?? 'Um personal'}{' '}
+              {link.trainer?.username ? (
+                <span className="font-bold text-muted2">
+                  (@{link.trainer.username})
+                </span>
+              ) : null}{' '}
+              quer ser seu personal.
+            </p>
+            <p className="text-xs font-semibold text-muted2">
+              Ao aceitar, seus treinos e desafio atuais são portados para o novo personal. Fotos e recados anteriores ficam privados só com você.
+            </p>
+            <div className="flex gap-2 pt-1">
+              <button
+                type="button"
+                disabled={linkBusyId === link.id}
+                onClick={() => void handleRejectLink(link)}
+                className="flex-1 rounded-xl border border-line bg-paper py-2.5 text-xs font-extrabold text-muted disabled:opacity-50"
+              >
+                Recusar
+              </button>
+              <button
+                type="button"
+                disabled={linkBusyId === link.id}
+                onClick={() => void handleAcceptLink(link)}
+                className="flex-1 rounded-xl bg-brand py-2.5 text-xs font-extrabold text-white shadow-brand disabled:opacity-50"
+              >
+                {linkBusyId === link.id ? 'Confirmando…' : 'Aceitar vínculo'}
+              </button>
+            </div>
+          </div>
+        ))}
+
+        {linkFeedback && (
+          <div className="flex items-center justify-between gap-2 rounded-2xl border border-done/40 bg-done-bg px-4 py-2.5 text-xs font-extrabold text-done-ink">
+            <span>{linkFeedback}</span>
+            <button
+              type="button"
+              onClick={() => setLinkFeedback(null)}
+              className="shrink-0 underline"
+            >
+              fechar
+            </button>
+          </div>
+        )}
+
         {unreadNotesCount > 0 && (
           <Link
             href="/treino/recados"
@@ -225,6 +401,82 @@ export default function TraineeHomePage() {
               return lastCompletion ? `Último: ${describeLastCompletion(lastCompletion)}` : 'Nunca feito';
             }}
           />
+        )}
+
+        {/* Card do personal atual ou apelido para vincular */}
+        {linkLoaded && (
+          <section className="rounded-2xl border border-line bg-card p-4">
+            {currentLink?.trainer ? (
+              <div className="space-y-2.5">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-[11px] font-extrabold uppercase tracking-wide text-muted2">
+                      Seu personal
+                    </p>
+                    <p className="truncate text-sm font-extrabold text-ink">
+                      {currentLink.trainer.name}
+                    </p>
+                    <p className="text-xs font-bold text-muted2">
+                      @{currentLink.trainer.username}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setConfirmEndLink((v) => !v)}
+                    className="shrink-0 rounded-xl border border-line bg-paper px-3 py-1.5 text-xs font-extrabold text-skip"
+                  >
+                    Encerrar vínculo
+                  </button>
+                </div>
+
+                {confirmEndLink && (
+                  <div className="space-y-2 rounded-xl border border-line bg-paper p-3">
+                    <p className="text-xs font-semibold text-ink">
+                      Seus treinos, fotos e histórico continuam salvos com você. Depois de encerrar, outro personal poderá te enviar convite pelo seu @apelido.
+                    </p>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setConfirmEndLink(false)}
+                        className="flex-1 rounded-xl border border-line py-2 text-xs font-extrabold text-muted"
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        type="button"
+                        disabled={linkBusyId === currentLink.id}
+                        onClick={() => void handleEndCurrentLink()}
+                        className="flex-1 rounded-xl bg-brand py-2 text-xs font-extrabold text-white disabled:opacity-50"
+                      >
+                        {linkBusyId === currentLink.id ? 'Encerrando…' : 'Sim, encerrar'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-[11px] font-extrabold uppercase tracking-wide text-muted2">
+                    Sem personal vinculado
+                  </p>
+                  <p className="mt-0.5 text-xs font-semibold text-muted2">
+                    Passe seu apelido ao personal para receber o convite:
+                  </p>
+                  <p className="mt-1 font-display text-base font-extrabold text-ink">
+                    @{user?.username}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void copyOwnUsername()}
+                  className="shrink-0 rounded-xl bg-chip px-3.5 py-2 text-xs font-extrabold text-ink active:scale-95"
+                >
+                  {copiedHandle ? '✓ Copiado' : 'Copiar apelido'}
+                </button>
+              </div>
+            )}
+          </section>
         )}
 
         {activeWorkouts.length > 0 && <PushOptIn />}

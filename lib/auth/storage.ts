@@ -4,6 +4,12 @@ import type { AuthUser, Role } from '../types';
 // Aqui guardamos só o usuário (não sensível) num cookie legível, p/ roteamento por papel.
 const USER_KEY = 'mt_user';
 const MAX_AGE = 60 * 60 * 24 * 30; // 30 dias
+const VALID_ROLES: ReadonlySet<string> = new Set([
+  'ADMIN',
+  'RECEPTION',
+  'PERSONAL',
+  'TRAINEE',
+]);
 
 function secureAttr(): string {
   return typeof window !== 'undefined' && window.location.protocol === 'https:'
@@ -42,14 +48,15 @@ export function getUser(): AuthUser | null {
       !parsed ||
       typeof parsed.userId !== 'string' ||
       typeof parsed.name !== 'string' ||
-      (parsed.role !== 'ADMIN' && parsed.role !== 'TRAINEE')
+      typeof parsed.role !== 'string' ||
+      !VALID_ROLES.has(parsed.role)
     ) {
       return null;
     }
     return {
       userId: parsed.userId,
       name: parsed.name,
-      role: parsed.role,
+      role: parsed.role as Role,
       username: typeof parsed.username === 'string' ? parsed.username : '',
       mustChangePassword: Boolean(parsed.mustChangePassword),
     };
@@ -59,7 +66,29 @@ export function getUser(): AuthUser | null {
 }
 
 export function roleHome(role: Role): string {
-  return role === 'ADMIN' ? '/dashboard' : '/treino';
+  switch (role) {
+    case 'ADMIN':
+      return '/admin';
+    case 'RECEPTION':
+      return '/recepcao';
+    case 'PERSONAL':
+      return '/dashboard';
+    case 'TRAINEE':
+      return '/treino';
+  }
+}
+
+export function roleLabel(role: Role): string {
+  switch (role) {
+    case 'ADMIN':
+      return 'Administrador';
+    case 'RECEPTION':
+      return 'Portaria';
+    case 'PERSONAL':
+      return 'Personal';
+    case 'TRAINEE':
+      return 'Aluno';
+  }
 }
 
 export function userHome(user: AuthUser): string {

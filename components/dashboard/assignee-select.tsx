@@ -56,7 +56,7 @@ export function AssigneeSelect({
         <p className="text-sm text-muted2">Carregando alunos…</p>
       )}
       {trainees && trainees.length === 0 && (
-        <p className="text-sm text-muted2">Nenhum aluno cadastrado.</p>
+        <p className="text-sm text-muted2">Nenhum aluno vinculado ainda.</p>
       )}
       <div className="flex flex-wrap gap-1.5">
         {trainees?.map((u) => {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type {
   AttentionItem,
   CurrentProgram,
@@ -8,11 +8,13 @@ import type {
   ProgressPhoto,
   ProgressSummary,
   TrainerNote,
+  TrainerTraineeLink,
   TrainingProgram,
   UserSummary,
   Workout,
 } from '@/lib/types';
 import {
+  linksApi,
   notesApi,
   photosApi,
   programsApi,
@@ -21,16 +23,7 @@ import {
   workoutsApi,
 } from '@/lib/api/endpoints';
 import { ApiError } from '@/lib/api/client';
-import {
-  formatCpfInput,
-  generateStrongPassword,
-  isValidCpf,
-  isValidUsername,
-  normalizeUsername,
-  passwordChecklist,
-  suggestUsernameFromName,
-  validateStrongPassword,
-} from '@/lib/auth/credentials';
+import { normalizeUsername } from '@/lib/auth/credentials';
 import { PROGRAM_TYPE_RULES } from '@/lib/programs/program-type-rules';
 import {
   buildAchievementStatsLine,
@@ -68,16 +61,12 @@ function describeErrorMessage(error: unknown, fallbackMessage: string) {
   return error instanceof ApiError ? error.message : fallbackMessage;
 }
 
-/** Status de cada aluno na lista: conta inativa, alerta de inatividade ou programa atual. */
+/** Status de cada aluno na lista: alerta de inatividade ou programa atual. */
 function describeTraineeStatus(
   trainee: UserSummary,
   programs: TrainingProgram[],
   attentionItems: AttentionItem[],
 ): { text: string; isWarning: boolean } {
-  if (!trainee.active) {
-    return { text: 'Conta desativada', isWarning: true };
-  }
-
   const inactiveItem = attentionItems.find(
     (attentionItem) =>
       attentionItem.userId === trainee.id && attentionItem.kind === 'inactive',
@@ -105,49 +94,82 @@ function describeTraineeStatus(
   return { text: 'Sem programa', isWarning: false };
 }
 
-/** Alunos: lista com status e o perfil completo com gestão cadastral e abas. */
+/** Carteira do Personal: alunos vinculados, convites por @apelido e acompanhamento. */
 export default function AlunosPage() {
   const [trainees, setTrainees] = useState<UserSummary[]>([]);
+  const [sentLinks, setSentLinks] = useState<TrainerTraineeLink[]>([]);
   const [programs, setPrograms] = useState<TrainingProgram[]>([]);
   const [attentionItems, setAttentionItems] = useState<AttentionItem[]>([]);
   const [selectedTrainee, setSelectedTrainee] = useState<UserSummary | null>(null);
   const [searchText, setSearchText] = useState('');
-  const [isCreatingTrainee, setIsCreatingTrainee] = useState(false);
+  const [isLinkingTrainee, setIsLinkingTrainee] = useState(false);
+  const [cancelingLinkId, setCancelingLinkId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [successBanner, setSuccessBanner] = useState<string | null>(null);
 
-  async function loadTrainees(traineeIdToSelect?: string) {
-    const loadedTrainees = await usersApi.list({ role: 'TRAINEE' });
+  const loadPortfolio = useCallback(async (traineeIdToSelect?: string) => {
+    const [loadedTrainees, loadedLinks] = await Promise.all([
+      usersApi.list({ role: 'TRAINEE' }),
+      linksApi.sent().catch(() => [] as TrainerTraineeLink[]),
+    ]);
     setTrainees(loadedTrainees);
+    setSentLinks(loadedLinks);
     const requestedTraineeId =
       traineeIdToSelect ??
-      new URLSearchParams(window.location.search).get('aluno') ??
-      undefined;
-    setSelectedTrainee(
-      loadedTrainees.find((trainee) => trainee.id === requestedTraineeId) ??
+      (typeof window !== 'undefined'
+        ? new URLSearchParams(window.location.search).get('aluno') ?? undefined
+        : undefined);
+    setSelectedTrainee((current) => {
+      const targetId = requestedTraineeId ?? current?.id;
+      return (
+        loadedTrainees.find((trainee) => trainee.id === targetId) ??
         loadedTrainees[0] ??
-        null,
-    );
-  }
+        null
+      );
+    });
+  }, []);
 
   useEffect(() => {
-    loadTrainees().catch((error) =>
+    loadPortfolio().catch((error) =>
       setErrorMessage(
-        describeErrorMessage(error, 'Não foi possível carregar alunos'),
+        describeErrorMessage(error, 'Não foi possível carregar sua carteira de alunos.'),
       ),
     );
     programsApi.list().then(setPrograms).catch(() => {});
     workoutLogsApi.attention().then(setAttentionItems).catch(() => {});
-  }, []);
+  }, [loadPortfolio]);
 
-  function handleTraineeUpdated(updated: UserSummary) {
-    setTrainees((current) =>
-      current
-        .map((t) => (t.id === updated.id ? updated : t))
-        .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')),
-    );
-    setSelectedTrainee((current) =>
-      current?.id === updated.id ? updated : current,
-    );
+  const pendingLinks = useMemo(
+    () => sentLinks.filter((link) => link.status === 'PENDING'),
+    [sentLinks],
+  );
+
+  const activeLinkByTraineeId = useMemo(() => {
+    const map = new Map<string, TrainerTraineeLink>();
+    for (const link of sentLinks) {
+      if (link.status === 'ACTIVE') {
+        map.set(link.traineeId, link);
+      }
+    }
+    return map;
+  }, [sentLinks]);
+
+  async function cancelPendingInvite(link: TrainerTraineeLink) {
+    setCancelingLinkId(link.id);
+    setErrorMessage(null);
+    try {
+      await linksApi.end(link.id);
+      setSuccessBanner(
+        `Convite para ${link.trainee?.name ?? 'aluno'} cancelado.`,
+      );
+      await loadPortfolio();
+    } catch (error) {
+      setErrorMessage(
+        describeErrorMessage(error, 'Não foi possível cancelar o convite.'),
+      );
+    } finally {
+      setCancelingLinkId(null);
+    }
   }
 
   const normalizedQuery = searchText.trim().toLocaleLowerCase('pt-BR');
@@ -160,18 +182,22 @@ export default function AlunosPage() {
   return (
     <>
       <PageHead
-        eyebrow="Acompanhamento"
-        title="Alunos"
+        eyebrow="Carteira do Personal"
+        title="Meus Alunos"
         actions={
           <button
             type="button"
-            onClick={() => setIsCreatingTrainee((isOpen) => !isOpen)}
+            onClick={() => {
+              setErrorMessage(null);
+              setIsLinkingTrainee((isOpen) => !isOpen);
+            }}
             className="rounded-xl bg-brand px-4 py-2.5 text-sm font-extrabold text-white shadow-brand"
           >
-            ＋ Novo aluno
+            {isLinkingTrainee ? 'Fechar convite' : '＋ Vincular aluno'}
           </button>
         }
       />
+
       <div className="mx-auto max-w-6xl space-y-4 p-4 sm:p-6 md:p-8">
         {errorMessage && (
           <p className="rounded-2xl border border-line bg-card p-3 text-sm font-semibold text-brand">
@@ -182,14 +208,59 @@ export default function AlunosPage() {
           </p>
         )}
 
-        {isCreatingTrainee && (
-          <CreateTraineeForm
-            onCancel={() => setIsCreatingTrainee(false)}
-            onCreated={async (createdTrainee) => {
-              setIsCreatingTrainee(false);
-              await loadTrainees(createdTrainee.id);
+        {successBanner && (
+          <p className="rounded-2xl border border-done/40 bg-done-bg p-3 text-sm font-bold text-done-ink">
+            {successBanner}{' '}
+            <button onClick={() => setSuccessBanner(null)} className="ml-2 underline">
+              fechar
+            </button>
+          </p>
+        )}
+
+        {isLinkingTrainee && (
+          <LinkTraineeForm
+            onCancel={() => setIsLinkingTrainee(false)}
+            onRequested={async (createdLink) => {
+              setIsLinkingTrainee(false);
+              setSuccessBanner(
+                `Convite enviado para ${createdLink.trainee?.name ?? 'o aluno'} (@${createdLink.trainee?.username ?? ''}). Aguarde a aceitação no app dele.`,
+              );
+              await loadPortfolio();
             }}
           />
+        )}
+
+        {pendingLinks.length > 0 && (
+          <section className="rounded-2xl border border-gold/40 bg-card p-4">
+            <p className="text-xs font-extrabold uppercase tracking-wide text-gold">
+              ⏳ Convites aguardando aceite ({pendingLinks.length})
+            </p>
+            <div className="mt-2.5 space-y-2">
+              {pendingLinks.map((link) => (
+                <div
+                  key={link.id}
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-line bg-paper px-3.5 py-2.5"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-extrabold text-ink">
+                      {link.trainee?.name ?? 'Aluno'}
+                    </p>
+                    <p className="text-xs font-bold text-muted2">
+                      @{link.trainee?.username ?? '—'} · enviado em {formatDay(link.createdAt)}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={cancelingLinkId === link.id}
+                    onClick={() => void cancelPendingInvite(link)}
+                    className="rounded-xl border border-line bg-card px-3 py-1.5 text-xs font-extrabold text-skip hover:border-skip disabled:opacity-50"
+                  >
+                    {cancelingLinkId === link.id ? 'Cancelando…' : 'Cancelar convite'}
+                  </button>
+                </div>
+              ))}
+            </div>
+          </section>
         )}
 
         <div className="grid min-w-0 gap-4 md:grid-cols-[280px_1fr]">
@@ -201,7 +272,14 @@ export default function AlunosPage() {
               className="mb-2 w-full rounded-xl border border-line bg-paper px-3 py-2 text-sm font-semibold text-ink placeholder:text-muted2 focus:border-brand focus:outline-none"
             />
             {trainees.length === 0 && (
-              <p className="p-3 text-sm text-muted2">Nenhum aluno cadastrado.</p>
+              <div className="space-y-2 p-3 text-center">
+                <p className="text-sm font-bold text-muted2">
+                  Nenhum aluno vinculado ainda.
+                </p>
+                <p className="text-xs font-semibold text-muted2">
+                  Peça o @apelido do aluno e clique em &ldquo;＋ Vincular aluno&rdquo;.
+                </p>
+              </div>
             )}
             {visibleTrainees.map((trainee) => {
               const traineeStatus = describeTraineeStatus(
@@ -218,19 +296,12 @@ export default function AlunosPage() {
                     selectedTrainee?.id === trainee.id
                       ? 'bg-chip'
                       : 'hover:bg-chip/60'
-                  } ${!trainee.active ? 'opacity-70' : ''}`}
+                  }`}
                 >
                   <TraineeAvatar name={trainee.name} />
                   <span className="min-w-0 flex-1">
-                    <span className="flex items-center gap-1.5">
-                      <span className="truncate text-sm font-extrabold">
-                        {trainee.name}
-                      </span>
-                      {!trainee.active && (
-                        <span className="shrink-0 rounded-full bg-chip px-1.5 py-0.5 text-[10px] font-extrabold text-muted">
-                          Inativo
-                        </span>
-                      )}
+                    <span className="block truncate text-sm font-extrabold">
+                      {trainee.name}
                     </span>
                     <span
                       className={`block truncate text-xs font-bold ${
@@ -249,7 +320,15 @@ export default function AlunosPage() {
             <TraineeProfile
               key={selectedTrainee.id}
               trainee={selectedTrainee}
-              onTraineeUpdated={handleTraineeUpdated}
+              activeLink={activeLinkByTraineeId.get(selectedTrainee.id) ?? null}
+              onLinkEnded={async (endedName) => {
+                setSuccessBanner(
+                  `Vínculo com ${endedName} encerrado. Os treinos e o histórico dele foram preservados.`,
+                );
+                await loadPortfolio();
+                programsApi.list().then(setPrograms).catch(() => {});
+                workoutLogsApi.attention().then(setAttentionItems).catch(() => {});
+              }}
             />
           )}
         </div>
@@ -258,209 +337,108 @@ export default function AlunosPage() {
   );
 }
 
-function CreateTraineeForm({
+function LinkTraineeForm({
   onCancel,
-  onCreated,
+  onRequested,
 }: {
   onCancel: () => void;
-  onCreated: (createdTrainee: UserSummary) => Promise<void>;
+  onRequested: (link: TrainerTraineeLink) => Promise<void>;
 }) {
-  const [traineeName, setTraineeName] = useState('');
-  const [cpf, setCpf] = useState('');
-  const [username, setUsername] = useState('');
-  const [usernameTouched, setUsernameTouched] = useState(false);
-  const [password, setPassword] = useState(() => generateStrongPassword());
-  const [showPassword, setShowPassword] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
-  const [formErrorMessage, setFormErrorMessage] = useState<string | null>(null);
-
-  function handleNameChange(value: string) {
-    setTraineeName(value);
-    if (!usernameTouched) {
-      setUsername(suggestUsernameFromName(value));
-    }
-  }
-
-  async function refreshSuggestedUsername() {
-    if (usernameTouched || traineeName.trim().length < 2) return;
-    try {
-      const res = await usersApi.suggestUsername(traineeName.trim());
-      if (!usernameTouched) setUsername(res.username);
-    } catch {
-      /* mantém sugestão local */
-    }
-  }
+  const [usernameInput, setUsernameInput] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   async function submit() {
-    const trimmedName = traineeName.trim();
-    if (trimmedName.length < 2) {
-      return setFormErrorMessage('Informe o nome completo do aluno.');
+    const clean = normalizeUsername(usernameInput.replace(/^@+/, ''));
+    if (clean.length < 3) {
+      return setFormError('Informe o @apelido do aluno (mínimo 3 caracteres).');
     }
-    if (!isValidCpf(cpf)) {
-      return setFormErrorMessage('CPF inválido. Confira os 11 dígitos.');
-    }
-    const cleanUsername = username.trim() ? normalizeUsername(username) : '';
-    if (cleanUsername && !isValidUsername(cleanUsername)) {
-      return setFormErrorMessage(
-        'Apelido inválido (use 3 a 40 caracteres: letras, números, ponto, hífen ou _).',
-      );
-    }
-    const strength = validateStrongPassword(password);
-    if (!strength.valid) {
-      return setFormErrorMessage(strength.reason ?? 'Senha inicial fraca.');
-    }
-
-    setIsSaving(true);
-    setFormErrorMessage(null);
+    setIsSubmitting(true);
+    setFormError(null);
     try {
-      const createdTrainee = await usersApi.createTrainee({
-        name: trimmedName,
-        cpf,
-        password,
-        ...(cleanUsername ? { username: cleanUsername } : {}),
-      });
-      await onCreated(createdTrainee);
+      const created = await linksApi.request(clean);
+      await onRequested(created);
     } catch (error) {
-      setFormErrorMessage(
-        describeErrorMessage(error, 'Não foi possível cadastrar o aluno.'),
+      setFormError(
+        describeErrorMessage(
+          error,
+          'Não foi possível enviar o convite. Confira o @apelido.',
+        ),
       );
     } finally {
-      setIsSaving(false);
+      setIsSubmitting(false);
     }
   }
-
-  const check = passwordChecklist(password);
-  const inputClassName =
-    'w-full rounded-xl border border-line bg-paper px-3.5 py-2.5 text-base font-medium text-ink placeholder:text-muted2 focus:border-brand focus:outline-none';
 
   return (
     <div className="space-y-3 rounded-2xl border border-line bg-card p-4 sm:p-5">
-      <div className="flex items-center justify-between">
-        <p className="text-base font-extrabold">Novo aluno</p>
-        <span className="text-xs font-bold text-muted2">
-          Troca de senha obrigatória no 1º acesso
-        </span>
+      <div>
+        <p className="text-base font-extrabold text-ink">
+          Solicitar vínculo com aluno
+        </p>
+        <p className="mt-0.5 text-xs font-semibold text-muted2">
+          Peça o @apelido ao aluno (sem precisar do CPF). Quando ele aceitar no app, seus treinos e desafio ativos serão portados automaticamente para você.
+        </p>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div className="space-y-1">
-          <label className="block text-xs font-extrabold uppercase tracking-wide text-muted">
-            Nome completo
-          </label>
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <div className="relative min-w-0 flex-1">
+          <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-extrabold text-muted2">
+            @
+          </span>
           <input
-            value={traineeName}
-            onChange={(event) => handleNameChange(event.target.value)}
-            onBlur={() => void refreshSuggestedUsername()}
-            placeholder="Ex.: Gabriel da Silva"
-            className={inputClassName}
+            value={usernameInput}
+            onChange={(e) => {
+              setFormError(null);
+              setUsernameInput(e.target.value.toLowerCase().replace(/\s+/g, ''));
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                void submit();
+              }
+            }}
+            placeholder="nome.sobrenome"
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
+            className="w-full rounded-xl border border-line bg-paper py-2.5 pl-8 pr-3.5 text-base font-semibold text-ink placeholder:text-muted2 focus:border-brand focus:outline-none"
           />
         </div>
-
-        <div className="space-y-1">
-          <label className="block text-xs font-extrabold uppercase tracking-wide text-muted">
-            CPF
-          </label>
-          <input
-            value={cpf}
-            onChange={(event) => setCpf(formatCpfInput(event.target.value))}
-            inputMode="numeric"
-            placeholder="000.000.000-00"
-            className={inputClassName}
-          />
-        </div>
-
-        <div className="space-y-1">
-          <label className="block text-xs font-extrabold uppercase tracking-wide text-muted">
-            Apelido (@username)
-          </label>
-          <div className="relative">
-            <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-extrabold text-muted2">
-              @
-            </span>
-            <input
-              value={username}
-              onChange={(event) => {
-                setUsernameTouched(true);
-                setUsername(event.target.value.toLowerCase().replace(/\s+/g, ''));
-              }}
-              placeholder="gabriel.silva"
-              className={`${inputClassName} pl-8`}
-            />
-          </div>
-          <p className="text-[11px] font-semibold text-muted2">
-            Sugestão automática. Usado para identificar o aluno sem expor o CPF.
-          </p>
-        </div>
-
-        <div className="space-y-1">
-          <div className="flex items-center justify-between">
-            <label className="block text-xs font-extrabold uppercase tracking-wide text-muted">
-              Senha inicial temporária
-            </label>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => setPassword(generateStrongPassword())}
-                className="text-xs font-extrabold text-brand hover:underline"
-              >
-                Gerar nova
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowPassword((v) => !v)}
-                className="text-xs font-extrabold text-muted hover:text-ink"
-              >
-                {showPassword ? 'Ocultar' : 'Mostrar'}
-              </button>
-            </div>
-          </div>
-          <input
-            type={showPassword ? 'text' : 'password'}
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            placeholder="Mín. 8 chars (letra, número e especial)"
-            className={inputClassName}
-          />
-          <p className="text-[11px] font-semibold text-muted2">
-            <span className={check.minLength ? 'text-done' : ''}>8+ chars</span> ·{' '}
-            <span className={check.hasLetter ? 'text-done' : ''}>letra</span> ·{' '}
-            <span className={check.hasNumber ? 'text-done' : ''}>número</span> ·{' '}
-            <span className={check.hasSpecial ? 'text-done' : ''}>especial</span>
-          </p>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="rounded-xl border border-line px-4 py-2.5 text-sm font-extrabold text-muted"
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            disabled={isSubmitting}
+            onClick={() => void submit()}
+            className="rounded-xl bg-brand px-5 py-2.5 text-sm font-extrabold text-white shadow-brand disabled:opacity-60"
+          >
+            {isSubmitting ? 'Enviando…' : 'Enviar convite'}
+          </button>
         </div>
       </div>
 
-      {formErrorMessage && (
-        <p className="text-sm font-semibold text-brand">{formErrorMessage}</p>
+      {formError && (
+        <p className="text-sm font-semibold text-brand">{formError}</p>
       )}
-
-      <div className="flex gap-2 pt-1">
-        <button
-          type="button"
-          onClick={onCancel}
-          className="flex-1 rounded-xl border-2 border-ink py-2.5 text-sm font-extrabold"
-        >
-          Cancelar
-        </button>
-        <button
-          type="button"
-          onClick={submit}
-          disabled={isSaving}
-          className="flex-1 rounded-xl bg-brand py-2.5 text-sm font-extrabold text-white disabled:opacity-60"
-        >
-          {isSaving ? 'Salvando…' : 'Cadastrar aluno'}
-        </button>
-      </div>
     </div>
   );
 }
 
 function TraineeProfile({
   trainee,
-  onTraineeUpdated,
+  activeLink,
+  onLinkEnded,
 }: {
   trainee: UserSummary;
-  onTraineeUpdated: (updated: UserSummary) => void;
+  activeLink: TrainerTraineeLink | null;
+  onLinkEnded: (traineeName: string) => Promise<void>;
 }) {
   const [selectedTab, setSelectedTab] = useState<ProfileTab>('summary');
   const [progressSummary, setProgressSummary] = useState<ProgressSummary | null>(
@@ -473,18 +451,9 @@ function TraineeProfile({
   const [photos, setPhotos] = useState<ProgressPhoto[]>([]);
   const [noteText, setNoteText] = useState('');
   const [isSendingNote, setIsSendingNote] = useState(false);
+  const [confirmEndLink, setConfirmEndLink] = useState(false);
+  const [isEndingLink, setIsEndingLink] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
-
-  // Painéis inline de gestão cadastral (v1.1)
-  const [activeAction, setActiveAction] = useState<
-    null | 'edit' | 'reset-password' | 'confirm-toggle'
-  >(null);
-  const [editName, setEditName] = useState(trainee.name);
-  const [editUsername, setEditUsername] = useState(trainee.username);
-  const [editCpf, setEditCpf] = useState('');
-  const [resetPasswordValue, setResetPasswordValue] = useState('');
-  const [isMutatingAccount, setIsMutatingAccount] = useState(false);
 
   useEffect(() => {
     workoutLogsApi.progress(trainee.id).then(setProgressSummary).catch(() => {});
@@ -519,86 +488,20 @@ function TraineeProfile({
     }
   }
 
-  async function saveProfileEdits() {
-    if (editName.trim().length < 2) {
-      return setErrorMessage('O nome deve ter pelo menos 2 caracteres.');
-    }
-    const cleanUsername = normalizeUsername(editUsername);
-    if (!isValidUsername(cleanUsername)) {
-      return setErrorMessage('Apelido inválido.');
-    }
-    if (editCpf.trim() && !isValidCpf(editCpf)) {
-      return setErrorMessage('CPF inválido. Confira os 11 dígitos.');
-    }
-
-    setIsMutatingAccount(true);
+  async function handleEndLink() {
+    if (!activeLink) return;
+    setIsEndingLink(true);
     setErrorMessage(null);
-    setFeedbackMessage(null);
     try {
-      const updated = await usersApi.update(trainee.id, {
-        name: editName.trim(),
-        username: cleanUsername,
-        ...(editCpf.trim() ? { cpf: editCpf } : {}),
-      });
-      onTraineeUpdated(updated);
-      setEditCpf('');
-      setActiveAction(null);
-      setFeedbackMessage('Cadastro atualizado com sucesso.');
+      await linksApi.end(activeLink.id);
+      setConfirmEndLink(false);
+      await onLinkEnded(trainee.name);
     } catch (error) {
       setErrorMessage(
-        describeErrorMessage(error, 'Não foi possível atualizar o cadastro.'),
+        describeErrorMessage(error, 'Não foi possível encerrar o vínculo.'),
       );
     } finally {
-      setIsMutatingAccount(false);
-    }
-  }
-
-  async function submitResetPassword() {
-    const strength = validateStrongPassword(resetPasswordValue);
-    if (!strength.valid) {
-      return setErrorMessage(strength.reason ?? 'Senha temporária fraca.');
-    }
-    setIsMutatingAccount(true);
-    setErrorMessage(null);
-    setFeedbackMessage(null);
-    try {
-      const res = await usersApi.resetPassword(trainee.id, resetPasswordValue);
-      onTraineeUpdated(res.user);
-      const handedPassword = resetPasswordValue;
-      setResetPasswordValue('');
-      setActiveAction(null);
-      setFeedbackMessage(
-        `Senha redefinida! Senha temporária: ${handedPassword} (o aluno deverá trocar no próximo acesso).`,
-      );
-    } catch (error) {
-      setErrorMessage(
-        describeErrorMessage(error, 'Não foi possível redefinir a senha.'),
-      );
-    } finally {
-      setIsMutatingAccount(false);
-    }
-  }
-
-  async function toggleActiveStatus() {
-    setIsMutatingAccount(true);
-    setErrorMessage(null);
-    setFeedbackMessage(null);
-    try {
-      const nextActive = !trainee.active;
-      const updated = await usersApi.setActive(trainee.id, nextActive);
-      onTraineeUpdated(updated);
-      setActiveAction(null);
-      setFeedbackMessage(
-        nextActive
-          ? 'Conta reativada! O aluno já pode acessar o app novamente.'
-          : 'Conta desativada e acesso revogado imediatamente.',
-      );
-    } catch (error) {
-      setErrorMessage(
-        describeErrorMessage(error, 'Não foi possível alterar o status da conta.'),
-      );
-    } finally {
-      setIsMutatingAccount(false);
+      setIsEndingLink(false);
     }
   }
 
@@ -612,8 +515,6 @@ function TraineeProfile({
     photos: photos.length,
     achievements: achievements.length,
   };
-  const inputClassName =
-    'w-full rounded-xl border border-line bg-paper px-3 py-2 text-sm font-semibold text-ink placeholder:text-muted2 focus:border-brand focus:outline-none';
 
   return (
     <div className="min-w-0 rounded-2xl border border-line bg-card p-5">
@@ -624,217 +525,60 @@ function TraineeProfile({
             <p className="truncate font-display text-[22px] font-extrabold">
               {trainee.name}
             </p>
-            <span
-              className={`rounded-full px-2.5 py-0.5 text-[11px] font-extrabold ${
-                trainee.active
-                  ? 'bg-done-bg text-done'
-                  : 'bg-skip-bg text-skip'
-              }`}
-            >
-              {trainee.active ? 'Ativo' : 'Desativado'}
+            <span className="rounded-full bg-done-bg px-2.5 py-0.5 text-[11px] font-extrabold text-done">
+              Vinculado
             </span>
-            {trainee.mustChangePassword && (
-              <span className="rounded-full bg-gold-bg px-2.5 py-0.5 text-[11px] font-extrabold text-gold">
-                Troca de senha pendente
-              </span>
-            )}
           </div>
           <p className="mt-0.5 text-xs font-bold text-muted2">
-            @{trainee.username} · CPF {trainee.cpfMasked ?? 'não cadastrado'}
+            @{trainee.username}
             {lastWorkoutNote ? ` · ${lastWorkoutNote}` : ''}
           </p>
         </div>
-        {currentProgram && (
-          <span className="rounded-full bg-gold-bg px-3 py-1.5 text-xs font-extrabold text-gold">
-            {PROGRAM_TYPE_RULES[currentProgram.program.type].icon}{' '}
-            {currentProgram.program.name}
-            {currentProgram.progress
-              ? ` · ${currentProgram.progress.currentDayNumber}/${currentProgram.progress.totalDays}`
-              : ''}
-          </span>
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          {currentProgram && (
+            <span className="rounded-full bg-gold-bg px-3 py-1.5 text-xs font-extrabold text-gold">
+              {PROGRAM_TYPE_RULES[currentProgram.program.type].icon}{' '}
+              {currentProgram.program.name}
+              {currentProgram.progress
+                ? ` · ${currentProgram.progress.currentDayNumber}/${currentProgram.progress.totalDays}`
+                : ''}
+            </span>
+          )}
+          {activeLink && (
+            <button
+              type="button"
+              onClick={() => setConfirmEndLink((v) => !v)}
+              className="rounded-xl border border-line bg-paper px-3 py-1.5 text-xs font-extrabold text-skip hover:border-skip"
+            >
+              Encerrar vínculo
+            </button>
+          )}
+        </div>
       </div>
 
-      {/* Ações rápidas de gestão cadastral */}
-      <div className="mt-3.5 flex flex-wrap gap-2">
-        <button
-          type="button"
-          onClick={() => {
-            setErrorMessage(null);
-            setFeedbackMessage(null);
-            setEditName(trainee.name);
-            setEditUsername(trainee.username);
-            setEditCpf('');
-            setActiveAction((prev) => (prev === 'edit' ? null : 'edit'));
-          }}
-          className="rounded-xl border border-line bg-paper px-3 py-1.5 text-xs font-extrabold text-ink hover:border-brand"
-        >
-          ✏️ Editar cadastro
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            setErrorMessage(null);
-            setFeedbackMessage(null);
-            setResetPasswordValue(generateStrongPassword());
-            setActiveAction((prev) =>
-              prev === 'reset-password' ? null : 'reset-password',
-            );
-          }}
-          className="rounded-xl border border-line bg-paper px-3 py-1.5 text-xs font-extrabold text-ink hover:border-brand"
-        >
-          🔑 Redefinir senha
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            setErrorMessage(null);
-            setFeedbackMessage(null);
-            setActiveAction((prev) =>
-              prev === 'confirm-toggle' ? null : 'confirm-toggle',
-            );
-          }}
-          className={`rounded-xl border px-3 py-1.5 text-xs font-extrabold ${
-            trainee.active
-              ? 'border-line bg-paper text-skip hover:border-skip'
-              : 'border-done bg-done-bg text-done'
-          }`}
-        >
-          {trainee.active ? '⛔ Desativar aluno' : '✅ Reativar aluno'}
-        </button>
-      </div>
-
-      {activeAction === 'edit' && (
-        <div className="mt-3 space-y-2.5 rounded-2xl border border-line bg-paper p-3.5">
-          <p className="text-xs font-extrabold uppercase tracking-wide text-muted">
-            Editar dados cadastrais
-          </p>
-          <div className="grid gap-2 sm:grid-cols-3">
-            <input
-              value={editName}
-              onChange={(e) => setEditName(e.target.value)}
-              placeholder="Nome completo"
-              className={inputClassName}
-            />
-            <input
-              value={editUsername}
-              onChange={(e) =>
-                setEditUsername(e.target.value.toLowerCase().replace(/\s+/g, ''))
-              }
-              placeholder="Apelido (ex: ana.silva)"
-              className={inputClassName}
-            />
-            <input
-              value={editCpf}
-              onChange={(e) => setEditCpf(formatCpfInput(e.target.value))}
-              inputMode="numeric"
-              placeholder={
-                trainee.cpfMasked
-                  ? `Novo CPF (atual: ${trainee.cpfMasked})`
-                  : 'Cadastrar CPF (000.000.000-00)'
-              }
-              className={inputClassName}
-            />
-          </div>
-          <div className="flex justify-end gap-2">
-            <button
-              type="button"
-              onClick={() => setActiveAction(null)}
-              className="rounded-xl border border-line px-3 py-1.5 text-xs font-extrabold text-muted"
-            >
-              Cancelar
-            </button>
-            <button
-              type="button"
-              disabled={isMutatingAccount}
-              onClick={() => void saveProfileEdits()}
-              className="rounded-xl bg-brand px-4 py-1.5 text-xs font-extrabold text-white disabled:opacity-60"
-            >
-              {isMutatingAccount ? 'Salvando…' : 'Salvar alterações'}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {activeAction === 'reset-password' && (
-        <div className="mt-3 space-y-2.5 rounded-2xl border border-line bg-paper p-3.5">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-extrabold uppercase tracking-wide text-muted">
-              Redefinir senha temporária
-            </p>
-            <button
-              type="button"
-              onClick={() => setResetPasswordValue(generateStrongPassword())}
-              className="text-xs font-extrabold text-brand hover:underline"
-            >
-              Gerar outra
-            </button>
-          </div>
-          <input
-            type="text"
-            value={resetPasswordValue}
-            onChange={(e) => setResetPasswordValue(e.target.value)}
-            placeholder="Nova senha forte (8+ chars, letra, número e especial)"
-            className={inputClassName}
-          />
-          <p className="text-[11px] font-semibold text-muted2">
-            O aluno precisará criar uma nova senha pessoal assim que entrar com esta senha temporária.
-          </p>
-          <div className="flex justify-end gap-2">
-            <button
-              type="button"
-              onClick={() => setActiveAction(null)}
-              className="rounded-xl border border-line px-3 py-1.5 text-xs font-extrabold text-muted"
-            >
-              Cancelar
-            </button>
-            <button
-              type="button"
-              disabled={isMutatingAccount}
-              onClick={() => void submitResetPassword()}
-              className="rounded-xl bg-brand px-4 py-1.5 text-xs font-extrabold text-white disabled:opacity-60"
-            >
-              {isMutatingAccount ? 'Aplicando…' : 'Confirmar redefinição'}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {activeAction === 'confirm-toggle' && (
+      {confirmEndLink && activeLink && (
         <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-line bg-paper p-3.5">
           <p className="text-xs font-bold text-ink">
-            {trainee.active
-              ? `Desativar ${firstName}? O acesso ao app é bloqueado imediatamente, mantendo histórico e treinos preservados.`
-              : `Reativar a conta de ${firstName}?`}
+            Encerrar vínculo com {firstName}? Ele manterá seus treinos e histórico, mas sairá da sua carteira e poderá se vincular a outro personal.
           </p>
           <div className="flex gap-2">
             <button
               type="button"
-              onClick={() => setActiveAction(null)}
+              onClick={() => setConfirmEndLink(false)}
               className="rounded-xl border border-line px-3 py-1.5 text-xs font-extrabold text-muted"
             >
               Cancelar
             </button>
             <button
               type="button"
-              disabled={isMutatingAccount}
-              onClick={() => void toggleActiveStatus()}
+              disabled={isEndingLink}
+              onClick={() => void handleEndLink()}
               className="rounded-xl bg-brand px-4 py-1.5 text-xs font-extrabold text-white disabled:opacity-60"
             >
-              {isMutatingAccount
-                ? 'Aguarde…'
-                : trainee.active
-                  ? 'Sim, desativar'
-                  : 'Sim, reativar'}
+              {isEndingLink ? 'Encerrando…' : 'Sim, encerrar'}
             </button>
           </div>
         </div>
-      )}
-
-      {feedbackMessage && (
-        <p className="mt-3 rounded-xl bg-done-bg px-3.5 py-2.5 text-xs font-extrabold text-done">
-          {feedbackMessage}
-        </p>
       )}
 
       <div className="no-scrollbar my-4 flex gap-5 overflow-x-auto border-b border-line">
@@ -931,8 +675,15 @@ function TraineeProfile({
               className="flex items-center gap-3 rounded-xl border border-line px-3 py-2.5"
             >
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-extrabold">
-                  {workout.name}
+                <span className="flex items-center gap-1.5">
+                  <span className="truncate text-sm font-extrabold">
+                    {workout.name}
+                  </span>
+                  {workout.clonedFromId && (
+                    <span className="shrink-0 rounded-full bg-chip px-2 py-0.5 text-[10px] font-extrabold text-muted">
+                      Portado
+                    </span>
+                  )}
                 </span>
                 <span className="block text-xs font-bold text-muted2">
                   {workout.program
@@ -968,7 +719,7 @@ function TraineeProfile({
           />
           {notes.length === 0 && (
             <p className="py-6 text-center text-sm text-muted2">
-              Nenhum recado enviado ainda.
+              Nenhum recado enviado neste vínculo ainda.
             </p>
           )}
           {notes.map((note) => (
@@ -993,7 +744,7 @@ function TraineeProfile({
         <div>
           {photos.length === 0 && (
             <p className="py-6 text-center text-sm text-muted2">
-              {firstName} ainda não enviou fotos.
+              {firstName} ainda não enviou fotos neste vínculo.
             </p>
           )}
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">

@@ -18,11 +18,14 @@ import type {
   MuscleGroup,
   PaginatedExercises,
   PatchExercisePayload,
+  ProfileChoice,
   ProgramAchievement,
   ProgressPhoto,
   ProgressSummary,
+  Role,
   TodayResponse,
   TrainerNote,
+  TrainerTraineeLink,
   TrainingProgram,
   UpdateProgramPayload,
   UserSummary,
@@ -34,9 +37,24 @@ import type {
 const TTL_USUARIOS = 60 * 1000;
 
 export const authApi = {
-  // Login O(1) por CPF (ou apelido legado v1.0) + senha forte.
-  login: (identifier: string, password: string) =>
-    api.post<LoginResponse>('/auth/login', { identifier, password }),
+  // Login O(1) por CPF (ou apelido legado v1.0) + senha forte (+ role opcional p/ CPF duplo).
+  login: (identifier: string, password: string, role?: Role) =>
+    api.post<LoginResponse>('/auth/login', {
+      identifier,
+      password,
+      ...(role ? { role } : {}),
+    }),
+  linkedProfiles: () => api.get<ProfileChoice[]>('/auth/linked-profiles'),
+  switchProfile: (role: Role) =>
+    api.post<{
+      user: {
+        id: string;
+        name: string;
+        username: string;
+        role: Role;
+        mustChangePassword: boolean;
+      };
+    }>('/auth/switch-profile', { role }),
   changePassword: (currentPassword: string, newPassword: string) =>
     api.post<{ ok: boolean; mustChangePassword: boolean }>('/auth/change-password', {
       currentPassword,
@@ -47,8 +65,8 @@ export const authApi = {
 };
 
 export const usersApi = {
-  // ADMIN — fonte do select "pra quem é o treino" e gestão cadastral (cacheado por 1 min)
-  list: (params: { role?: 'ADMIN' | 'TRAINEE'; active?: boolean } = {}) => {
+  // ADMIN | RECEPTION | PERSONAL (escopo isolado no backend)
+  list: (params: { role?: Role; active?: boolean } = {}) => {
     const q = new URLSearchParams();
     if (params.role) q.set('role', params.role);
     if (params.active !== undefined) q.set('active', String(params.active));
@@ -61,14 +79,29 @@ export const usersApi = {
     api.get<{ username: string }>(
       `/users/suggest-username?name=${encodeURIComponent(name)}`,
     ),
-  /** ADMIN — cadastra aluno com CPF validado, senha forte e username único automático. */
+  /** ADMIN | RECEPTION — cadastra usuário com CPF validado, senha forte e username automático. */
+  createUser: async (payload: {
+    name: string;
+    cpf: string;
+    password: string;
+    username?: string;
+    role?: Role;
+  }) => {
+    const created = await api.post<UserSummary>('/users', payload);
+    limpar('users:');
+    return created;
+  },
+  /** Alias mantido para compatibilidade. */
   createTrainee: async (payload: {
     name: string;
     cpf: string;
     password: string;
     username?: string;
   }) => {
-    const created = await api.post<UserSummary>('/users', payload);
+    const created = await api.post<UserSummary>('/users', {
+      ...payload,
+      role: 'TRAINEE',
+    });
     limpar('users:');
     return created;
   },
@@ -92,6 +125,32 @@ export const usersApi = {
     );
     limpar('users:');
     return result;
+  },
+};
+
+export const linksApi = {
+  request: async (username: string) => {
+    const created = await api.post<TrainerTraineeLink>('/links/request', { username });
+    limpar('users:');
+    return created;
+  },
+  sent: () => api.get<TrainerTraineeLink[]>('/links/sent'),
+  pending: () => api.get<TrainerTraineeLink[]>('/links/pending'),
+  current: () => api.get<{ link: TrainerTraineeLink | null }>('/links/current'),
+  accept: async (id: string) => {
+    const res = await api.post<{
+      link: TrainerTraineeLink;
+      portedWorkoutsCount: number;
+      portedProgram: boolean;
+    }>(`/links/${id}/accept`);
+    limpar('users:');
+    return res;
+  },
+  reject: (id: string) => api.post<TrainerTraineeLink>(`/links/${id}/reject`),
+  end: async (id: string) => {
+    const res = await api.post<TrainerTraineeLink>(`/links/${id}/end`);
+    limpar('users:');
+    return res;
   },
 };
 
@@ -305,3 +364,27 @@ export const programsApi = {
   archiveAssignment: (assignmentId: string) =>
     api.patch<{ ok: boolean }>(`/programs/assignments/${assignmentId}/archive`),
 };
+
+export interface HealthDbSummary {
+  status: 'ok' | 'degraded';
+  ts: string;
+  tableCount?: number;
+  missingTables?: string[];
+  missingColumns?: string[];
+  migrations?: { name: string; applied: boolean; rolledBack: boolean }[];
+}
+
+export interface HealthCacheSummary {
+  enabled: boolean;
+  entradas: number;
+  hits: number;
+  misses: number;
+  taxaAcerto: number;
+  emVoo: number;
+}
+
+export const healthApi = {
+  db: () => api.get<HealthDbSummary>('/health/db'),
+  cache: () => api.get<HealthCacheSummary>('/health/cache'),
+};
+

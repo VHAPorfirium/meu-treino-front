@@ -190,7 +190,14 @@ export default function TreinosPage() {
                       {String.fromCharCode(65 + (workouts.indexOf(w) % 26))}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-extrabold">{w.name}</p>
+                      <div className="flex items-center gap-1.5">
+                        <p className="truncate text-sm font-extrabold">{w.name}</p>
+                        {w.clonedFromId && (
+                          <span className="shrink-0 rounded-full bg-chip px-2 py-0.5 text-[10px] font-extrabold text-muted">
+                            Portado
+                          </span>
+                        )}
+                      </div>
                       <p className="truncate text-xs font-bold text-muted2">
                         {w.program
                           ? `${PROGRAM_TYPE_RULES[w.program.type].icon} ${w.program.name}`
@@ -242,11 +249,18 @@ export default function TreinosPage() {
             <div className="min-w-0 lg:sticky lg:top-6 lg:self-start">
               {detail ? (
                 <div className="min-w-0 rounded-2xl border border-line bg-card p-5">
-                  <p className="text-xs font-bold text-muted2">
-                    {detail.program
-                      ? `Programa: ${PROGRAM_TYPE_RULES[detail.program.type].icon} ${detail.program.name}`
-                      : 'Treino avulso (fora de programa)'}
-                  </p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="text-xs font-bold text-muted2">
+                      {detail.program
+                        ? `Programa: ${PROGRAM_TYPE_RULES[detail.program.type].icon} ${detail.program.name}`
+                        : 'Treino avulso (fora de programa)'}
+                    </p>
+                    {detail.clonedFromId && (
+                      <span className="rounded-full bg-chip px-2 py-0.5 text-[10px] font-extrabold text-muted">
+                        Portado de personal anterior
+                      </span>
+                    )}
+                  </div>
                   <WorkoutEditor
                     detail={detail}
                     onChanged={async (d) => {
