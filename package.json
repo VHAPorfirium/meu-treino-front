@@ -8,7 +8,7 @@
     "prebuild": "node scripts/check-theme-classes.mjs",
     "build": "next build",
     "start": "next start -p 3001",
-    "lint": "next lint"
+    "lint": "tsc --noEmit && npm run lint:theme"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
