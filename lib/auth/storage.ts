@@ -5,18 +5,24 @@ import type { AuthUser, Role } from '../types';
 const USER_KEY = 'mt_user';
 const MAX_AGE = 60 * 60 * 24 * 30; // 30 dias
 
+function secureAttr(): string {
+  return typeof window !== 'undefined' && window.location.protocol === 'https:'
+    ? '; Secure'
+    : '';
+}
+
 function setCookie(name: string, value: string) {
-  document.cookie = `${name}=${encodeURIComponent(value)}; path=/; max-age=${MAX_AGE}; SameSite=Lax`;
+  document.cookie = `${name}=${encodeURIComponent(value)}; path=/; max-age=${MAX_AGE}; SameSite=Lax${secureAttr()}`;
 }
 function delCookie(name: string) {
-  document.cookie = `${name}=; path=/; max-age=0; SameSite=Lax`;
+  document.cookie = `${name}=; path=/; max-age=0; SameSite=Lax${secureAttr()}`;
 }
 function getCookie(name: string): string | null {
   if (typeof document === 'undefined') return null;
   const match = document.cookie
     .split('; ')
     .find((row) => row.startsWith(name + '='));
-  return match ? decodeURIComponent(match.split('=')[1]) : null;
+  return match ? decodeURIComponent(match.split('=').slice(1).join('=')) : null;
 }
 
 export function saveSession(user: AuthUser) {
@@ -31,7 +37,16 @@ export function getUser(): AuthUser | null {
   const raw = getCookie(USER_KEY);
   if (!raw) return null;
   try {
-    return JSON.parse(raw) as AuthUser;
+    const parsed = JSON.parse(raw) as Partial<AuthUser> | null;
+    if (
+      !parsed ||
+      typeof parsed.userId !== 'string' ||
+      typeof parsed.name !== 'string' ||
+      (parsed.role !== 'ADMIN' && parsed.role !== 'TRAINEE')
+    ) {
+      return null;
+    }
+    return { userId: parsed.userId, name: parsed.name, role: parsed.role };
   } catch {
     return null;
   }

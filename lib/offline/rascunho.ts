@@ -47,6 +47,15 @@ function vazio(workoutLogId: string): RascunhoSessao {
   return { id: CHAVE, workoutLogId, atualizadoEm: Date.now(), exercicios: {} };
 }
 
+/** Fila serializada para evitar corridas read-modify-write no IndexedDB. */
+let filaOperacoes: Promise<void> = Promise.resolve();
+
+function enfileirar(operacao: () => Promise<void>): Promise<void> {
+  const proxima = filaOperacoes.then(operacao, operacao);
+  filaOperacoes = proxima.catch(() => {});
+  return proxima;
+}
+
 /**
  * Lê o rascunho da sessão informada. Se o guardado for de OUTRA sessão (ela
  * finalizou o treino de ontem e hoje é outro), descarta em vez de misturar.
@@ -54,6 +63,7 @@ function vazio(workoutLogId: string): RascunhoSessao {
 export async function carregarRascunho(
   workoutLogId: string,
 ): Promise<RascunhoSessao | null> {
+  await filaOperacoes;
   const d = await db();
   if (!d) return null;
   try {
@@ -69,23 +79,25 @@ export async function carregarRascunho(
   }
 }
 
-async function mesclar(
+function mesclar(
   workoutLogId: string,
   muda: (r: RascunhoSessao) => void,
 ): Promise<void> {
-  const d = await db();
-  if (!d) return;
-  try {
-    const atual =
-      ((await d.get(STORE_RASCUNHO, CHAVE)) as RascunhoSessao | undefined) ?? null;
-    const base =
-      atual && atual.workoutLogId === workoutLogId ? atual : vazio(workoutLogId);
-    muda(base);
-    base.atualizadoEm = Date.now();
-    await d.put(STORE_RASCUNHO, base);
-  } catch {
-    /* falha ao gravar rascunho não pode atrapalhar o treino */
-  }
+  return enfileirar(async () => {
+    const d = await db();
+    if (!d) return;
+    try {
+      const atual =
+        ((await d.get(STORE_RASCUNHO, CHAVE)) as RascunhoSessao | undefined) ?? null;
+      const base =
+        atual && atual.workoutLogId === workoutLogId ? atual : vazio(workoutLogId);
+      muda(base);
+      base.atualizadoEm = Date.now();
+      await d.put(STORE_RASCUNHO, base);
+    } catch {
+      /* falha ao gravar rascunho não pode atrapalhar o treino */
+    }
+  });
 }
 
 export function salvarExercicio(
@@ -95,6 +107,20 @@ export function salvarExercicio(
 ): Promise<void> {
   return mesclar(workoutLogId, (r) => {
     r.exercicios[weId] = { ...r.exercicios[weId], ...dados };
+  });
+}
+
+/** Grava vários exercícios modificados num único read-modify-write serializado. */
+export function salvarExerciciosEmLote(
+  workoutLogId: string,
+  lote: Record<string, RascunhoExercicio>,
+): Promise<void> {
+  const entradas = Object.entries(lote);
+  if (entradas.length === 0) return Promise.resolve();
+  return mesclar(workoutLogId, (r) => {
+    for (const [weId, dados] of entradas) {
+      r.exercicios[weId] = { ...r.exercicios[weId], ...dados };
+    }
   });
 }
 
@@ -110,14 +136,16 @@ export function salvarTimer(
   });
 }
 
-export async function descartarRascunho(): Promise<void> {
-  const d = await db();
-  if (!d) return;
-  try {
-    await d.delete(STORE_RASCUNHO, CHAVE);
-  } catch {
-    /* ignore */
-  }
+export function descartarRascunho(): Promise<void> {
+  return enfileirar(async () => {
+    const d = await db();
+    if (!d) return;
+    try {
+      await d.delete(STORE_RASCUNHO, CHAVE);
+    } catch {
+      /* ignore */
+    }
+  });
 }
 
 /** Agenda a gravação (a digitação chama isso a cada tecla). */

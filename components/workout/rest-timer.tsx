@@ -26,9 +26,20 @@ export function RestTimer({
   onClose: () => void;
 }) {
   const [target, setTarget] = useState(() => terminaEm ?? Date.now() + seconds * 1000);
+  const [totalDuration, setTotalDuration] = useState(() => Math.max(1, seconds));
   const [left, setLeft] = useState(seconds);
   const [minimized, setMinimized] = useState(false);
   const firedRef = useRef(false);
+  const onAlvoRef = useRef(onAlvo);
+  const onDoneRef = useRef(onDone);
+
+  useEffect(() => {
+    onAlvoRef.current = onAlvo;
+  }, [onAlvo]);
+
+  useEffect(() => {
+    onDoneRef.current = onDone;
+  }, [onDone]);
 
   useEffect(() => {
     // Destrava áudio na montagem
@@ -43,7 +54,7 @@ export function RestTimer({
         playTimerDoneSound();
         // Se estiver minimizado, expande automaticamente para avisar que o descanso acabou!
         setMinimized(false);
-        onDone?.();
+        onDoneRef.current?.();
       }
     };
     tick();
@@ -54,21 +65,29 @@ export function RestTimer({
       clearInterval(id);
       document.removeEventListener('visibilitychange', onVis);
     };
-  }, [target, onDone]);
+  }, [target]);
 
   useEffect(() => {
-    onAlvo?.(target);
-  }, [target, onAlvo]);
+    onAlvoRef.current?.(target);
+  }, [target]);
 
   const add = (s: number) => {
     firedRef.current = false;
     triggerHaptic('light');
-    setTarget((t) => Math.max(Date.now(), t) + s * 1000);
+    setTarget((t) => {
+      const nextTarget = Math.max(Date.now(), t) + s * 1000;
+      const nextRemaining = Math.ceil((nextTarget - Date.now()) / 1000);
+      setTotalDuration((prev) => Math.max(prev, nextRemaining));
+      return nextTarget;
+    });
   };
 
   const mm = String(Math.floor(left / 60)).padStart(2, '0');
   const ss = String(left % 60).padStart(2, '0');
-  const pct = seconds > 0 ? Math.min(100, ((seconds - left) / seconds) * 100) : 100;
+  const pct =
+    totalDuration > 0
+      ? Math.min(100, Math.max(0, ((totalDuration - left) / totalDuration) * 100))
+      : 100;
 
   // Modo Minimizado: Pill flutuante no canto da tela (permite navegar pela ficha de treino)
   if (minimized) {

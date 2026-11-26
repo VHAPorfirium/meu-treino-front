@@ -8,7 +8,10 @@ import {
   type ReactNode,
 } from 'react';
 import { useRouter } from 'next/navigation';
+import { ApiError } from '../api/client';
 import { limpar as limparCache } from '../api/cache-modulo';
+import { limparFilaOffline } from '../offline/queue';
+import { clearCelebratedAchievements } from '../programs/celebration-memory';
 import type { AuthUser } from '../types';
 import { authApi } from '../api/endpoints';
 import {
@@ -22,7 +25,7 @@ interface AuthContextValue {
   user: AuthUser | null;
   loading: boolean;
   login: (pin: string) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -33,8 +36,45 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
 
   useEffect(() => {
-    setUser(getUser());
-    setLoading(false);
+    let cancelled = false;
+    const localUser = getUser();
+    if (!localUser) {
+      setLoading(false);
+      return;
+    }
+
+    // Offline (ex.: academia sem sinal): usa o mt_user local para abrir o app.
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      setUser(localUser);
+      setLoading(false);
+      return;
+    }
+
+    // Online: valida o cookie httpOnly antes de montar telas protegidas,
+    // evitando rajada de 401 paralelos quando a sessão já expirou.
+    authApi
+      .me()
+      .then((verifiedUser) => {
+        if (cancelled) return;
+        saveSession(verifiedUser);
+        setUser(verifiedUser);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        if (err instanceof ApiError && err.status === 401) {
+          setUser(null);
+          return;
+        }
+        // Rede oscilando / backend reiniciando: mantém sessão local
+        setUser(localUser);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   async function login(pin: string) {
@@ -53,6 +93,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await authApi.logout().catch(() => {}); // limpa o cookie httpOnly no backend
     clearSession();
     limparCache(); // nada de um usuário sobrevive à sessão do outro
+    clearCelebratedAchievements();
+    await limparFilaOffline(); // limpa IndexedDB (outbox + rascunho)
     setUser(null);
     router.replace('/login');
   }
