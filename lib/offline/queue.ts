@@ -1,6 +1,7 @@
 'use client';
 
 import { ApiError, replay } from '../api/client';
+import { getUser } from '../auth/storage';
 import { clearOfflineStores, db, STORE_OUTBOX, STORE_RASCUNHO } from './db';
 
 export { db, STORE_RASCUNHO };
@@ -9,15 +10,15 @@ export { db, STORE_RASCUNHO };
  * E5 — Fila offline ("outbox") das escritas da aluna.
  *
  * Toda operação passa por `enqueueAndSend`: tenta enviar na hora; se falhar por
- * REDE/timeout, fica guardada no IndexedDB e é reenviada em ordem quando a
- * conexão volta (`online`), quando o app volta ao foreground, ou manualmente.
+ * REDE/timeout, 5xx ou 401 (sessão expirada), fica guardada no IndexedDB vinculada
+ * ao `userId` e é reenviada em ordem quando a conexão/sessão volta.
  *
  * Isso só é seguro porque as escritas da aluna são IDEMPOTENTES no backend
  * (PATCH por chave natural + `sets[]` com semântica replace) — reenviar = mesmo estado.
  *
  * Erros definitivos de cliente (4xx, exceto 401/408/429) são descartados no flush;
  * falhas transitórias (rede, timeout, 408, 429, 5xx) e 401 preservam a fila para
- * evitar perda de dados durante deploys ou instabilidade de rede.
+ * evitar perda de dados durante deploys, instabilidade de rede ou expiração do cookie.
  */
 
 export interface OutboxOp {
@@ -29,12 +30,17 @@ export interface OutboxOp {
   tries: number;
   /** chave lógica pra "colapsar" ops repetidas (ex: mesmo exercício) — a última vence */
   key?: string;
+  /** dono da operação: impede replay cruzado entre contas num aparelho compartilhado */
+  userId?: string;
 }
 
 const MAX_TRIES = 20;
 
 type Listener = (pending: number) => void;
 const listeners = new Set<Listener>();
+
+/** Incrementado a cada limpeza completa para descartar efeitos de requests em voo pós-logout. */
+let geracao = 0;
 
 async function notify() {
   const n = await pendingCount();
@@ -113,32 +119,66 @@ async function put(op: OutboxOp) {
 
 /** Limpa outbox e rascunho no logout/troca de usuário e zera os observadores. */
 export async function limparFilaOffline(): Promise<void> {
+  geracao += 1;
   needsReflush = false;
   await clearOfflineStores();
   await notify();
 }
 
 /**
- * Tenta enviar agora. Em falha de REDE/timeout ou 5xx transitório, enfileira e
- * resolve com `{ queued: true }`. Em sucesso, descarta qualquer operação antiga
- * na fila com a mesma `key` (evita sobrescrita fora de ordem num flush futuro).
+ * Chamado no login: preserva a fila e o rascunho se TODOS os registros locais
+ * pertencerem ao mesmo `newUserId` (ex.: sessão expirou com 401 após treino offline);
+ * limpa tudo se houver qualquer dado de outro usuário ou legado sem `userId`.
+ * Retorna `true` quando limpou dados de outro usuário.
+ */
+export async function limparSeOutroUsuario(newUserId: string): Promise<boolean> {
+  try {
+    const d = await db();
+    if (!d) return false;
+    const [ops, draft] = await Promise.all([
+      d.getAll(STORE_OUTBOX) as Promise<OutboxOp[]>,
+      d.get(STORE_RASCUNHO, 'atual') as Promise<{ userId?: string } | undefined>,
+    ]);
+    const hasForeignOp = ops.some((op) => op.userId !== newUserId);
+    const hasForeignDraft = Boolean(draft && draft.userId !== newUserId);
+    if (hasForeignOp || hasForeignDraft) {
+      await limparFilaOffline();
+      return true;
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Tenta enviar agora. Em falha de REDE/timeout, 401 ou 5xx transitório, enfileira
+ * vinculada ao `userId` atual e resolve com `{ queued: true }`. Em sucesso, descarta
+ * qualquer operação antiga na fila com a mesma `key` (evita sobrescrita fora de ordem).
  */
 export async function enqueueAndSend<T>(
   op: Omit<OutboxOp, 'id' | 'createdAt' | 'tries'>,
 ): Promise<{ queued: false; result: T } | { queued: true }> {
+  const gen = geracao;
+  const ownerUserId = op.userId ?? getUser()?.userId;
   try {
     const result = await replay<T>(op.method, op.path, op.body);
-    if (op.key) {
+    if (op.key && gen === geracao) {
       await removeByKey(op.key);
     }
     return { queued: false, result };
   } catch (e) {
     const shouldQueue =
       isNetworkError(e) ||
-      (e instanceof ApiError && (e.status === 408 || e.status === 429 || e.status >= 500));
+      (e instanceof ApiError &&
+        (e.status === 401 || e.status === 408 || e.status === 429 || e.status >= 500));
     if (!shouldQueue) throw e;
+    if (gen !== geracao) {
+      return { queued: false, result: undefined as T };
+    }
     await put({
       ...op,
+      userId: ownerUserId,
       id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       createdAt: Date.now(),
       tries: 0,
@@ -151,10 +191,15 @@ let flushing = false;
 let needsReflush = false;
 
 /**
- * Reenvia a fila em ordem. Para no primeiro erro de rede, 5xx ou 401 (sem
- * apagar o registro do aluno); descarta apenas erros 4xx definitivos.
+ * Reenvia a fila em ordem para o usuário autenticado. Para no primeiro erro de rede,
+ * 5xx ou 401 (sem apagar o registro do aluno); descarta apenas erros 4xx definitivos.
  */
-export async function flush(): Promise<{ sent: number; left: number }> {
+export async function flush(expectedUserId?: string): Promise<{ sent: number; left: number }> {
+  const activeUserId = expectedUserId ?? getUser()?.userId;
+  if (!activeUserId) {
+    return { sent: 0, left: await pendingCount() };
+  }
+
   let d;
   try {
     d = await db();
@@ -167,25 +212,38 @@ export async function flush(): Promise<{ sent: number; left: number }> {
   }
   flushing = true;
   needsReflush = false;
+  const gen = geracao;
   let sent = 0;
   let stoppedOnTransient = false;
   try {
     const ops = (await d.getAllFromIndex(STORE_OUTBOX, 'createdAt')) as OutboxOp[];
     for (const op of ops) {
+      if (gen !== geracao) break;
+      // Defesa em profundidade: nunca reenvia operação de outro usuário
+      if (op.userId && op.userId !== activeUserId) {
+        await d.delete(STORE_OUTBOX, op.id);
+        continue;
+      }
       try {
         await replay(op.method, op.path, op.body);
+        if (gen !== geracao) break;
         await d.delete(STORE_OUTBOX, op.id);
         sent++;
       } catch (e) {
+        if (gen !== geracao) break;
         if (e instanceof ApiError && e.status === 401) {
-          // Sessão expirada: não deleta silenciosamente aqui (o handler global de 401 trata a sessão)
+          // Sessão expirada: preserva a operação no IndexedDB para sincronizar após relogin
           stoppedOnTransient = true;
           break;
         }
         if (isRetryableFlushError(e)) {
-          op.tries++;
-          if (op.tries >= MAX_TRIES) await d.delete(STORE_OUTBOX, op.id);
-          else await d.put(STORE_OUTBOX, op);
+          // Evita regravar uma op obsoleta já substituída por um enqueueAndSend concorrente
+          const stillPresent = await d.get(STORE_OUTBOX, op.id);
+          if (stillPresent && gen === geracao) {
+            op.tries++;
+            if (op.tries >= MAX_TRIES) await d.delete(STORE_OUTBOX, op.id);
+            else await d.put(STORE_OUTBOX, op);
+          }
           stoppedOnTransient = true;
           break; // ainda offline ou servidor reiniciando: preserva a ordem e tenta depois
         }
@@ -198,8 +256,14 @@ export async function flush(): Promise<{ sent: number; left: number }> {
     await notify();
   }
 
-  if (needsReflush && !stoppedOnTransient && typeof navigator !== 'undefined' && navigator.onLine) {
-    const followUp = await flush();
+  if (
+    needsReflush &&
+    !stoppedOnTransient &&
+    gen === geracao &&
+    typeof navigator !== 'undefined' &&
+    navigator.onLine
+  ) {
+    const followUp = await flush(activeUserId);
     return { sent: sent + followUp.sent, left: followUp.left };
   }
 

@@ -10,8 +10,9 @@ import {
 import { useRouter } from 'next/navigation';
 import { ApiError } from '../api/client';
 import { limpar as limparCache } from '../api/cache-modulo';
-import { limparFilaOffline } from '../offline/queue';
+import { flush, limparFilaOffline, limparSeOutroUsuario } from '../offline/queue';
 import { clearCelebratedAchievements } from '../programs/celebration-memory';
+import { clearPushSyncFlag, revokePushSubscription } from '../push/push-session';
 import type { AuthUser } from '../types';
 import { authApi } from '../api/endpoints';
 import {
@@ -78,18 +79,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   async function login(pin: string) {
+    const previousUser = getUser();
     const res = await authApi.login(pin); // backend identifica pelo PIN e seta o cookie httpOnly
     const authUser: AuthUser = {
       userId: res.user.id,
       role: res.user.role,
       name: res.user.name,
     };
+
+    limparCache();
+    clearPushSyncFlag();
+
+    // Em aparelho compartilhado (login direto ou após 401): limpa IndexedDB se o
+    // usuário mudou; se for o MESMO aluno relogando após 401, preserva e sincroniza.
+    if (previousUser && previousUser.userId !== authUser.userId) {
+      clearCelebratedAchievements();
+      await limparFilaOffline();
+    } else {
+      const clearedForeign = await limparSeOutroUsuario(authUser.userId);
+      if (clearedForeign) {
+        clearCelebratedAchievements();
+      }
+    }
+
     saveSession(authUser);
     setUser(authUser);
+    if (typeof navigator === 'undefined' || navigator.onLine) {
+      void flush(authUser.userId);
+    }
     router.replace(roleHome(authUser.role));
   }
 
   async function logout() {
+    // Desvincula Web Push no backend ANTES de limpar o cookie httpOnly
+    await revokePushSubscription();
     await authApi.logout().catch(() => {}); // limpa o cookie httpOnly no backend
     clearSession();
     limparCache(); // nada de um usuário sobrevive à sessão do outro

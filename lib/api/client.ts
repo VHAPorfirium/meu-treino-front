@@ -1,5 +1,4 @@
 import { clearSession } from '../auth/storage';
-import { clearOfflineStores } from '../offline/db';
 import { clearCelebratedAchievements } from '../programs/celebration-memory';
 import { limpar as limparCache } from './cache-modulo';
 
@@ -24,8 +23,10 @@ export class ApiError extends Error {
 let handlingUnauthorized = false;
 
 /**
- * Sessão inválida/expirada: limpa o usuário local, cache, comemorações e stores
- * offline (IndexedDB) antes de voltar pro login — nenhum dado sobrevive entre usuários.
+ * Sessão inválida/expirada: limpa o usuário local e o cache em memória antes de
+ * voltar pro login. NÃO apaga o IndexedDB (outbox/rascunho) aqui — se o mesmo
+ * aluno redigitar o PIN, o treino feito offline é preservado e sincronizado;
+ * se outro usuário logar (ou clicar em Sair), o AuthProvider limpa os stores.
  */
 function handleUnauthorized() {
   if (typeof window === 'undefined' || handlingUnauthorized) return;
@@ -33,12 +34,10 @@ function handleUnauthorized() {
   clearSession();
   limparCache();
   clearCelebratedAchievements();
-  void clearOfflineStores().finally(() => {
-    handlingUnauthorized = false;
-    if (!window.location.pathname.startsWith('/login')) {
-      window.location.replace('/login');
-    }
-  });
+  if (!window.location.pathname.startsWith('/login')) {
+    window.location.replace('/login');
+  }
+  handlingUnauthorized = false;
 }
 
 async function request<T>(

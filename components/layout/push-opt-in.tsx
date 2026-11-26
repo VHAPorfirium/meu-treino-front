@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { pushApi } from '@/lib/api/endpoints';
+import { PUSH_SYNC_SESSION_KEY } from '@/lib/push/push-session';
 
 type State = 'unsupported' | 'disabled' | 'prompt' | 'subscribed' | 'denied' | 'busy';
 
@@ -14,7 +15,7 @@ function urlBase64ToUint8Array(base64: string) {
   return out;
 }
 
-const SYNC_SESSION_KEY = 'ritmo:push-synced';
+const SYNC_SESSION_KEY = PUSH_SYNC_SESSION_KEY;
 
 function serializeSubscription(sub: PushSubscription) {
   const json = sub.toJSON();
