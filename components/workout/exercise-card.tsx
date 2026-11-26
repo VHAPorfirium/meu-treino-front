@@ -56,12 +56,26 @@ function initialRows(
   }));
 }
 
+/** Aceita tanto "42.5" quanto "42,5" (teclado numérico pt-BR) e rejeita NaN/negativos. */
+function parseDecimal(raw: string): number | undefined {
+  const normalized = raw.trim().replace(',', '.');
+  if (!normalized) return undefined;
+  const value = Number(normalized);
+  return Number.isFinite(value) && value >= 0 ? value : undefined;
+}
+
+/** Reps precisa ser inteiro >= 0 (o backend valida com @IsInt). */
+function parseNonNegativeInt(raw: string): number | undefined {
+  const value = parseDecimal(raw);
+  return value === undefined ? undefined : Math.round(value);
+}
+
 function toSets(rows: SetRow[]): SetLogInput[] | undefined {
   const filled = rows
     .map((r, i) => ({
       setNumber: i + 1,
-      weight: r.weight.trim() === '' ? undefined : Number(r.weight),
-      reps: r.reps.trim() === '' ? undefined : Number(r.reps),
+      weight: parseDecimal(r.weight),
+      reps: parseNonNegativeInt(r.reps),
     }))
     .filter((s) => s.weight !== undefined || s.reps !== undefined);
   return filled.length ? filled : undefined;
@@ -116,33 +130,57 @@ export function ExerciseCard({
   });
 
   const [note, setNote] = useState(rascunho?.nota ?? log?.note ?? '');
-  const [replaced, setReplaced] = useState<AlternativeExercise | null>(null);
+  // Hidrata a troca a partir do log salvo (sobrevive a recarregamento de página)
+  const [replaced, setReplaced] = useState<AlternativeExercise | null>(() => {
+    if (log?.status !== 'REPLACED' || !log.actualExerciseId) return null;
+    return item.alternatives.find((alt) => alt.id === log.actualExerciseId) ?? null;
+  });
   const [saving, setSaving] = useState(false);
 
   const status = log?.status;
   const bar = status ? STATUS_COLOR[status].fg : 'transparent';
 
-  // carga/séries derivadas das linhas
-  const common = (): Partial<PatchExercisePayload> => {
+  const effectiveActualExerciseId =
+    status === 'REPLACED'
+      ? (replaced?.id ?? log?.actualExerciseId ?? undefined)
+      : undefined;
+  const effectiveReplaced =
+    status === 'REPLACED'
+      ? (replaced ??
+        (effectiveActualExerciseId
+          ? (item.alternatives.find((alt) => alt.id === effectiveActualExerciseId) ?? null)
+          : null))
+      : replaced;
+
+  // carga/séries derivadas das linhas (aceita overrides para evitar closures obsoletas)
+  function buildCommon(overrides?: {
+    rows?: SetRow[];
+    minutos?: string;
+    note?: string;
+  }): Partial<PatchExercisePayload> {
+    const currentRows = overrides?.rows ?? rows;
+    const currentMinutos = overrides?.minutos ?? minutos;
+    const currentNote = overrides?.note ?? note;
     if (ehTempo) {
-      const seg = Math.round((Number(minutos) || 0) * 60);
+      const seg = Math.round((parseDecimal(currentMinutos) ?? 0) * 60);
       return {
         sets: seg > 0 ? [{ setNumber: 1, durationSeconds: seg }] : undefined,
         totalSeconds: seg > 0 ? seg : undefined,
-        note: note.trim() || undefined,
+        note: currentNote.trim() || undefined,
       };
     }
-    const sets = toSets(rows);
+    const sets = toSets(currentRows);
     const weights = (sets ?? []).map((s) => s.weight).filter((w): w is number => w !== undefined);
     return {
       sets,
       loadUsed: weights.length ? Math.max(...weights) : undefined,
       setsCompleted: sets ? sets.length : undefined,
-      note: note.trim() || undefined,
+      note: currentNote.trim() || undefined,
     };
-  };
+  }
 
   async function mark(payload: PatchExercisePayload) {
+    if (disabled) return;
     unlockAudio();
     triggerHaptic('light');
     setSaving(true);
@@ -153,19 +191,28 @@ export function ExerciseCard({
     }
   }
 
-  const persist = () =>
-    status && mark({ status, ...common(), actualExerciseId: replaced?.id });
+  function persist(overrides?: { rows?: SetRow[]; minutos?: string; note?: string }) {
+    if (disabled || !status) return;
+    if (status === 'REPLACED' && !effectiveActualExerciseId) return;
+    return mark({
+      status,
+      ...buildCommon(overrides),
+      actualExerciseId: effectiveActualExerciseId,
+    });
+  }
 
   async function pickAlternative(alt: AlternativeExercise) {
+    if (disabled) return;
     unlockAudio();
     triggerHaptic('medium');
     setReplaced(alt);
     setShowAlts(false);
     setOpen(true);
-    await mark({ status: 'REPLACED', actualExerciseId: alt.id, ...common() });
+    await mark({ status: 'REPLACED', actualExerciseId: alt.id, ...buildCommon() });
   }
 
   function updateRow(i: number, patch: Partial<SetRow>) {
+    if (disabled) return;
     setRows((rs) => {
       const novo = rs.map((r, idx) => (idx === i ? { ...r, ...patch } : r));
       onRascunho?.(item.id, { linhas: novo });
@@ -175,45 +222,66 @@ export function ExerciseCard({
 
   /** Ajuste rápido de carga para a série selecionada */
   function adjustWeight(delta: number) {
+    if (disabled || saving) return;
     triggerHaptic('light');
     const idx = Math.min(Math.max(0, activeRowIdx), rows.length - 1);
-    const current = Number(rows[idx]?.weight) || 0;
-    const next = Math.max(0, current + delta);
-    updateRow(idx, { weight: next === 0 ? '' : String(next) });
-    setTimeout(persist, 0);
+    const current = parseDecimal(rows[idx]?.weight ?? '') ?? 0;
+    const next = Math.max(0, Math.round((current + delta) * 100) / 100);
+    const nextRows = rows.map((r, rowIdx) =>
+      rowIdx === idx ? { ...r, weight: next === 0 ? '' : String(next) } : r,
+    );
+    setRows(nextRows);
+    onRascunho?.(item.id, { linhas: nextRows });
+    void persist({ rows: nextRows });
   }
 
   /** Ajuste rápido de repetições para a série selecionada */
   function adjustReps(delta: number) {
+    if (disabled || saving) return;
     triggerHaptic('light');
     const idx = Math.min(Math.max(0, activeRowIdx), rows.length - 1);
-    const current = Number(rows[idx]?.reps) || 0;
+    const current = parseNonNegativeInt(rows[idx]?.reps ?? '') ?? 0;
     const next = Math.max(0, current + delta);
-    updateRow(idx, { reps: next === 0 ? '' : String(next) });
-    setTimeout(persist, 0);
+    const nextRows = rows.map((r, rowIdx) =>
+      rowIdx === idx ? { ...r, reps: next === 0 ? '' : String(next) } : r,
+    );
+    setRows(nextRows);
+    onRascunho?.(item.id, { linhas: nextRows });
+    void persist({ rows: nextRows });
   }
 
   /** Copia carga e repetições da série anterior */
   function copyPreviousRow(i: number) {
-    if (i <= 0) return;
+    if (disabled || saving || i <= 0) return;
     triggerHaptic('light');
     const prev = rows[i - 1];
-    updateRow(i, { weight: prev.weight, reps: prev.reps });
-    setTimeout(persist, 0);
+    const nextRows = rows.map((r, rowIdx) =>
+      rowIdx === i ? { ...r, weight: prev.weight, reps: prev.reps } : r,
+    );
+    setRows(nextRows);
+    onRascunho?.(item.id, { linhas: nextRows });
+    void persist({ rows: nextRows });
   }
 
   /** "Feito ✓" numa série: salva, vibra e dispara o timer de descanso. */
   function completeSet(i: number) {
+    if (disabled || saving) return;
     unlockAudio();
     triggerHaptic('success');
     const r = rows[i];
+    let nextRows = rows;
     if (!r.reps.trim()) {
-      updateRow(i, { reps: String((item.reps ?? '').split(/[^\d]/)[0] || '') });
+      const defaultReps = String((item.reps ?? '').split(/[^\d]/)[0] || '');
+      nextRows = rows.map((row, rowIdx) =>
+        rowIdx === i ? { ...row, reps: defaultReps } : row,
+      );
+      setRows(nextRows);
+      onRascunho?.(item.id, { linhas: nextRows });
     }
-    setTimeout(() => {
-      void (status ? persist() : mark({ status: 'DONE', ...common() }));
-      onTimer?.(item.restSeconds, `Descanso · Série ${i + 1}/${rows.length}`);
-    }, 0);
+    void (status
+      ? persist({ rows: nextRows })
+      : mark({ status: 'DONE', ...buildCommon({ rows: nextRows }) }));
+    onTimer?.(item.restSeconds, `Descanso · Série ${i + 1}/${nextRows.length}`);
   }
 
   const filledCount = rows.filter((r) => r.weight.trim() || r.reps.trim()).length;
@@ -264,9 +332,12 @@ export function ExerciseCard({
             <span className="capitalize"> · {equipamentoExercicio(item.exercise)}</span>
           </p>
           {lastPerformance && <LastPerformanceLine lastPerformance={lastPerformance} isTimeMode={ehTempo} />}
-          {replaced && (
+          {(effectiveReplaced || (status === 'REPLACED' && effectiveActualExerciseId)) && (
             <p className="mt-1 text-xs font-bold text-replace">
-              ⇄ trocado por <span className="capitalize">{replaced.name}</span>
+              ⇄ trocado por{' '}
+              <span className="capitalize">
+                {effectiveReplaced ? nomeExercicio(effectiveReplaced) : 'exercício substituto'}
+              </span>
             </p>
           )}
         </div>
@@ -280,8 +351,9 @@ export function ExerciseCard({
           disabled={disabled || saving}
           className="flex-1 py-3 text-sm font-extrabold"
           onClick={() => {
+            setReplaced(null);
             setOpen(true);
-            mark({ status: 'DONE', ...common() });
+            void mark({ status: 'DONE', ...buildCommon() });
           }}
         >
           ✓ Feito
@@ -338,20 +410,20 @@ export function ExerciseCard({
               <label className="flex-1 text-[11px] font-extrabold uppercase tracking-wide text-muted2">
                 Tempo (min)
                 <input
-                  inputMode="numeric"
+                  inputMode="decimal"
                   value={minutos}
                   onChange={(e) => {
                     setMinutos(e.target.value);
                     onRascunho?.(item.id, { minutos: e.target.value });
                   }}
-                  onBlur={persist}
+                  onBlur={(e) => void persist({ minutos: e.currentTarget.value })}
                   placeholder={
                     item.durationSeconds
                       ? String(Math.round(item.durationSeconds / 60))
                       : 'min'
                   }
                   disabled={disabled}
-                  className="mt-1 w-full rounded-xl border-2 border-line2 bg-card px-3 py-2 text-center text-base font-bold text-ink placeholder:font-medium placeholder:text-faint"
+                  className="mt-1 w-full rounded-xl border-2 border-line2 bg-card px-3 py-2 text-center text-base font-bold text-ink placeholder:font-medium placeholder:text-faint disabled:opacity-60"
                 />
               </label>
               <button
@@ -361,7 +433,7 @@ export function ExerciseCard({
                   unlockAudio();
                   triggerHaptic('medium');
                   onTimer?.(
-                    Math.round((Number(minutos) || 0) * 60) ||
+                    Math.round((parseDecimal(minutos) ?? 0) * 60) ||
                       item.durationSeconds ||
                       0,
                     nomeExercicio(item.exercise),
@@ -384,37 +456,42 @@ export function ExerciseCard({
               <div className="flex items-center gap-1">
                 <button
                   type="button"
+                  disabled={disabled || saving}
                   onClick={() => adjustWeight(-2)}
-                  className="rounded-lg bg-chip px-2 py-1 text-[11px] font-bold text-muted transition active:scale-90"
+                  className="rounded-lg bg-chip px-2 py-1 text-[11px] font-bold text-muted transition active:scale-90 disabled:opacity-40"
                 >
                   -2kg
                 </button>
                 <button
                   type="button"
+                  disabled={disabled || saving}
                   onClick={() => adjustWeight(1)}
-                  className="rounded-lg bg-chip px-2 py-1 text-[11px] font-bold text-ink transition active:scale-90"
+                  className="rounded-lg bg-chip px-2 py-1 text-[11px] font-bold text-ink transition active:scale-90 disabled:opacity-40"
                 >
                   +1kg
                 </button>
                 <button
                   type="button"
+                  disabled={disabled || saving}
                   onClick={() => adjustWeight(2.5)}
-                  className="rounded-lg bg-chip px-2 py-1 text-[11px] font-bold text-ink transition active:scale-90"
+                  className="rounded-lg bg-chip px-2 py-1 text-[11px] font-bold text-ink transition active:scale-90 disabled:opacity-40"
                 >
                   +2.5kg
                 </button>
                 <button
                   type="button"
+                  disabled={disabled || saving}
                   onClick={() => adjustWeight(5)}
-                  className="rounded-lg bg-chip px-2 py-1 text-[11px] font-bold text-ink transition active:scale-90"
+                  className="rounded-lg bg-chip px-2 py-1 text-[11px] font-bold text-ink transition active:scale-90 disabled:opacity-40"
                 >
                   +5kg
                 </button>
                 <span className="text-muted2/50">|</span>
                 <button
                   type="button"
+                  disabled={disabled || saving}
                   onClick={() => adjustReps(1)}
-                  className="rounded-lg bg-chip px-2 py-1 text-[11px] font-bold text-brand transition active:scale-90"
+                  className="rounded-lg bg-chip px-2 py-1 text-[11px] font-bold text-brand transition active:scale-90 disabled:opacity-40"
                 >
                   +1 rep
                 </button>
@@ -447,20 +524,20 @@ export function ExerciseCard({
                       value={r.weight}
                       onFocus={() => setActiveRowIdx(i)}
                       onChange={(e) => updateRow(i, { weight: e.target.value })}
-                      onBlur={persist}
+                      onBlur={() => void persist()}
                       placeholder={i > 0 && rows[i - 1].weight ? rows[i - 1].weight : 'kg'}
                       disabled={disabled}
-                      className="w-full rounded-xl border-2 border-line2 bg-card px-2.5 py-2 text-center text-base font-bold text-ink placeholder:font-medium placeholder:text-faint"
+                      className="w-full rounded-xl border-2 border-line2 bg-card px-2.5 py-2 text-center text-base font-bold text-ink placeholder:font-medium placeholder:text-faint disabled:opacity-60"
                     />
                     <input
                       inputMode="numeric"
                       value={r.reps}
                       onFocus={() => setActiveRowIdx(i)}
                       onChange={(e) => updateRow(i, { reps: e.target.value })}
-                      onBlur={persist}
+                      onBlur={() => void persist()}
                       placeholder={item.reps ?? ''}
                       disabled={disabled}
-                      className="w-full rounded-xl border-2 border-line2 bg-card px-2.5 py-2 text-center text-base font-bold text-ink placeholder:font-medium placeholder:text-faint"
+                      className="w-full rounded-xl border-2 border-line2 bg-card px-2.5 py-2 text-center text-base font-bold text-ink placeholder:font-medium placeholder:text-faint disabled:opacity-60"
                     />
                     <button
                       type="button"
@@ -468,7 +545,7 @@ export function ExerciseCard({
                       disabled={disabled || saving}
                       aria-label={`Concluir série ${i + 1} e descansar`}
                       title="Concluir série e iniciar descanso"
-                      className={`h-11 w-full rounded-xl text-base font-extrabold transition active:scale-95 ${
+                      className={`h-11 w-full rounded-xl text-base font-extrabold transition active:scale-95 disabled:opacity-40 ${
                         r.weight.trim() || r.reps.trim()
                           ? 'bg-done-bg text-done-ink border border-done/40 shadow-sm'
                           : 'bg-chip text-muted'
@@ -479,12 +556,13 @@ export function ExerciseCard({
                   </div>
 
                   {/* Sugestão de copiar série anterior com 1 toque */}
-                  {canCopy && (
+                  {!disabled && canCopy && (
                     <div className="flex justify-end pr-1">
                       <button
                         type="button"
+                        disabled={disabled || saving}
                         onClick={() => copyPreviousRow(i)}
-                        className="text-[11px] font-bold text-brand hover:underline"
+                        className="text-[11px] font-bold text-brand hover:underline disabled:opacity-40"
                       >
                         ↳ Repetir série {i} ({rows[i - 1].weight || '0'}kg × {rows[i - 1].reps || '0'} reps)
                       </button>
@@ -497,33 +575,33 @@ export function ExerciseCard({
             <div className="flex gap-2 pt-2">
               <button
                 type="button"
+                disabled={disabled || saving}
                 onClick={() => {
+                  if (disabled || saving) return;
                   triggerHaptic('light');
-                  setRows((rs) => {
-                    const novo = [...rs, { weight: '', reps: '' }];
-                    onRascunho?.(item.id, { linhas: novo });
-                    return novo;
-                  });
-                  setActiveRowIdx(rows.length);
+                  const nextRows = [...rows, { weight: '', reps: '' }];
+                  setRows(nextRows);
+                  onRascunho?.(item.id, { linhas: nextRows });
+                  setActiveRowIdx(nextRows.length - 1);
                 }}
-                className="flex-1 rounded-xl bg-chip py-2.5 text-xs font-bold text-ink transition active:scale-95"
+                className="flex-1 rounded-xl bg-chip py-2.5 text-xs font-bold text-ink transition active:scale-95 disabled:opacity-40"
               >
                 + Adicionar série
               </button>
               {rows.length > 1 && (
                 <button
                   type="button"
+                  disabled={disabled || saving}
                   onClick={() => {
+                    if (disabled || saving || rows.length <= 1) return;
                     triggerHaptic('light');
-                    setRows((rs) => {
-                      const novo = rs.slice(0, -1);
-                      onRascunho?.(item.id, { linhas: novo });
-                      return novo;
-                    });
-                    setActiveRowIdx((prev) => Math.min(prev, rows.length - 2));
-                    setTimeout(persist, 0);
+                    const nextRows = rows.slice(0, -1);
+                    setRows(nextRows);
+                    onRascunho?.(item.id, { linhas: nextRows });
+                    setActiveRowIdx((prev) => Math.min(prev, nextRows.length - 1));
+                    void persist({ rows: nextRows });
                   }}
-                  className="rounded-xl bg-chip px-4 py-2.5 text-xs font-bold text-muted transition active:scale-95"
+                  className="rounded-xl bg-chip px-4 py-2.5 text-xs font-bold text-muted transition active:scale-95 disabled:opacity-40"
                 >
                   − Remover
                 </button>
@@ -535,14 +613,15 @@ export function ExerciseCard({
             Observações pessoais
             <textarea
               value={note}
+              disabled={disabled}
               onChange={(e) => {
                 setNote(e.target.value);
                 onRascunho?.(item.id, { nota: e.target.value });
               }}
-              onBlur={persist}
+              onBlur={(e) => void persist({ note: e.currentTarget.value })}
               rows={2}
               placeholder="Ex: senti ombro na 3ª série, subir peso na próxima…"
-              className="mt-1 w-full rounded-xl border-2 border-line2 bg-card px-3 py-2 text-sm font-medium text-ink placeholder:text-faint"
+              className="mt-1 w-full rounded-xl border-2 border-line2 bg-card px-3 py-2 text-sm font-medium text-ink placeholder:text-faint disabled:opacity-60"
             />
           </label>
         </div>
@@ -562,9 +641,10 @@ export function ExerciseCard({
           exerciseName={nomeExercicio(item.exercise)}
           onClose={() => setShowSkip(false)}
           onConfirm={(skipNote) => {
+            setReplaced(null);
             setNote(skipNote);
             setShowSkip(false);
-            mark({ status: 'SKIPPED', ...common(), note: skipNote || undefined });
+            void mark({ status: 'SKIPPED', ...buildCommon({ note: skipNote }), note: skipNote || undefined });
           }}
         />
       )}

@@ -200,7 +200,8 @@ export const photosApi = {
 // E6 — push
 export const pushApi = {
   publicKey: () => api.get<{ publicKey: string | null; enabled: boolean }>('/push/public-key'),
-  subscribe: (sub: PushSubscriptionJSON) => api.post<{ ok: boolean }>('/push/subscribe', sub),
+  subscribe: (sub: { endpoint: string; keys: { p256dh: string; auth: string } }) =>
+    api.post<{ ok: boolean }>('/push/subscribe', sub),
   unsubscribe: (endpoint: string) => api.delete<{ ok: boolean }>('/push/subscribe', { endpoint }),
 };
 

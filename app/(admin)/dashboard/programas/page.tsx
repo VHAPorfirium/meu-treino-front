@@ -251,7 +251,11 @@ function RecentlyCompletedPrograms({ programs }: { programs: TrainingProgram[] }
   const completedParticipations = programs
     .flatMap((program) =>
       program.assignments
-        .filter((assignment) => assignment.status === 'COMPLETED' && assignment.reportData)
+        .filter(
+          (assignment) =>
+            (assignment.status === 'COMPLETED' || assignment.status === 'ARCHIVED') &&
+            Boolean(assignment.reportData),
+        )
         .map((assignment) => ({ program, assignment })),
     )
     .sort(
