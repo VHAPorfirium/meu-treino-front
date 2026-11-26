@@ -13,7 +13,7 @@ import { limpar as limparCache } from '../api/cache-modulo';
 import { flush, limparFilaOffline, limparSeOutroUsuario } from '../offline/queue';
 import { clearCelebratedAchievements } from '../programs/celebration-memory';
 import { clearPushSyncFlag, revokePushSubscription } from '../push/push-session';
-import type { AuthUser } from '../types';
+import type { AuthUser, ProfileChoice, Role } from '../types';
 import { authApi } from '../api/endpoints';
 import {
   clearSession,
@@ -23,10 +23,20 @@ import {
   userHome,
 } from './storage';
 
+export type LoginActionResult =
+  | { requiresProfileSelection: false }
+  | { requiresProfileSelection: true; profiles: ProfileChoice[] };
+
 interface AuthContextValue {
   user: AuthUser | null;
   loading: boolean;
-  login: (identifier: string, password: string) => Promise<void>;
+  linkedProfiles: ProfileChoice[];
+  login: (
+    identifier: string,
+    password: string,
+    role?: Role,
+  ) => Promise<LoginActionResult>;
+  switchProfile: (role: Role) => Promise<void>;
   logout: () => Promise<void>;
   completePasswordChange: () => void;
 }
@@ -35,6 +45,7 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
+  const [linkedProfiles, setLinkedProfiles] = useState<ProfileChoice[]>([]);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
@@ -61,6 +72,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (cancelled) return;
         saveSession(verifiedUser);
         setUser(verifiedUser);
+        if (verifiedUser.role !== 'ADMIN') {
+          authApi
+            .linkedProfiles()
+            .then((profiles) => {
+              if (!cancelled) setLinkedProfiles(profiles);
+            })
+            .catch(() => {});
+        }
       })
       .catch((err) => {
         if (cancelled) return;
@@ -80,22 +99,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  async function login(identifier: string, password: string) {
+  async function finalizeSession(authUser: AuthUser) {
     const previousUser = getUser();
-    const res = await authApi.login(identifier, password);
-    const authUser: AuthUser = {
-      userId: res.user.id,
-      role: res.user.role,
-      name: res.user.name,
-      username: res.user.username,
-      mustChangePassword: res.user.mustChangePassword,
-    };
-
     limparCache();
     clearPushSyncFlag();
 
-    // Em aparelho compartilhado (login direto ou após 401): limpa IndexedDB se o
-    // usuário mudou; se for o MESMO aluno relogando após 401, preserva e sincroniza.
     if (previousUser && previousUser.userId !== authUser.userId) {
       clearCelebratedAchievements();
       await limparFilaOffline();
@@ -108,10 +116,49 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     saveSession(authUser);
     setUser(authUser);
+    if (authUser.role !== 'ADMIN') {
+      authApi.linkedProfiles().then(setLinkedProfiles).catch(() => setLinkedProfiles([]));
+    } else {
+      setLinkedProfiles([]);
+    }
+
     if (typeof navigator === 'undefined' || navigator.onLine) {
       void flush(authUser.userId);
     }
     router.replace(userHome(authUser));
+  }
+
+  async function login(
+    identifier: string,
+    password: string,
+    role?: Role,
+  ): Promise<LoginActionResult> {
+    const res = await authApi.login(identifier, password, role);
+    if (res.requiresProfileSelection) {
+      return { requiresProfileSelection: true, profiles: res.profiles };
+    }
+
+    const authUser: AuthUser = {
+      userId: res.user.id,
+      role: res.user.role,
+      name: res.user.name,
+      username: res.user.username,
+      mustChangePassword: res.user.mustChangePassword,
+    };
+    await finalizeSession(authUser);
+    return { requiresProfileSelection: false };
+  }
+
+  async function switchProfile(role: Role) {
+    const res = await authApi.switchProfile(role);
+    const authUser: AuthUser = {
+      userId: res.user.id,
+      role: res.user.role,
+      name: res.user.name,
+      username: res.user.username,
+      mustChangePassword: res.user.mustChangePassword,
+    };
+    await finalizeSession(authUser);
   }
 
   function completePasswordChange() {
@@ -123,20 +170,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function logout() {
-    // Desvincula Web Push no backend ANTES de limpar o cookie httpOnly
     await revokePushSubscription();
-    await authApi.logout().catch(() => {}); // limpa o cookie httpOnly no backend
+    await authApi.logout().catch(() => {});
     clearSession();
-    limparCache(); // nada de um usuário sobrevive à sessão do outro
+    limparCache();
     clearCelebratedAchievements();
-    await limparFilaOffline(); // limpa IndexedDB (outbox + rascunho)
+    await limparFilaOffline();
+    setLinkedProfiles([]);
     setUser(null);
     router.replace('/login');
   }
 
   return (
     <AuthContext.Provider
-      value={{ user, loading, login, logout, completePasswordChange }}
+      value={{
+        user,
+        loading,
+        linkedProfiles,
+        login,
+        switchProfile,
+        logout,
+        completePasswordChange,
+      }}
     >
       {children}
     </AuthContext.Provider>

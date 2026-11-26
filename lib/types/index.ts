@@ -1,4 +1,5 @@
-export type Role = 'ADMIN' | 'TRAINEE';
+export type Role = 'ADMIN' | 'RECEPTION' | 'PERSONAL' | 'TRAINEE';
+export type LinkStatus = 'PENDING' | 'ACTIVE' | 'REJECTED' | 'ENDED';
 export type ExerciseStatus = 'DONE' | 'SKIPPED' | 'REPLACED';
 /** E10 — REPS = séries × repetições (+ carga) · TIME = duração (cardio, prancha). */
 export type ExerciseMode = 'REPS' | 'TIME';
@@ -13,16 +14,29 @@ export interface AuthUser {
   mustChangePassword: boolean;
 }
 
-// O token vem em cookie httpOnly (não no corpo) — o front só recebe o usuário.
-export interface LoginResponse {
-  user: {
-    id: string;
-    name: string;
-    username: string;
-    role: Role;
-    mustChangePassword: boolean;
-  };
+export interface ProfileChoice {
+  role: Role;
+  name: string;
+  username: string;
 }
+
+// O token vem em cookie httpOnly (não no corpo) — o front só recebe o usuário
+// ou pede escolha de perfil quando o mesmo CPF possui PERSONAL e TRAINEE com a mesma senha.
+export type LoginResponse =
+  | {
+      requiresProfileSelection?: false;
+      user: {
+        id: string;
+        name: string;
+        username: string;
+        role: Role;
+        mustChangePassword: boolean;
+      };
+    }
+  | {
+      requiresProfileSelection: true;
+      profiles: ProfileChoice[];
+    };
 
 /** Usuário resumido (sem dados sensíveis) — GET /users */
 export interface UserSummary {
@@ -33,6 +47,26 @@ export interface UserSummary {
   active: boolean;
   mustChangePassword: boolean;
   cpfMasked: string | null;
+}
+
+export interface LinkPeer {
+  id: string;
+  name: string;
+  username: string;
+  active?: boolean;
+}
+
+export interface TrainerTraineeLink {
+  id: string;
+  trainerId: string;
+  traineeId: string;
+  status: LinkStatus;
+  endedReason: string | null;
+  createdAt: string;
+  respondedAt: string | null;
+  endedAt: string | null;
+  trainer?: LinkPeer;
+  trainee?: LinkPeer;
 }
 
 /**
@@ -199,6 +233,7 @@ export interface Workout {
   name: string;
   dayOfWeek: number | null;
   active: boolean;
+  clonedFromId?: string | null;
   createdAt: string;
   _count?: { exercises: number };
   assignees?: Assignee[];
@@ -294,6 +329,8 @@ export interface TrainerNote {
   toId: string;
   text: string;
   readAt: string | null;
+  trainerLinkId?: string | null;
+  isCurrentTrainer?: boolean;
   createdAt: string;
   from: { id: string; name: string };
 }
@@ -365,6 +402,7 @@ export interface TrainingProgram {
   type: ProgramType;
   targetWeeks: number | null;
   targetDays: number | null;
+  clonedFromId?: string | null;
   createdAt: string;
   workouts: ProgramWorkoutSummary[];
   assignments: ProgramAssignmentDetail[];
