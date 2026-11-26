@@ -178,8 +178,8 @@ export function AccountManagementPanel({
   return (
     <div className="min-h-screen w-full max-w-full overflow-x-clip bg-sand">
       {/* Barra superior */}
-      <header className="sticky top-0 z-20 border-b border-white/10 bg-inverse text-on-inverse">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3.5 sm:px-6 md:px-8">
+      <header className="safe-top sticky top-0 z-30 border-b border-white/10 bg-inverse pb-3.5 text-on-inverse shadow-md">
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 sm:px-6 md:px-8">
           <div className="flex min-w-0 items-center gap-3">
             <span className="font-display text-lg font-extrabold tracking-[0.18em] text-brand">
               RITMO
@@ -196,7 +196,7 @@ export function AccountManagementPanel({
                 type="button"
                 disabled={switching}
                 onClick={() => void handleSwitch(p.role)}
-                className="rounded-full bg-white/10 px-3 py-1.5 text-xs font-extrabold text-on-inverse transition hover:bg-white/15 disabled:opacity-50"
+                className="shrink-0 rounded-full bg-white/10 px-3 py-1.5 text-xs font-extrabold text-on-inverse transition hover:bg-white/15 active:scale-95 disabled:opacity-50"
               >
                 ⇄ {roleLabel(p.role)}
               </button>
@@ -205,7 +205,7 @@ export function AccountManagementPanel({
               type="button"
               onClick={toggleTheme}
               aria-label={isDark ? 'Ativar tema claro' : 'Ativar tema escuro'}
-              className="flex h-8 w-8 items-center justify-center rounded-full bg-white/10 text-sm transition hover:bg-white/15"
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/10 text-sm transition hover:bg-white/15 active:scale-90"
             >
               {isDark ? '☀️' : '🌙'}
             </button>
@@ -216,7 +216,7 @@ export function AccountManagementPanel({
             <button
               type="button"
               onClick={() => void logout()}
-              className="rounded-full bg-white/10 px-3 py-1.5 text-xs font-bold text-on-inverse transition hover:bg-white/15"
+              className="shrink-0 rounded-full bg-white/10 px-3.5 py-1.5 text-xs font-bold text-on-inverse transition hover:bg-white/15 active:scale-95"
             >
               Sair
             </button>
