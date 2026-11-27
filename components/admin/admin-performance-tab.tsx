@@ -106,7 +106,7 @@ export function AdminPerformanceTab({
             <span className="text-ink">Distribuição de respostas HTTP</span>
             <span className="text-muted2">
               Erro 5xx:{' '}
-              <strong className={requests.status5xx > 0 ? 'text-brand' : 'text-done'}>
+              <strong className={requests.status5xx > 0 ? 'text-brand-ink' : 'text-done'}>
                 {requests.errorRatePct}%
               </strong>{' '}
               · Cliente 4xx: <strong className="text-skip">{requests.clientErrorRatePct}%</strong>
@@ -202,7 +202,7 @@ export function AdminPerformanceTab({
               <span className={selectedBucket.errors4xx > 0 ? 'text-skip' : ''}>
                 4xx: {selectedBucket.errors4xx}
               </span>
-              <span className={selectedBucket.errors5xx > 0 ? 'text-brand' : ''}>
+              <span className={selectedBucket.errors5xx > 0 ? 'text-brand-ink' : ''}>
                 5xx: {selectedBucket.errors5xx}
               </span>
             </div>
@@ -244,7 +244,7 @@ function LatencyCard({
       : tone === 'skip'
         ? 'text-skip'
         : tone === 'brand'
-          ? 'text-brand'
+          ? 'text-brand-ink'
           : 'text-ink';
   return (
     <div className="rounded-xl border border-line bg-paper p-3.5">
@@ -291,14 +291,17 @@ function RouteTable({
                   <span className="shrink-0 rounded-md bg-chip px-1.5 py-0.5 font-mono text-[10px] font-extrabold text-ink">
                     {r.method}
                   </span>
-                  <span className="truncate font-mono text-xs font-bold text-ink">
+                  <span
+                    title={r.route}
+                    className="select-text truncate font-mono text-xs font-bold text-ink"
+                  >
                     {r.route}
                   </span>
                 </div>
                 <span
                   className={`shrink-0 text-xs font-extrabold ${
                     r.p95Ms >= 800
-                      ? 'text-brand'
+                      ? 'text-brand-ink'
                       : r.p95Ms >= 350
                         ? 'text-skip'
                         : 'text-done'
@@ -312,7 +315,7 @@ function RouteTable({
                 <span>p50 {formatLatencyMs(r.p50Ms)}</span>
                 <span>p99 {formatLatencyMs(r.p99Ms)}</span>
                 {r.errorCount > 0 && (
-                  <span className="font-extrabold text-brand">
+                  <span className="font-extrabold text-brand-ink">
                     {r.errorCount} erro{r.errorCount > 1 ? 's' : ''} ({r.errorRatePct}%)
                   </span>
                 )}

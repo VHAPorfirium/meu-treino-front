@@ -17,7 +17,7 @@ export function ProgramsInProgressPanel({ programs }: { programs: TrainingProgra
     <div className="rounded-2xl border border-line bg-card p-5">
       <div className="mb-3 flex items-center justify-between">
         <h2 className="text-base font-extrabold">🎯 Jornadas em andamento</h2>
-        <Link href="/dashboard/programas" className="text-xs font-extrabold text-brand">
+        <Link href="/dashboard/programas" className="text-xs font-extrabold text-brand-ink">
           Ver todas
         </Link>
       </div>

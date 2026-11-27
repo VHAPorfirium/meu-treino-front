@@ -44,7 +44,7 @@ function roleBadgeStyle(role: Role): string {
     case 'RECEPTION':
       return 'bg-replace-bg text-replace';
     case 'PERSONAL':
-      return 'bg-brand/10 text-brand';
+      return 'bg-brand/10 text-brand-ink';
     case 'TRAINEE':
       return 'bg-chip text-muted';
   }
@@ -262,7 +262,7 @@ export function AccountManagementPanel({
       </div>
 
         {errorMessage && (
-          <div className="flex items-center justify-between gap-3 rounded-2xl border border-brand/30 bg-card p-3.5 text-sm font-semibold text-brand">
+          <div className="flex items-center justify-between gap-3 rounded-2xl border border-brand/30 bg-card p-3.5 text-sm font-semibold text-brand-ink">
             <span>{errorMessage}</span>
             <button
               type="button"
@@ -373,7 +373,7 @@ export function AccountManagementPanel({
               Carregando cadastros…
             </p>
           )}
-          {!loading && visibleAccounts.length === 0 && (
+          {!loading && !errorMessage && visibleAccounts.length === 0 && (
             <div className="rounded-2xl border border-line bg-card p-8 text-center">
               <p className="text-sm font-bold text-muted2">
                 Nenhuma conta encontrada com os filtros atuais.
@@ -609,7 +609,7 @@ function CreateAccountForm({
                 onClick={() => setRole(opt.value)}
                 className={`flex items-center justify-center gap-1.5 rounded-xl border px-3 py-2.5 text-xs font-extrabold transition ${
                   role === opt.value
-                    ? 'border-brand bg-brand/10 text-brand'
+                    ? 'border-brand bg-brand/10 text-brand-ink'
                     : 'border-line bg-paper text-muted hover:text-ink'
                 }`}
               >
@@ -619,8 +619,8 @@ function CreateAccountForm({
             ))}
           </div>
           <p className="text-[11px] font-semibold text-muted2">
-            {role === 'ADMIN'
-              ? 'Conta administrativa exclusiva: exige CPF próprio (não pode compartilhar CPF com Personal ou Aluno).'
+            {role === 'ADMIN' || role === 'RECEPTION'
+              ? `Conta de ${role === 'ADMIN' ? 'Admin' : 'Portaria'} exclusiva: exige CPF próprio (não pode compartilhar CPF com Personal ou Aluno).`
               : 'Mesmo CPF permitido para criar um perfil Personal e um perfil Aluno para a mesma pessoa (habilita troca rápida ⇄ dentro do app).'}
           </p>
         </div>
@@ -689,7 +689,7 @@ function CreateAccountForm({
               <button
                 type="button"
                 onClick={() => setPassword(generateStrongPassword())}
-                className="text-xs font-extrabold text-brand hover:underline"
+                className="text-xs font-extrabold text-brand-ink hover:underline"
               >
                 Gerar nova
               </button>
@@ -718,7 +718,7 @@ function CreateAccountForm({
         </div>
       </div>
 
-      {formError && <p className="text-sm font-semibold text-brand">{formError}</p>}
+      {formError && <p className="text-sm font-semibold text-brand-ink">{formError}</p>}
 
       <div className="flex gap-2 pt-1">
         <button
@@ -762,6 +762,12 @@ function AccountRow({
   const [editCpf, setEditCpf] = useState('');
   const [resetPassword, setResetPassword] = useState('');
   const [busy, setBusy] = useState(false);
+  const [rowError, setRowError] = useState<string | null>(null);
+
+  const reportRowError = (message: string | null) => {
+    setRowError(message);
+    onError(message);
+  };
 
   const canEdit = isAdmin || account.role === 'TRAINEE';
   const canReset =
@@ -775,18 +781,18 @@ function AccountRow({
 
   async function saveEdit() {
     if (editName.trim().length < 2) {
-      return onError('O nome deve ter pelo menos 2 caracteres.');
+      return reportRowError('O nome deve ter pelo menos 2 caracteres.');
     }
     const cleanUsername = normalizeUsername(editUsername);
     if (!isValidUsername(cleanUsername)) {
-      return onError('Apelido inválido.');
+      return reportRowError('Apelido inválido.');
     }
     if (editCpf.trim() && !isValidCpf(editCpf)) {
-      return onError('CPF inválido. Confira os 11 dígitos.');
+      return reportRowError('CPF inválido. Confira os 11 dígitos.');
     }
 
     setBusy(true);
-    onError(null);
+    reportRowError(null);
     try {
       const updated = await usersApi.update(account.id, {
         name: editName.trim(),
@@ -798,7 +804,7 @@ function AccountRow({
       setAction(null);
       onFeedback(`Cadastro de ${updated.name} atualizado com sucesso.`);
     } catch (error) {
-      onError(describeError(error, 'Não foi possível atualizar o cadastro.'));
+      reportRowError(describeError(error, 'Não foi possível atualizar o cadastro.'));
     } finally {
       setBusy(false);
     }
@@ -807,10 +813,10 @@ function AccountRow({
   async function submitReset() {
     const strength = validateStrongPassword(resetPassword);
     if (!strength.valid) {
-      return onError(strength.reason ?? 'Senha temporária fraca.');
+      return reportRowError(strength.reason ?? 'Senha temporária fraca.');
     }
     setBusy(true);
-    onError(null);
+    reportRowError(null);
     try {
       const res = await usersApi.resetPassword(account.id, resetPassword);
       onUpdated(res.user);
@@ -823,7 +829,7 @@ function AccountRow({
         'Copiar senha',
       );
     } catch (error) {
-      onError(describeError(error, 'Não foi possível redefinir a senha.'));
+      reportRowError(describeError(error, 'Não foi possível redefinir a senha.'));
     } finally {
       setBusy(false);
     }
@@ -831,7 +837,7 @@ function AccountRow({
 
   async function confirmToggle() {
     setBusy(true);
-    onError(null);
+    reportRowError(null);
     try {
       const nextActive = !account.active;
       const updated = await usersApi.setActive(account.id, nextActive);
@@ -849,7 +855,7 @@ function AccountRow({
         );
       }
     } catch (error) {
-      onError(describeError(error, 'Não foi possível alterar o status da conta.'));
+      reportRowError(describeError(error, 'Não foi possível alterar o status da conta.'));
     } finally {
       setBusy(false);
     }
@@ -878,7 +884,7 @@ function AccountRow({
             </span>
             <span
               className={`rounded-full px-2 py-0.5 text-[10px] font-extrabold ${
-                account.active ? 'bg-done-bg text-done' : 'bg-skip-bg text-skip'
+                account.active ? 'bg-done-bg text-done-ink' : 'bg-skip-bg text-skip'
               }`}
             >
               {account.active ? 'Ativo' : 'Desativado'}
@@ -904,7 +910,7 @@ function AccountRow({
             <button
               type="button"
               onClick={() => {
-                onError(null);
+                reportRowError(null);
                 setEditName(account.name);
                 setEditUsername(account.username);
                 setEditCpf('');
@@ -919,7 +925,7 @@ function AccountRow({
             <button
               type="button"
               onClick={() => {
-                onError(null);
+                reportRowError(null);
                 setResetPassword(generateStrongPassword());
                 setAction((prev) => (prev === 'reset' ? null : 'reset'));
               }}
@@ -932,7 +938,7 @@ function AccountRow({
             <button
               type="button"
               onClick={() => {
-                onError(null);
+                reportRowError(null);
                 setAction((prev) => (prev === 'toggle' ? null : 'toggle'));
               }}
               className="rounded-xl border border-line bg-paper px-3 py-1.5 text-xs font-extrabold text-skip hover:border-skip"
@@ -944,10 +950,10 @@ function AccountRow({
             <button
               type="button"
               onClick={() => {
-                onError(null);
+                reportRowError(null);
                 setAction((prev) => (prev === 'toggle' ? null : 'toggle'));
               }}
-              className="rounded-xl border border-done bg-done-bg px-3 py-1.5 text-xs font-extrabold text-done"
+              className="rounded-xl border border-done bg-done-bg px-3 py-1.5 text-xs font-extrabold text-done-ink"
             >
               ✅ Reativar
             </button>
@@ -968,21 +974,28 @@ function AccountRow({
           <div className="grid gap-2 sm:grid-cols-3">
             <input
               value={editName}
-              onChange={(e) => setEditName(e.target.value)}
+              onChange={(e) => {
+                setRowError(null);
+                setEditName(e.target.value);
+              }}
               placeholder="Nome completo"
               className={inputClass}
             />
             <input
               value={editUsername}
-              onChange={(e) =>
-                setEditUsername(e.target.value.toLowerCase().replace(/\s+/g, ''))
-              }
+              onChange={(e) => {
+                setRowError(null);
+                setEditUsername(e.target.value.toLowerCase().replace(/\s+/g, ''));
+              }}
               placeholder="Apelido"
               className={inputClass}
             />
             <input
               value={editCpf}
-              onChange={(e) => setEditCpf(formatCpfInput(e.target.value))}
+              onChange={(e) => {
+                setRowError(null);
+                setEditCpf(formatCpfInput(e.target.value));
+              }}
               inputMode="numeric"
               placeholder={
                 account.cpfMasked
@@ -992,10 +1005,18 @@ function AccountRow({
               className={inputClass}
             />
           </div>
+          {rowError && (
+            <p role="alert" className="text-xs font-semibold text-brand-ink">
+              {rowError}
+            </p>
+          )}
           <div className="flex justify-end gap-2">
             <button
               type="button"
-              onClick={() => setAction(null)}
+              onClick={() => {
+                setRowError(null);
+                setAction(null);
+              }}
               className="rounded-xl border border-line px-3 py-1.5 text-xs font-extrabold text-muted"
             >
               Cancelar
@@ -1020,8 +1041,11 @@ function AccountRow({
             </p>
             <button
               type="button"
-              onClick={() => setResetPassword(generateStrongPassword())}
-              className="text-xs font-extrabold text-brand hover:underline"
+              onClick={() => {
+                setRowError(null);
+                setResetPassword(generateStrongPassword());
+              }}
+              className="text-xs font-extrabold text-brand-ink hover:underline"
             >
               Gerar outra
             </button>
@@ -1029,17 +1053,28 @@ function AccountRow({
           <input
             type="text"
             value={resetPassword}
-            onChange={(e) => setResetPassword(e.target.value)}
+            onChange={(e) => {
+              setRowError(null);
+              setResetPassword(e.target.value);
+            }}
             placeholder="Nova senha forte (8+ chars, letra, número e especial)"
             className={inputClass}
           />
           <p className="text-[11px] font-semibold text-muted2">
             O usuário precisará definir uma nova senha pessoal assim que entrar com esta senha temporária.
           </p>
+          {rowError && (
+            <p role="alert" className="text-xs font-semibold text-brand-ink">
+              {rowError}
+            </p>
+          )}
           <div className="flex justify-end gap-2">
             <button
               type="button"
-              onClick={() => setAction(null)}
+              onClick={() => {
+                setRowError(null);
+                setAction(null);
+              }}
               className="rounded-xl border border-line px-3 py-1.5 text-xs font-extrabold text-muted"
             >
               Cancelar
@@ -1057,35 +1092,45 @@ function AccountRow({
       )}
 
       {action === 'toggle' && (
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-line bg-paper p-3.5">
-          <p className="text-xs font-bold text-ink">
-            {account.active
-              ? account.role === 'PERSONAL'
-                ? `Desativar o personal ${account.name}? O acesso será revogado imediatamente e todos os vínculos ativos com alunos serão encerrados (os treinos dos alunos são preservados).`
-                : `Desativar ${account.name}? O acesso ao app é bloqueado imediatamente, mantendo histórico e treinos preservados.`
-              : `Reativar a conta de ${account.name}?`}
-          </p>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={() => setAction(null)}
-              className="rounded-xl border border-line px-3 py-1.5 text-xs font-extrabold text-muted"
-            >
-              Cancelar
-            </button>
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => void confirmToggle()}
-              className="rounded-xl bg-brand px-4 py-1.5 text-xs font-extrabold text-white disabled:opacity-60"
-            >
-              {busy
-                ? 'Aguarde…'
-                : account.active
-                  ? 'Sim, desativar'
-                  : 'Sim, reativar'}
-            </button>
+        <div className="mt-3 space-y-2 rounded-2xl border border-line bg-paper p-3.5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-xs font-bold text-ink">
+              {account.active
+                ? account.role === 'PERSONAL'
+                  ? `Desativar o personal ${account.name}? O acesso será revogado imediatamente e todos os vínculos ativos com alunos serão encerrados (os treinos dos alunos são preservados).`
+                  : `Desativar ${account.name}? O acesso ao app é bloqueado imediatamente, mantendo histórico e treinos preservados.`
+                : `Reativar a conta de ${account.name}?`}
+            </p>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setRowError(null);
+                  setAction(null);
+                }}
+                className="rounded-xl border border-line px-3 py-1.5 text-xs font-extrabold text-muted"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void confirmToggle()}
+                className="rounded-xl bg-brand px-4 py-1.5 text-xs font-extrabold text-white disabled:opacity-60"
+              >
+                {busy
+                  ? 'Aguarde…'
+                  : account.active
+                    ? 'Sim, desativar'
+                    : 'Sim, reativar'}
+              </button>
+            </div>
           </div>
+          {rowError && (
+            <p role="alert" className="text-xs font-semibold text-brand-ink">
+              {rowError}
+            </p>
+          )}
         </div>
       )}
     </div>

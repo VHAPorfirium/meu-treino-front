@@ -1,6 +1,6 @@
 'use client';
 
-import { ApiError, replay } from '../api/client';
+import { ApiError, notifyUnauthorized, replay } from '../api/client';
 import { getUser } from '../auth/storage';
 import { clearOfflineStores, db, STORE_OUTBOX, STORE_RASCUNHO } from './db';
 
@@ -162,12 +162,15 @@ export async function enqueueAndSend<T>(
   const gen = geracao;
   const ownerUserId = op.userId ?? getUser()?.userId;
   try {
-    const result = await replay<T>(op.method, op.path, op.body);
+    const result = await replay<T>(op.method, op.path, op.body, {
+      deferUnauthorizedRedirect: true,
+    });
     if (op.key && gen === geracao) {
       await removeByKey(op.key);
     }
     return { queued: false, result };
   } catch (e) {
+    const isUnauthorized = e instanceof ApiError && e.status === 401;
     const shouldQueue =
       isNetworkError(e) ||
       (e instanceof ApiError &&
@@ -183,6 +186,10 @@ export async function enqueueAndSend<T>(
       createdAt: Date.now(),
       tries: 0,
     });
+    // Só redireciona para /login DEPOIS do commit no IndexedDB (evita abortar a gravação no iOS PWA)
+    if (isUnauthorized) {
+      notifyUnauthorized();
+    }
     return { queued: true };
   }
 }
@@ -215,6 +222,7 @@ export async function flush(expectedUserId?: string): Promise<{ sent: number; le
   const gen = geracao;
   let sent = 0;
   let stoppedOnTransient = false;
+  let sawUnauthorized = false;
   try {
     const ops = (await d.getAllFromIndex(STORE_OUTBOX, 'createdAt')) as OutboxOp[];
     for (const op of ops) {
@@ -225,7 +233,7 @@ export async function flush(expectedUserId?: string): Promise<{ sent: number; le
         continue;
       }
       try {
-        await replay(op.method, op.path, op.body);
+        await replay(op.method, op.path, op.body, { deferUnauthorizedRedirect: true });
         if (gen !== geracao) break;
         await d.delete(STORE_OUTBOX, op.id);
         sent++;
@@ -234,6 +242,7 @@ export async function flush(expectedUserId?: string): Promise<{ sent: number; le
         if (e instanceof ApiError && e.status === 401) {
           // Sessão expirada: preserva a operação no IndexedDB para sincronizar após relogin
           stoppedOnTransient = true;
+          sawUnauthorized = true;
           break;
         }
         if (isRetryableFlushError(e)) {
@@ -254,6 +263,10 @@ export async function flush(expectedUserId?: string): Promise<{ sent: number; le
   } finally {
     flushing = false;
     await notify();
+  }
+
+  if (sawUnauthorized && gen === geracao) {
+    notifyUnauthorized();
   }
 
   if (

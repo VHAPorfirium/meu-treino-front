@@ -34,7 +34,13 @@ export function AddToWorkoutModal({
     workoutsApi
       .list()
       .then(setWorkouts)
-      .catch(() => setWorkouts([]));
+      .catch((error) =>
+        setErrorMessage(
+          error instanceof ApiError
+            ? error.message
+            : 'Não foi possível carregar seus treinos.',
+        ),
+      );
   }, []);
 
   async function confirmAddition() {
@@ -108,8 +114,8 @@ export function AddToWorkoutModal({
 
         <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 pb-4">
           <div className="space-y-1.5">
-            {workouts === null && <p className="text-sm text-muted2">Carregando treinos…</p>}
-            {workouts?.length === 0 && <p className="text-sm text-muted2">Crie um treino primeiro.</p>}
+            {workouts === null && !errorMessage && <p className="text-sm text-muted2">Carregando treinos…</p>}
+            {workouts?.length === 0 && !errorMessage && <p className="text-sm text-muted2">Crie um treino primeiro.</p>}
             {workouts?.map((workout) => (
               <button
                 key={workout.id}
@@ -126,7 +132,7 @@ export function AddToWorkoutModal({
                     {workout._count ? ` · ${workout._count.exercises} exercícios` : ''}
                   </span>
                 </span>
-                {selectedWorkoutId === workout.id && <span className="font-extrabold text-brand">✓</span>}
+                {selectedWorkoutId === workout.id && <span className="font-extrabold text-brand-ink">✓</span>}
               </button>
             ))}
           </div>
@@ -152,7 +158,7 @@ export function AddToWorkoutModal({
               {exerciseMode === 'TIME' ? 'medir por séries e repetições' : 'medir por tempo'}
             </button>
           </div>
-          {errorMessage && <p className="text-sm font-semibold text-brand">{errorMessage}</p>}
+          {errorMessage && <p className="text-sm font-semibold text-brand-ink">{errorMessage}</p>}
         </div>
 
         <div className="border-t border-line p-4 pb-[calc(env(safe-area-inset-bottom,0px)+16px)]">

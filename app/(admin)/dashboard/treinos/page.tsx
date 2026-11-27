@@ -35,6 +35,7 @@ function msg(e: unknown, fallback: string) {
 
 export default function TreinosPage() {
   const [workouts, setWorkouts] = useState<Workout[]>([]);
+  const [loadingWorkouts, setLoadingWorkouts] = useState(true);
   const [detail, setDetail] = useState<WorkoutDetail | null>(null);
   const [creating, setCreating] = useState(false);
   const [creatingBusy, setCreatingBusy] = useState(false);
@@ -57,7 +58,11 @@ export default function TreinosPage() {
   });
 
   const refresh = useCallback(async () => {
-    setWorkouts(await workoutsApi.list());
+    try {
+      setWorkouts(await workoutsApi.list());
+    } finally {
+      setLoadingWorkouts(false);
+    }
   }, []);
 
   useEffect(() => {
@@ -67,6 +72,7 @@ export default function TreinosPage() {
   async function createWorkout() {
     if (!name.trim() || creatingBusy) return;
     setCreatingBusy(true);
+    setError(null);
     try {
       const w = await workoutsApi.create({
         name: name.trim(),
@@ -91,6 +97,7 @@ export default function TreinosPage() {
   }
 
   async function openDetail(id: string) {
+    setError(null);
     try {
       setDetail(await workoutsApi.get(id));
     } catch (e) {
@@ -115,7 +122,7 @@ export default function TreinosPage() {
 
       <div className="mx-auto max-w-6xl space-y-3 p-4 sm:p-6 md:p-8">
         {error && (
-          <div className="rounded-2xl border border-line bg-card p-3 text-sm font-semibold text-brand">
+          <div className="rounded-2xl border border-line bg-card p-3 text-sm font-semibold text-brand-ink">
             {error}{' '}
             <button onClick={() => setError(null)} className="ml-2 underline">
               fechar
@@ -237,7 +244,10 @@ export default function TreinosPage() {
               );
             })}
 
-            {workouts.length === 0 && !creating && !error && (
+            {loadingWorkouts && workouts.length === 0 && !error && (
+              <p className="py-10 text-center text-muted2">Carregando treinos…</p>
+            )}
+            {!loadingWorkouts && workouts.length === 0 && !creating && !error && (
               <p className="py-10 text-center text-muted2">Nenhum treino criado ainda.</p>
             )}
             {workouts.length > 0 && visibleWorkouts.length === 0 && (
@@ -495,7 +505,7 @@ function WorkoutEditor({
           <button
             onClick={() => setConfirmDelete((v) => !v)}
             disabled={busy}
-            className="min-w-[120px] flex-1 rounded-xl bg-chip py-2.5 text-sm font-extrabold text-brand disabled:opacity-50"
+            className="min-w-[120px] flex-1 rounded-xl bg-chip py-2.5 text-sm font-extrabold text-brand-ink disabled:opacity-50"
           >
             Excluir treino
           </button>
@@ -703,7 +713,7 @@ function AddExerciseModal({
             </div>
           )}
 
-          {error && <p className="text-sm font-semibold text-brand">{error}</p>}
+          {error && <p className="text-sm font-semibold text-brand-ink">{error}</p>}
 
           <div className="flex items-center gap-2">
             <span className="text-xs font-bold text-muted2">

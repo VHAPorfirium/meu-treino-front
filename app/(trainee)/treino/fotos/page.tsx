@@ -8,12 +8,69 @@ import { AppHeader } from '@/components/layout/app-header';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { SectionTitle } from '@/components/trainee/section-title';
 import { PhotoComparison } from '@/components/trainee/photo-comparison';
+import { ProgressPhotoImage } from '@/components/ui/progress-photo-image';
 
 const formatShortDate = (isoDate: string) =>
   new Date(isoDate).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }).replace('.', '').toUpperCase();
 
-const ALLOWED_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp', 'heic'];
+const ALLOWED_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp', 'heic', 'heif'];
 const MAXIMUM_PHOTO_SIZE_IN_BYTES = 15 * 1024 * 1024;
+
+/**
+ * Converte fotos HEIC/HEIF para JPEG quando o navegador sabe decodificá-las (ex.: Safari/iOS),
+ * garantindo que o personal no desktop (Chrome/Firefox/Edge) consiga visualizar a foto.
+ */
+async function convertHeicToJpeg(file: File): Promise<Blob | null> {
+  if (typeof window === 'undefined' || typeof document === 'undefined') return null;
+  try {
+    let width = 0;
+    let height = 0;
+    let source: CanvasImageSource;
+    let cleanup: (() => void) | null = null;
+
+    if (typeof createImageBitmap === 'function') {
+      const bitmap = await createImageBitmap(file);
+      width = bitmap.width;
+      height = bitmap.height;
+      source = bitmap;
+      cleanup = () => bitmap.close();
+    } else {
+      const objectUrl = URL.createObjectURL(file);
+      try {
+        const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+          const el = new Image();
+          el.onload = () => resolve(el);
+          el.onerror = () => reject(new Error('decode failed'));
+          el.src = objectUrl;
+        });
+        width = img.naturalWidth;
+        height = img.naturalHeight;
+        source = img;
+        cleanup = () => URL.revokeObjectURL(objectUrl);
+      } catch {
+        URL.revokeObjectURL(objectUrl);
+        return null;
+      }
+    }
+
+    try {
+      if (!width || !height) return null;
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return null;
+      ctx.drawImage(source, 0, 0, width, height);
+      return await new Promise<Blob | null>((resolve) =>
+        canvas.toBlob((blob) => resolve(blob), 'image/jpeg', 0.88),
+      );
+    } finally {
+      cleanup?.();
+    }
+  } catch {
+    return null;
+  }
+}
 
 type PhotosView = 'comparison' | 'timeline';
 
@@ -42,9 +99,13 @@ export default function FotosPage() {
   }, []);
 
   async function uploadPhoto(photoFile: File) {
-    const fileExtension = (photoFile.name.split('.').pop() ?? '').toLowerCase();
-    if (!ALLOWED_EXTENSIONS.includes(fileExtension)) {
-      setErrorMessage('Formato não suportado (use jpg, png, webp ou heic).');
+    const rawExtension = (photoFile.name.split('.').pop() ?? '').toLowerCase();
+    const isHeic =
+      rawExtension === 'heic' ||
+      rawExtension === 'heif' ||
+      /heic|heif/i.test(photoFile.type);
+    if (!isHeic && !ALLOWED_EXTENSIONS.includes(rawExtension)) {
+      setErrorMessage('Formato não suportado. Use JPG, PNG ou WebP.');
       if (fileInputRef.current) fileInputRef.current.value = '';
       return;
     }
@@ -56,11 +117,28 @@ export default function FotosPage() {
     setIsUploading(true);
     setErrorMessage(null);
     try {
-      const { path, uploadUrl } = await photosApi.requestUpload(fileExtension);
+      let uploadBody: Blob = photoFile;
+      let uploadContentType = photoFile.type || 'application/octet-stream';
+      let uploadExtension = rawExtension;
+
+      if (isHeic) {
+        const converted = await convertHeicToJpeg(photoFile);
+        if (!converted) {
+          setErrorMessage(
+            'Este navegador não converte fotos .heic. Selecione ou exporte a foto em JPG, PNG ou WebP para garantir visualização em todos os aparelhos.',
+          );
+          return;
+        }
+        uploadBody = converted;
+        uploadContentType = 'image/jpeg';
+        uploadExtension = 'jpg';
+      }
+
+      const { path, uploadUrl } = await photosApi.requestUpload(uploadExtension);
       const uploadResponse = await fetch(uploadUrl, {
         method: 'PUT',
-        headers: { 'Content-Type': photoFile.type || 'application/octet-stream' },
-        body: photoFile,
+        headers: { 'Content-Type': uploadContentType },
+        body: uploadBody,
       });
       if (!uploadResponse.ok) throw new Error(`upload falhou (${uploadResponse.status})`);
       await photosApi.register({ path, note: photoNote.trim() || undefined });
@@ -109,7 +187,7 @@ export default function FotosPage() {
           <input
             ref={fileInputRef}
             type="file"
-            accept="image/*"
+            accept="image/jpeg,image/png,image/webp"
             hidden
             onChange={(event) => event.target.files?.[0] && uploadPhoto(event.target.files[0])}
           />
@@ -124,7 +202,7 @@ export default function FotosPage() {
         </div>
 
         {errorMessage && (
-          <p className="rounded-2xl border border-line bg-card p-3 text-center text-sm font-semibold text-brand">
+          <p className="rounded-2xl border border-line bg-card p-3 text-center text-sm font-semibold text-brand-ink">
             {errorMessage}
           </p>
         )}
@@ -165,12 +243,13 @@ export default function FotosPage() {
                   const isDeleting = deletingId === photo.id;
                   return (
                     <figure key={photo.id} className="relative overflow-hidden rounded-2xl bg-chip">
-                      {photo.url ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={photo.url} alt={photo.note ?? 'Foto de progresso'} className="aspect-[3/4] w-full object-cover" />
-                      ) : (
-                        <div className="aspect-[3/4] w-full" />
-                      )}
+                      <ProgressPhotoImage
+                        src={photo.url}
+                        storagePath={photo.path}
+                        alt={photo.note ?? 'Foto de progresso'}
+                        className="aspect-[3/4] w-full object-cover"
+                        compact={selectedView === 'comparison'}
+                      />
                       {isConfirming ? (
                         <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/75 p-2 text-center">
                           <p className="text-[11px] font-extrabold text-white">Apagar foto?</p>

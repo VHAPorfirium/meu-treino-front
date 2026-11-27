@@ -174,7 +174,7 @@ export function ProgramDetailPanel({
         disabled={isBusy}
       />
 
-      {errorMessage && <p className="text-sm font-semibold text-brand">{errorMessage}</p>}
+      {errorMessage && <p className="text-sm font-semibold text-brand-ink">{errorMessage}</p>}
 
       {confirmDelete ? (
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-brand/30 bg-paper p-3">
@@ -205,7 +205,7 @@ export function ProgramDetailPanel({
           type="button"
           disabled={isBusy}
           onClick={() => setConfirmDelete(true)}
-          className="text-sm font-extrabold text-brand underline disabled:opacity-60"
+          className="text-sm font-extrabold text-brand-ink underline disabled:opacity-60"
         >
           Excluir programa
         </button>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { AdminAccessLogItem } from '@/lib/types';
 import { adminApi } from '@/lib/api/endpoints';
 import { ApiError } from '@/lib/api/client';
@@ -19,9 +19,9 @@ const PAGE_SIZE = 30;
 function eventBadgeClasses(tone: EventTone): string {
   switch (tone) {
     case 'done':
-      return 'bg-done-bg text-done';
+      return 'bg-done-bg text-done-ink';
     case 'brand':
-      return 'bg-brand/10 text-brand';
+      return 'bg-brand/10 text-brand-ink';
     case 'skip':
       return 'bg-skip-bg text-skip';
     case 'neutral':
@@ -62,6 +62,7 @@ export function AdminAuditLogsTab({
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const requestSeqRef = useRef(0);
 
   useEffect(() => {
     if (initialIpFilter) {
@@ -72,6 +73,7 @@ export function AdminAuditLogsTab({
   }, [initialIpFilter]);
 
   const loadLogs = useCallback(async () => {
+    const seq = ++requestSeqRef.current;
     setLoading(true);
     setError(null);
     try {
@@ -86,16 +88,20 @@ export function AdminAuditLogsTab({
         limit: PAGE_SIZE,
         offset,
       });
+      if (seq !== requestSeqRef.current) return;
       setItems(page.items);
       setTotal(page.total);
     } catch (err) {
+      if (seq !== requestSeqRef.current) return;
       setError(
         err instanceof ApiError
           ? err.message
           : 'Não foi possível carregar os logs de auditoria.',
       );
     } finally {
-      setLoading(false);
+      if (seq === requestSeqRef.current) {
+        setLoading(false);
+      }
     }
   }, [eventFilter, appliedIp, appliedSearch, period, offset]);
 
@@ -258,7 +264,7 @@ export function AdminAuditLogsTab({
       </section>
 
       {error && (
-        <p className="rounded-2xl border border-brand/30 bg-card p-3.5 text-sm font-semibold text-brand">
+        <p className="rounded-2xl border border-brand/30 bg-card p-3.5 text-sm font-semibold text-brand-ink">
           {error}
         </p>
       )}

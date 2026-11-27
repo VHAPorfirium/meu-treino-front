@@ -354,7 +354,7 @@ export default function WorkoutSessionPage() {
 
         {loading && <p className="py-10 text-center text-muted2">Carregando…</p>}
         {error && (
-          <p className="rounded-2xl border border-line bg-card p-3 text-center text-sm font-semibold text-brand">
+          <p className="rounded-2xl border border-line bg-card p-3 text-center text-sm font-semibold text-brand-ink">
             {error}
           </p>
         )}
@@ -363,7 +363,7 @@ export default function WorkoutSessionPage() {
           <div className="py-16 text-center text-muted2">
             <p className="text-4xl">🔎</p>
             <p className="mt-2 font-semibold">Treino não encontrado.</p>
-            <Link href="/treino" className="mt-2 inline-block text-sm font-bold text-brand underline">
+            <Link href="/treino" className="mt-2 inline-block text-sm font-bold text-brand-ink underline">
               Voltar para o início
             </Link>
           </div>

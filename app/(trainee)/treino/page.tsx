@@ -82,13 +82,16 @@ export default function TraineeHomePage() {
       .today(new Date().getDay())
       .then((res) => {
         setTodayResponse(res);
-        setErrorMessage(null);
       })
       .catch(() => setErrorMessage('Sem conexão — não foi possível carregar seus treinos.'));
     workoutsApi
       .mine()
-      .then(setAssignedWorkouts)
-      .catch(() => setAssignedWorkouts([]));
+      .then((list) => {
+        setAssignedWorkouts(list);
+      })
+      .catch(() => {
+        setErrorMessage('Sem conexão — não foi possível carregar seus treinos.');
+      });
     workoutLogsApi.myHistory().then(setHistoryEntries).catch(() => {});
     notesApi
       .mine()
@@ -98,14 +101,19 @@ export default function TraineeHomePage() {
   }, [loadCurrentProgram]);
 
   const reloadLinks = useCallback(() => {
-    Promise.all([
-      linksApi.pending().catch(() => [] as TrainerTraineeLink[]),
-      linksApi.current().catch(() => ({ link: null as TrainerTraineeLink | null })),
-    ]).then(([pending, current]) => {
-      setPendingLinks(pending);
-      setCurrentLink(current.link);
-      setLinkLoaded(true);
-    });
+    linksApi
+      .pending()
+      .then(setPendingLinks)
+      .catch(() => {});
+    linksApi
+      .current()
+      .then((current) => {
+        setCurrentLink(current.link);
+        setLinkLoaded(true);
+      })
+      .catch(() => {
+        // Não marca linkLoaded=true em falha de rede para não exibir falso "Sem personal vinculado"
+      });
   }, []);
 
   useEffect(() => {
@@ -116,6 +124,7 @@ export default function TraineeHomePage() {
   async function handleAcceptLink(link: TrainerTraineeLink) {
     setLinkBusyId(link.id);
     setErrorMessage(null);
+    setLinkFeedback(null);
     try {
       const res = await linksApi.accept(link.id);
       const portedParts: string[] = [];
@@ -141,6 +150,7 @@ export default function TraineeHomePage() {
       reloadLinks();
       reloadWorkoutsAndProgram();
     } catch (error) {
+      setLinkFeedback(null);
       setErrorMessage(
         error instanceof ApiError
           ? error.message
@@ -154,11 +164,13 @@ export default function TraineeHomePage() {
   async function handleRejectLink(link: TrainerTraineeLink) {
     setLinkBusyId(link.id);
     setErrorMessage(null);
+    setLinkFeedback(null);
     try {
       await linksApi.reject(link.id);
       setLinkFeedback(`Convite de ${link.trainer?.name ?? 'personal'} recusado.`);
       reloadLinks();
     } catch (error) {
+      setLinkFeedback(null);
       setErrorMessage(
         error instanceof ApiError
           ? error.message
@@ -173,6 +185,7 @@ export default function TraineeHomePage() {
     if (!currentLink) return;
     setLinkBusyId(currentLink.id);
     setErrorMessage(null);
+    setLinkFeedback(null);
     try {
       await linksApi.end(currentLink.id);
       setConfirmEndLink(false);
@@ -181,6 +194,7 @@ export default function TraineeHomePage() {
       );
       reloadLinks();
     } catch (error) {
+      setLinkFeedback(null);
       setErrorMessage(
         error instanceof ApiError
           ? error.message
@@ -273,7 +287,7 @@ export default function TraineeHomePage() {
             key={link.id}
             className="space-y-2.5 rounded-2xl border-2 border-brand bg-card p-4 shadow-soft"
           >
-            <p className="text-[11px] font-extrabold uppercase tracking-wide text-brand">
+            <p className="text-[11px] font-extrabold uppercase tracking-wide text-brand-ink">
               🤝 Convite de vínculo
             </p>
             <p className="text-sm font-extrabold text-ink">
@@ -335,7 +349,7 @@ export default function TraineeHomePage() {
         <WeekStrip completedDayKeys={completedDayKeys} />
 
         {errorMessage && (
-          <p className="rounded-2xl border border-line bg-card p-3 text-center text-sm font-semibold text-brand">
+          <p className="rounded-2xl border border-line bg-card p-3 text-center text-sm font-semibold text-brand-ink">
             {errorMessage}
           </p>
         )}
@@ -518,7 +532,7 @@ function ProgramTabContent({
         <div>
           <SectionTitle
             action={
-              <Link href="/treino/meus" className="text-[12.5px] font-extrabold text-brand">
+              <Link href="/treino/meus" className="text-[12.5px] font-extrabold text-brand-ink">
                 Ver tudo
               </Link>
             }
@@ -568,7 +582,7 @@ function ContinuousContent({
         <div>
           <SectionTitle
             action={
-              <Link href="/treino/meus" className="text-[12.5px] font-extrabold text-brand">
+              <Link href="/treino/meus" className="text-[12.5px] font-extrabold text-brand-ink">
                 Ver todos
               </Link>
             }

@@ -9,7 +9,7 @@ export default function PersonalDashboardLayout({ children }: { children: ReactN
     <RequireRole role="PERSONAL">
       <div className="min-h-screen w-full max-w-full overflow-x-clip bg-sand md:flex">
         <Sidebar />
-        <main className="min-w-0 w-full flex-1">{children}</main>
+        <main className="safe-bottom min-w-0 w-full flex-1">{children}</main>
       </div>
     </RequireRole>
   );

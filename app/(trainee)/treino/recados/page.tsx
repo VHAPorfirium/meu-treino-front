@@ -67,7 +67,7 @@ export default function RecadosPage() {
       />
       <div className="p-5 pb-28">
         {notes === null && !errorMessage && <p className="py-10 text-center text-muted2">Carregando…</p>}
-        {errorMessage && <p className="py-10 text-center text-brand">{errorMessage}</p>}
+        {errorMessage && <p className="py-10 text-center text-brand-ink">{errorMessage}</p>}
         {notes && notes.length === 0 && (
           <div className="py-16 text-center text-muted2">
             <p className="text-4xl">📝</p>
@@ -86,9 +86,9 @@ export default function RecadosPage() {
               const isPreviousTrainer = note.isCurrentTrainer === false;
               return (
                 <div key={note.id} className="mb-3">
-                  {isUnread && <p className="mb-1 ml-1 text-[11px] font-extrabold uppercase tracking-wider text-brand">● Novo</p>}
+                  {isUnread && <p className="mb-1 ml-1 text-[11px] font-extrabold uppercase tracking-wider text-brand-ink">● Novo</p>}
                   <div
-                    className={`max-w-[88%] whitespace-pre-wrap rounded-[18px] rounded-bl-md border bg-card px-3.5 py-2.5 text-[14.5px] font-semibold leading-snug text-ink ${
+                    className={`max-w-[88%] select-text whitespace-pre-wrap rounded-[18px] rounded-bl-md border bg-card px-3.5 py-2.5 text-[14.5px] font-semibold leading-snug text-ink ${
                       isUnread ? 'border-brand shadow-[0_0_0_3px_rgba(238,78,34,0.12)]' : 'border-line'
                     }`}
                   >

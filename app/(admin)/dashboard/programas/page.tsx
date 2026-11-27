@@ -100,7 +100,7 @@ export default function ProgramasPage() {
 
       <div className="mx-auto max-w-6xl space-y-3.5 p-4 sm:p-6 md:p-8">
         {errorMessage && (
-          <div className="rounded-2xl border border-line bg-card p-3 text-sm font-semibold text-brand">
+          <div className="rounded-2xl border border-line bg-card p-3 text-sm font-semibold text-brand-ink">
             {errorMessage}{' '}
             <button onClick={() => setErrorMessage(null)} className="ml-2 underline">
               fechar

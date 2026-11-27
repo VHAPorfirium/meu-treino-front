@@ -21,11 +21,20 @@ export default function DashboardHome() {
   const nomeAluno = useNomeAluno(alunoId);
   const { user } = useAuth();
   const [attentionItems, setAttentionItems] = useState<AttentionItem[] | null>(null);
+  const [attentionError, setAttentionError] = useState<string | null>(null);
   const [programs, setPrograms] = useState<TrainingProgram[] | null>(null);
   const [hasTrainees, setHasTrainees] = useState(true);
 
   useEffect(() => {
-    workoutLogsApi.attention().then(setAttentionItems).catch(() => setAttentionItems([]));
+    workoutLogsApi
+      .attention()
+      .then((items) => {
+        setAttentionError(null);
+        setAttentionItems(items);
+      })
+      .catch(() => {
+        setAttentionError('Não foi possível carregar os alertas de atenção.');
+      });
     programsApi.list().then(setPrograms).catch(() => setPrograms([]));
     usersApi
       .list({ role: 'TRAINEE' })
@@ -122,7 +131,7 @@ export default function DashboardHome() {
         {/* filtro por aluno — '' mostra todo mundo somado */}
         <FiltroAluno value={alunoId} onChange={setAlunoId} />
 
-        {error && <p className="text-brand">{error}</p>}
+        {error && <p className="text-brand-ink">{error}</p>}
         {!data && !error && <p className="text-muted2">Carregando…</p>}
 
         {data && (
@@ -210,6 +219,7 @@ export default function DashboardHome() {
                 <AttentionPanel
                   attentionItems={visibleAttentionItems}
                   hasTrainees={hasTrainees}
+                  errorMessage={attentionError}
                 />
                 <ProgramsInProgressPanel programs={visiblePrograms} />
 

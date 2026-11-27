@@ -74,12 +74,11 @@ export function RestTimer({
   const add = (s: number) => {
     firedRef.current = false;
     triggerHaptic('light');
-    setTarget((t) => {
-      const nextTarget = Math.max(Date.now(), t) + s * 1000;
-      const nextRemaining = Math.ceil((nextTarget - Date.now()) / 1000);
-      setTotalDuration((prev) => Math.max(prev, nextRemaining));
-      return nextTarget;
-    });
+    const now = Date.now();
+    const nextTarget = Math.max(now, target) + s * 1000;
+    const nextRemaining = Math.ceil((nextTarget - now) / 1000);
+    setTarget(nextTarget);
+    setTotalDuration((prev) => Math.max(prev, nextRemaining));
   };
 
   const mm = String(Math.floor(left / 60)).padStart(2, '0');

@@ -377,7 +377,7 @@ export function ExerciseCard({
           variant="done"
           active={status === 'DONE'}
           disabled={disabled || saving}
-          className="flex-1 py-3 text-sm font-extrabold"
+          className="flex-1 whitespace-nowrap px-2 py-3 text-sm font-extrabold"
           onClick={() => {
             setReplaced(null);
             setOpen(true);
@@ -390,7 +390,7 @@ export function ExerciseCard({
           variant="skip"
           active={status === 'SKIPPED'}
           disabled={disabled || saving}
-          className="flex-1 py-3 text-sm font-extrabold"
+          className="flex-1 whitespace-nowrap px-2 py-3 text-sm font-extrabold"
           onClick={() => {
             unlockAudio();
             triggerHaptic('light');
@@ -403,7 +403,7 @@ export function ExerciseCard({
           variant="replace"
           active={status === 'REPLACED'}
           disabled={disabled || saving}
-          className="flex-1 py-3 text-sm font-extrabold"
+          className="flex-1 whitespace-nowrap px-2 py-3 text-sm font-extrabold"
           onClick={() => {
             unlockAudio();
             triggerHaptic('light');
@@ -520,7 +520,7 @@ export function ExerciseCard({
                   type="button"
                   disabled={disabled}
                   onClick={() => adjustReps(1)}
-                  className="rounded-lg bg-chip px-2 py-1 text-[11px] font-bold text-brand transition active:scale-90 disabled:opacity-40"
+                  className="rounded-lg bg-chip px-2 py-1 text-[11px] font-bold text-brand-ink transition active:scale-90 disabled:opacity-40"
                 >
                   +1 rep
                 </button>
@@ -591,7 +591,7 @@ export function ExerciseCard({
                         type="button"
                         disabled={disabled}
                         onClick={() => copyPreviousRow(i)}
-                        className="text-[11px] font-bold text-brand hover:underline disabled:opacity-40"
+                        className="text-[11px] font-bold text-brand-ink hover:underline disabled:opacity-40"
                       >
                         ↳ Repetir série {i} ({rows[i - 1].weight || '0'}kg × {rows[i - 1].reps || '0'} reps)
                       </button>

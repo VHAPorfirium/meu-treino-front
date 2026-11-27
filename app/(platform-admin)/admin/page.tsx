@@ -235,7 +235,7 @@ export default function PlatformAdminPage() {
       {/* Conteúdo */}
       <main className="mx-auto max-w-6xl space-y-5 p-4 pb-16 sm:p-6 md:p-8">
         {error && activeTab !== 'accounts' && (
-          <div className="flex items-center justify-between gap-3 rounded-2xl border border-brand/30 bg-card p-3.5 text-sm font-semibold text-brand">
+          <div className="flex items-center justify-between gap-3 rounded-2xl border border-brand/30 bg-card p-3.5 text-sm font-semibold text-brand-ink">
             <span>{error}</span>
             <button
               type="button"

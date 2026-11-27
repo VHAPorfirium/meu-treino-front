@@ -78,7 +78,7 @@ export function AlternativesModal({
           </button>
         </div>
 
-        {error && <p className="text-sm font-semibold text-brand py-4 text-center">{error}</p>}
+        {error && <p className="text-sm font-semibold text-brand-ink py-4 text-center">{error}</p>}
         {!alts && !error && (
           <p className="py-12 text-center text-sm font-semibold text-muted2">Buscando alternativas compatíveis…</p>
         )}
