@@ -5,13 +5,23 @@ import type { AttentionItem } from '@/lib/types';
 import { TraineeAvatar } from './trainee-avatar';
 
 /** "Precisa de atenção": quem parou de treinar ou vive pulando o mesmo exercício. */
-export function AttentionPanel({ attentionItems }: { attentionItems: AttentionItem[] | null }) {
+export function AttentionPanel({
+  attentionItems,
+  hasTrainees = true,
+}: {
+  attentionItems: AttentionItem[] | null;
+  hasTrainees?: boolean;
+}) {
   return (
     <div className="rounded-2xl border border-line bg-card p-5">
       <h2 className="mb-3 text-base font-extrabold">⚠️ Precisa de atenção</h2>
       {attentionItems === null && <p className="text-sm text-muted2">Carregando…</p>}
       {attentionItems?.length === 0 && (
-        <p className="text-sm text-muted2">Tudo certo: todo mundo treinando em dia 💪</p>
+        <p className="text-sm text-muted2">
+          {hasTrainees
+            ? 'Tudo certo: todo mundo treinando em dia 💪'
+            : 'Nenhum aluno vinculado ainda. Vincule alunos na aba Alunos para acompanhar alertas.'}
+        </p>
       )}
       <div className="divide-y divide-line">
         {attentionItems?.map((attentionItem) => (

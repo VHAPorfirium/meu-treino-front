@@ -17,11 +17,11 @@ export function StatusBadge({ status }: { status: ExerciseStatus }) {
   );
 }
 
-// cores de estado p/ uso inline (barra lateral, chip circular)
+// cores de estado p/ uso inline (barra lateral, chip circular) — respeitam tema claro/escuro
 export const STATUS_COLOR: Record<ExerciseStatus, { fg: string; bg: string }> = {
-  DONE: { fg: '#1E7A4F', bg: '#E3F0E7' },
-  SKIPPED: { fg: '#B06E00', bg: '#FBEBD2' },
-  REPLACED: { fg: '#5B3FBF', bg: '#EAE4FB' },
+  DONE: { fg: 'rgb(var(--color-done))', bg: 'rgb(var(--color-done-bg))' },
+  SKIPPED: { fg: 'rgb(var(--color-skip))', bg: 'rgb(var(--color-skip-bg))' },
+  REPLACED: { fg: 'rgb(var(--color-replace))', bg: 'rgb(var(--color-replace-bg))' },
 };
 
 export const STATUS_ICON: Record<ExerciseStatus, string> = {

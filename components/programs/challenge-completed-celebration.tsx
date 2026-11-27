@@ -94,7 +94,7 @@ export function ChallengeCompletedCelebration({
           type="button"
           disabled={isSharing}
           onClick={handleShare}
-          className="mt-5 w-full rounded-2xl bg-gradient-to-br from-amber-400 to-amber-600 py-3.5 text-[16px] font-extrabold text-white disabled:opacity-60"
+          className="mt-5 w-full rounded-2xl bg-gradient-to-br from-amber-600 to-amber-800 py-3.5 text-[16px] font-extrabold text-white disabled:opacity-60"
         >
           {isSharing ? 'Gerando card…' : 'Compartilhar conquista'}
         </button>

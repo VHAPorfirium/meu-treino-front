@@ -20,7 +20,7 @@ import { exercisesApi, muscleGroupsApi } from '@/lib/api/endpoints';
 import { ApiError } from '@/lib/api/client';
 
 const STRIPE =
-  'repeating-linear-gradient(135deg,#EFE7DC 0 6px,#E5DBCE 6px 12px)';
+  'repeating-linear-gradient(135deg,rgb(var(--color-chip)) 0 6px,rgb(var(--color-line)) 6px 12px)';
 
 const PAGE_SIZES = [24, 48, 96, 200];
 

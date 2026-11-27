@@ -33,6 +33,7 @@ function formatDateTimeBr(iso: string): string {
   return new Date(iso).toLocaleString('pt-BR', {
     day: '2-digit',
     month: '2-digit',
+    year: '2-digit',
     hour: '2-digit',
     minute: '2-digit',
     second: '2-digit',
@@ -41,8 +42,12 @@ function formatDateTimeBr(iso: string): string {
 
 export function AdminAuditLogsTab({
   initialIpFilter = '',
+  refreshSignal = 0,
+  onClearInitialIp,
 }: {
   initialIpFilter?: string;
+  refreshSignal?: number;
+  onClearInitialIp?: () => void;
 }) {
   const [eventFilter, setEventFilter] = useState('');
   const [period, setPeriod] = useState<PeriodKey>('7d');
@@ -55,6 +60,7 @@ export function AdminAuditLogsTab({
   const [items, setItems] = useState<AdminAccessLogItem[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [exporting, setExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -65,12 +71,13 @@ export function AdminAuditLogsTab({
     }
   }, [initialIpFilter]);
 
-  const fromIso = resolvePeriodFromIso(period);
-
   const loadLogs = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
+      // Calcula o timestamp de corte DENTRO do efeito — nunca no corpo do render
+      // (evita nova string a cada render e loop infinito de requisições).
+      const fromIso = resolvePeriodFromIso(period);
       const page = await adminApi.accessLogs({
         event: eventFilter || undefined,
         ip: appliedIp || undefined,
@@ -90,11 +97,11 @@ export function AdminAuditLogsTab({
     } finally {
       setLoading(false);
     }
-  }, [eventFilter, appliedIp, appliedSearch, fromIso, offset]);
+  }, [eventFilter, appliedIp, appliedSearch, period, offset]);
 
   useEffect(() => {
     void loadLogs();
-  }, [loadLogs]);
+  }, [loadLogs, refreshSignal]);
 
   function applyTextFilters() {
     setOffset(0);
@@ -110,14 +117,30 @@ export function AdminAuditLogsTab({
     setAppliedIp('');
     setAppliedSearch('');
     setOffset(0);
+    onClearInitialIp?.();
   }
 
-  const exportUrl = adminApi.accessLogsExportUrl({
-    event: eventFilter || undefined,
-    ip: appliedIp || undefined,
-    search: appliedSearch || undefined,
-    from: fromIso,
-  });
+  async function handleExportCsv() {
+    if (exporting) return;
+    setExporting(true);
+    setError(null);
+    try {
+      await adminApi.downloadAccessLogsCsv({
+        event: eventFilter || undefined,
+        ip: ipFilter.trim() || undefined,
+        search: searchFilter.trim() || undefined,
+        from: resolvePeriodFromIso(period),
+      });
+    } catch (err) {
+      setError(
+        err instanceof ApiError
+          ? err.message
+          : 'Não foi possível exportar o CSV de auditoria.',
+      );
+    } finally {
+      setExporting(false);
+    }
+  }
 
   const showingFrom = total === 0 ? 0 : offset + 1;
   const showingTo = Math.min(total, offset + items.length);
@@ -136,13 +159,14 @@ export function AdminAuditLogsTab({
             </h2>
           </div>
 
-          <a
-            href={exportUrl}
-            download
-            className="inline-flex items-center gap-1.5 rounded-xl bg-inverse px-3.5 py-2 text-xs font-extrabold text-on-inverse transition hover:opacity-90 active:scale-95"
+          <button
+            type="button"
+            disabled={exporting}
+            onClick={() => void handleExportCsv()}
+            className="inline-flex items-center gap-1.5 rounded-xl bg-inverse px-3.5 py-2 text-xs font-extrabold text-on-inverse transition hover:opacity-90 active:scale-95 disabled:opacity-60"
           >
-            ⬇ Exportar CSV
-          </a>
+            {exporting ? 'Exportando…' : '⬇ Exportar CSV'}
+          </button>
         </div>
 
         <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
@@ -279,11 +303,11 @@ export function AdminAuditLogsTab({
                     >
                       {meta.label}
                     </span>
-                    <span className="text-xs font-extrabold text-ink">
+                    <span className="select-text break-all text-xs font-extrabold text-ink">
                       {targetUser}
                     </span>
                     {actorLabel && (
-                      <span className="rounded-full bg-chip px-2 py-0.5 text-[10px] font-bold text-muted">
+                      <span className="select-text rounded-full bg-chip px-2 py-0.5 text-[10px] font-bold text-muted">
                         {actorLabel}
                       </span>
                     )}
@@ -294,21 +318,24 @@ export function AdminAuditLogsTab({
                 </div>
 
                 <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] font-semibold text-muted2">
-                  <span className="font-mono">IP {log.ip}</span>
+                  <span className="select-text break-all font-mono">IP {log.ip}</span>
                   {log.path && (
-                    <span className="font-mono">
+                    <span className="select-text break-all font-mono">
                       {log.method ?? ''} {log.path}
                       {log.statusCode ? ` · ${log.statusCode}` : ''}
                     </span>
                   )}
                   {log.reason && (
-                    <span className="text-ink">motivo: {log.reason}</span>
+                    <span className="break-words text-ink">motivo: {log.reason}</span>
                   )}
                   {log.durationMs != null && (
                     <span>{formatLatencyMs(log.durationMs)}</span>
                   )}
                   {log.requestId && (
-                    <span className="font-mono text-[10px]">
+                    <span
+                      title={log.requestId}
+                      className="select-text font-mono text-[10px]"
+                    >
                       req:{log.requestId.slice(0, 12)}
                     </span>
                   )}

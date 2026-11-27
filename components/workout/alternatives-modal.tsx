@@ -8,7 +8,7 @@ import { exercisesApi } from '@/lib/api/endpoints';
 import { triggerHaptic } from '@/lib/haptics';
 
 const STRIPE =
-  'repeating-linear-gradient(135deg,#EFE7DC 0 6px,#E5DBCE 6px 12px)';
+  'repeating-linear-gradient(135deg,rgb(var(--color-chip)) 0 6px,rgb(var(--color-line)) 6px 12px)';
 
 export function AlternativesModal({
   exerciseId,

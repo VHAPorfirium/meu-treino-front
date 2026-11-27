@@ -24,7 +24,7 @@ export function ProgramHeroCard({
       <button
         type="button"
         onClick={onOpenAchievement}
-        className="block w-full rounded-3xl bg-gradient-to-br from-amber-400 to-amber-600 p-4 text-left text-white shadow-soft"
+        className="block w-full rounded-3xl bg-gradient-to-br from-amber-600 to-amber-800 p-4 text-left text-white shadow-soft"
       >
         <p className="text-[11px] font-extrabold uppercase tracking-wider opacity-90">
           🏆 {programTypeRule.label} concluído
@@ -36,7 +36,7 @@ export function ProgramHeroCard({
   }
 
   return (
-    <div className="rounded-3xl bg-gradient-to-br from-amber-400 to-amber-600 p-4 text-white shadow-soft">
+    <div className="rounded-3xl bg-gradient-to-br from-amber-600 to-amber-800 p-4 text-white shadow-soft">
       <p className="text-[11px] font-extrabold uppercase tracking-wider opacity-90">
         {programTypeRule.icon} {currentProgram.program.name}
       </p>

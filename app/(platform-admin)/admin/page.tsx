@@ -1,8 +1,9 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { AdminOverview } from '@/lib/types';
 import { adminApi } from '@/lib/api/endpoints';
+import { limpar as limparCache } from '@/lib/api/cache-modulo';
 import { ApiError } from '@/lib/api/client';
 import { useAuth } from '@/lib/auth/auth-context';
 import { applyThemePreference, readInitialIsDark } from '@/lib/theme';
@@ -20,6 +21,10 @@ const TABS: { value: AdminTab; label: string; icon: string }[] = [
   { value: 'accounts', label: 'Contas & Equipe', icon: '👥' },
 ];
 
+function isSafeHttpUrl(url: string | null | undefined): url is string {
+  return Boolean(url && /^https?:\/\//i.test(url));
+}
+
 export default function PlatformAdminPage() {
   const { user, logout } = useAuth();
   const [activeTab, setActiveTab] = useState<AdminTab>('overview');
@@ -30,7 +35,11 @@ export default function PlatformAdminPage() {
   const [autoRefresh, setAutoRefresh] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [auditIpFilter, setAuditIpFilter] = useState('');
+  const [refreshSeq, setRefreshSeq] = useState(0);
   const [isDark, setIsDark] = useState(false);
+
+  const requestSeqRef = useRef(0);
+  const hasOverviewRef = useRef(false);
 
   useEffect(() => {
     setIsDark(readInitialIsDark());
@@ -38,33 +47,40 @@ export default function PlatformAdminPage() {
 
   const fetchOverview = useCallback(
     async (silent = false) => {
-      if (silent) setRefreshing(true);
+      const seq = ++requestSeqRef.current;
+      if (silent || hasOverviewRef.current) setRefreshing(true);
       else setLoading(true);
       setError(null);
       try {
         const data = await adminApi.overview(windowMinutes);
+        if (seq !== requestSeqRef.current) return;
+        hasOverviewRef.current = true;
         setOverview(data);
       } catch (err) {
+        if (seq !== requestSeqRef.current) return;
         setError(
           err instanceof ApiError
             ? err.message
             : 'Não foi possível carregar os indicadores de observabilidade.',
         );
       } finally {
-        setLoading(false);
-        setRefreshing(false);
+        if (seq === requestSeqRef.current) {
+          setLoading(false);
+          setRefreshing(false);
+        }
       }
     },
     [windowMinutes],
   );
 
   useEffect(() => {
-    void fetchOverview(false);
+    void fetchOverview(hasOverviewRef.current);
   }, [fetchOverview]);
 
   useEffect(() => {
     if (!autoRefresh) return;
     const id = setInterval(() => {
+      if (typeof document !== 'undefined' && document.hidden) return;
       void fetchOverview(true);
     }, 30_000);
     return () => clearInterval(id);
@@ -81,6 +97,14 @@ export default function PlatformAdminPage() {
     setActiveTab('audit');
   }
 
+  function handleManualRefresh() {
+    if (activeTab === 'accounts') {
+      limparCache('users:');
+    }
+    setRefreshSeq((n) => n + 1);
+    void fetchOverview(true);
+  }
+
   const lastUpdatedLabel = overview
     ? new Date(overview.generatedAt).toLocaleTimeString('pt-BR', {
         hour: '2-digit',
@@ -89,12 +113,16 @@ export default function PlatformAdminPage() {
       })
     : null;
 
+  const safeGrafanaUrl = isSafeHttpUrl(overview?.externalGrafanaUrl)
+    ? overview!.externalGrafanaUrl
+    : null;
+
   return (
     <div className="min-h-screen w-full max-w-full overflow-x-clip bg-sand">
       {/* Barra superior com safe-top para iOS PWA / Dynamic Island */}
       <header className="safe-top sticky top-0 z-30 border-b border-white/10 bg-inverse pb-3.5 text-on-inverse shadow-md">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 sm:px-6 md:px-8">
-          <div className="flex min-w-0 items-center gap-3">
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-2 px-4 sm:px-6 md:px-8">
+          <div className="flex min-w-0 items-center gap-2.5">
             <span className="font-display text-lg font-extrabold tracking-[0.18em] text-brand">
               RITMO
             </span>
@@ -103,13 +131,13 @@ export default function PlatformAdminPage() {
             </span>
           </div>
 
-          <div className="flex shrink-0 items-center gap-2">
-            {overview?.externalGrafanaUrl && (
+          <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+            {safeGrafanaUrl && (
               <a
-                href={overview.externalGrafanaUrl}
+                href={safeGrafanaUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="hidden shrink-0 rounded-full bg-white/10 px-3 py-1.5 text-xs font-extrabold text-on-inverse transition hover:bg-white/15 sm:inline-block"
+                className="shrink-0 rounded-full bg-white/10 px-2.5 py-1.5 text-[11px] font-extrabold text-on-inverse transition hover:bg-white/15 sm:px-3 sm:text-xs"
               >
                 Grafana ↗
               </a>
@@ -129,7 +157,7 @@ export default function PlatformAdminPage() {
             <button
               type="button"
               onClick={() => void logout()}
-              className="shrink-0 rounded-full bg-white/10 px-3.5 py-1.5 text-xs font-bold text-on-inverse transition hover:bg-white/15 active:scale-95"
+              className="shrink-0 rounded-full bg-white/10 px-3 py-1.5 text-xs font-bold text-on-inverse transition hover:bg-white/15 active:scale-95 sm:px-3.5"
             >
               Sair
             </button>
@@ -170,7 +198,7 @@ export default function PlatformAdminPage() {
               <button
                 type="button"
                 disabled={refreshing}
-                onClick={() => void fetchOverview(true)}
+                onClick={handleManualRefresh}
                 className="rounded-xl bg-brand px-3.5 py-2 text-xs font-extrabold text-white shadow-brand transition active:scale-95 disabled:opacity-60"
               >
                 {refreshing ? 'Atualizando…' : '↻ Atualizar'}
@@ -235,16 +263,26 @@ export default function PlatformAdminPage() {
           <AdminPerformanceTab
             http={overview.http}
             windowMinutes={windowMinutes}
+            refreshing={refreshing}
             onChangeWindow={(mins) => setWindowMinutes(mins)}
           />
         )}
 
         {activeTab === 'audit' && (
-          <AdminAuditLogsTab initialIpFilter={auditIpFilter} />
+          <AdminAuditLogsTab
+            initialIpFilter={auditIpFilter}
+            refreshSignal={refreshSeq}
+            onClearInitialIp={() => setAuditIpFilter('')}
+          />
         )}
 
         {activeTab === 'accounts' && (
-          <AccountManagementPanel mode="ADMIN" embedded />
+          <AccountManagementPanel
+            mode="ADMIN"
+            embedded
+            refreshSignal={refreshSeq}
+            onAccountsChanged={() => void fetchOverview(true)}
+          />
         )}
       </main>
     </div>

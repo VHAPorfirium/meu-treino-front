@@ -10,7 +10,12 @@ import {
 import { useRouter } from 'next/navigation';
 import { ApiError } from '../api/client';
 import { limpar as limparCache } from '../api/cache-modulo';
-import { flush, limparFilaOffline, limparSeOutroUsuario } from '../offline/queue';
+import {
+  flush,
+  limparFilaOffline,
+  limparSeOutroUsuario,
+  pendingCount,
+} from '../offline/queue';
 import { clearCelebratedAchievements } from '../programs/celebration-memory';
 import { clearPushSyncFlag, revokePushSubscription } from '../push/push-session';
 import type { AuthUser, ProfileChoice, Role } from '../types';
@@ -39,6 +44,7 @@ interface AuthContextValue {
   switchProfile: (role: Role) => Promise<void>;
   logout: () => Promise<void>;
   completePasswordChange: () => void;
+  refreshUserSession: (patch: Partial<AuthUser>) => void;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -51,51 +57,71 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let cancelled = false;
+
+    const revalidateSession = (fallbackLocal: AuthUser | null) => {
+      return authApi
+        .me()
+        .then((verifiedUser) => {
+          if (cancelled) return;
+          saveSession(verifiedUser);
+          setUser(verifiedUser);
+          if (verifiedUser.role !== 'ADMIN') {
+            authApi
+              .linkedProfiles()
+              .then((profiles) => {
+                if (!cancelled) setLinkedProfiles(profiles);
+              })
+              .catch(() => {});
+          } else {
+            setLinkedProfiles([]);
+          }
+        })
+        .catch((err) => {
+          if (cancelled) return;
+          if (err instanceof ApiError && err.status === 401) {
+            setUser(null);
+            setLinkedProfiles([]);
+            return;
+          }
+          // Rede oscilando / backend reiniciando: mantém sessão local
+          if (fallbackLocal) setUser(fallbackLocal);
+        });
+    };
+
     const localUser = getUser();
     if (!localUser) {
       setLoading(false);
       return;
     }
 
-    // Offline (ex.: academia sem sinal): usa o mt_user local para abrir o app.
+    // Offline (ex.: academia sem sinal): usa o mt_user local para abrir o app
+    // e revalida automaticamente assim que a conexão retornar.
     if (typeof navigator !== 'undefined' && !navigator.onLine) {
       setUser(localUser);
       setLoading(false);
-      return;
-    }
-
-    // Online: valida o cookie httpOnly antes de montar telas protegidas,
-    // evitando rajada de 401 paralelos quando a sessão já expirou.
-    authApi
-      .me()
-      .then((verifiedUser) => {
-        if (cancelled) return;
-        saveSession(verifiedUser);
-        setUser(verifiedUser);
-        if (verifiedUser.role !== 'ADMIN') {
-          authApi
-            .linkedProfiles()
-            .then((profiles) => {
-              if (!cancelled) setLinkedProfiles(profiles);
-            })
-            .catch(() => {});
-        }
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        if (err instanceof ApiError && err.status === 401) {
-          setUser(null);
-          return;
-        }
-        // Rede oscilando / backend reiniciando: mantém sessão local
-        setUser(localUser);
-      })
-      .finally(() => {
+    } else {
+      // Online: valida o cookie httpOnly antes de montar telas protegidas,
+      // evitando rajada de 401 paralelos quando a sessão já expirou.
+      void revalidateSession(localUser).finally(() => {
         if (!cancelled) setLoading(false);
       });
+    }
+
+    const handleOnline = () => {
+      const currentLocal = getUser();
+      if (!currentLocal) return;
+      void revalidateSession(currentLocal);
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('online', handleOnline);
+    }
 
     return () => {
       cancelled = true;
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('online', handleOnline);
+      }
     };
   }, []);
 
@@ -150,6 +176,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function switchProfile(role: Role) {
+    // Evita perda silenciosa de séries offline ao trocar de perfil (Personal ↔ Aluno):
+    // tenta sincronizar antes e bloqueia a troca se ainda restarem operações pendentes.
+    if (user) {
+      const before = await pendingCount();
+      if (before > 0) {
+        if (typeof navigator === 'undefined' || navigator.onLine) {
+          await flush(user.userId);
+        }
+        const remaining = await pendingCount();
+        if (remaining > 0) {
+          throw new Error(
+            'Há registros de treino pendentes de sincronização offline. Conecte-se à internet antes de trocar de perfil.',
+          );
+        }
+      }
+    }
+
     const res = await authApi.switchProfile(role);
     const authUser: AuthUser = {
       userId: res.user.id,
@@ -167,6 +210,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     saveSession(updatedUser);
     setUser(updatedUser);
     router.replace(roleHome(updatedUser.role));
+  }
+
+  function refreshUserSession(patch: Partial<AuthUser>) {
+    setUser((current) => {
+      if (!current) return current;
+      const updated: AuthUser = { ...current, ...patch };
+      saveSession(updated);
+      return updated;
+    });
   }
 
   async function logout() {
@@ -191,6 +243,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         switchProfile,
         logout,
         completePasswordChange,
+        refreshUserSession,
       }}
     >
       {children}

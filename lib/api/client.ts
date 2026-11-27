@@ -36,8 +36,18 @@ function handleUnauthorized() {
   clearCelebratedAchievements();
   if (!window.location.pathname.startsWith('/login')) {
     window.location.replace('/login');
+    return;
   }
   handlingUnauthorized = false;
+}
+
+function handlePasswordChangeRequired(msg: string) {
+  if (typeof window === 'undefined') return;
+  if (!msg.toLowerCase().includes('troca de senha obrigatória')) return;
+  const p = window.location.pathname;
+  if (!p.startsWith('/trocar-senha') && !p.startsWith('/login')) {
+    window.location.replace('/trocar-senha');
+  }
 }
 
 async function requestRaw<T>(
@@ -74,9 +84,11 @@ async function requestRaw<T>(
     } catch {
       /* ignore */
     }
-    // 401 fora do login = sessão caiu → desloga. (No login, 401 é só "PIN errado".)
+    // 401 fora do login = sessão caiu → desloga. (No login, 401 é só credencial inválida.)
     if (res.status === 401 && !path.startsWith('/auth/login')) {
       handleUnauthorized();
+    } else if (res.status === 403) {
+      handlePasswordChangeRequired(msg);
     }
     throw new ApiError(res.status, msg);
   }
@@ -118,6 +130,52 @@ export const api = {
       method: 'DELETE',
       body: body === undefined ? undefined : JSON.stringify(body),
     }),
+  downloadFile: async (path: string, fallbackFilename: string): Promise<void> => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30_000);
+    let res: Response;
+    try {
+      res = await fetch(`${BASE}${path}`, {
+        method: 'GET',
+        signal: controller.signal,
+        credentials: 'include',
+        cache: 'no-store',
+      });
+    } finally {
+      clearTimeout(timeoutId);
+    }
+
+    if (!res.ok) {
+      let msg = `Erro ${res.status}`;
+      try {
+        const body = await res.json();
+        msg = Array.isArray(body?.message)
+          ? body.message.join(', ')
+          : (body?.message ?? msg);
+      } catch {
+        /* ignore */
+      }
+      if (res.status === 401) {
+        handleUnauthorized();
+      } else if (res.status === 403) {
+        handlePasswordChangeRequired(msg);
+      }
+      throw new ApiError(res.status, msg);
+    }
+
+    const disposition = res.headers.get('Content-Disposition') ?? '';
+    const match = disposition.match(/filename="?([^";\n]+)"?/i);
+    const filename = match?.[1] || fallbackFilename;
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1_000);
+  },
 };
 
 /** Reexecuta uma operação gravada na fila offline (lib/offline/queue). */

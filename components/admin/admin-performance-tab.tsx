@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import type { HttpMetricsSnapshot, RouteMetricSummary } from '@/lib/types';
 import { formatLatencyMs } from '@/lib/admin/formatters';
 
@@ -9,15 +10,29 @@ const WINDOW_CHOICES: { value: number; label: string }[] = [
   { value: 1440, label: '24 horas' },
 ];
 
+function timelineEyebrow(windowMinutes: number): string {
+  if (windowMinutes <= 60) return 'Volume a cada 5 min (última 1h)';
+  if (windowMinutes <= 360) return 'Volume a cada 30 min (últimas 6h)';
+  return 'Volume por hora (últimas 24h)';
+}
+
 export function AdminPerformanceTab({
   http,
   windowMinutes,
+  refreshing = false,
   onChangeWindow,
 }: {
   http: HttpMetricsSnapshot;
   windowMinutes: number;
+  refreshing?: boolean;
   onChangeWindow: (minutes: number) => void;
 }) {
+  const [selectedBucketIdx, setSelectedBucketIdx] = useState<number | null>(null);
+
+  useEffect(() => {
+    setSelectedBucketIdx(null);
+  }, [windowMinutes, http.timeline.length]);
+
   const { requests, latencyMs, timeline, topRoutes, slowestRoutes } = http;
   const totalStatus = Math.max(1, requests.total);
   const pct2xx = Math.round((requests.status2xx / totalStatus) * 100);
@@ -26,15 +41,18 @@ export function AdminPerformanceTab({
   const pct5xx = Math.round((requests.status5xx / totalStatus) * 100);
 
   const maxHourTotal = Math.max(1, ...timeline.map((b) => b.total));
+  const selectedBucket =
+    selectedBucketIdx !== null ? (timeline[selectedBucketIdx] ?? null) : null;
+  const labelStride = timeline.length <= 12 ? 2 : 3;
 
   return (
-    <div className="space-y-5">
+    <div className={`space-y-5 transition-opacity ${refreshing ? 'opacity-70' : ''}`}>
       {/* Seletor de janela + cards de latência */}
       <section className="rounded-2xl border border-line bg-card p-4 sm:p-5">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
           <div>
             <p className="text-xs font-extrabold uppercase tracking-wide text-muted2">
-              Performance HTTP
+              Performance HTTP {refreshing ? '· atualizando…' : ''}
             </p>
             <h2 className="font-display text-lg font-extrabold text-ink">
               Latência (p50 / p95 / p99) e taxa de erros
@@ -109,24 +127,24 @@ export function AdminPerformanceTab({
         </div>
       </section>
 
-      {/* Timeline 24h */}
+      {/* Timeline adaptativa (1h / 6h / 24h) */}
       <section className="rounded-2xl border border-line bg-card p-4 sm:p-5">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <div>
             <p className="text-xs font-extrabold uppercase tracking-wide text-muted2">
-              Volume por hora (últimas 24h)
+              {timelineEyebrow(windowMinutes)}
             </p>
             <h2 className="font-display text-lg font-extrabold text-ink">
               Tráfego da API e picos de erro
             </h2>
           </div>
           <span className="text-xs font-semibold text-muted2">
-            Passe o mouse ou toque na barra para ver p95 da hora
+            Toque em uma barra para ver detalhes e p95
           </span>
         </div>
 
         <div className="no-scrollbar overflow-x-auto pb-1">
-          <div className="flex h-36 min-w-[520px] items-end gap-1.5 pt-2">
+          <div className="flex h-36 min-w-[440px] items-end gap-1.5 pt-2">
             {timeline.map((bucket, idx) => {
               const heightPct =
                 bucket.total > 0
@@ -140,11 +158,19 @@ export function AdminPerformanceTab({
                     : bucket.total > 0
                       ? 'bg-done'
                       : 'bg-chip';
+              const isSelected = selectedBucketIdx === idx;
               return (
-                <div
+                <button
                   key={`${bucket.hour}-${idx}`}
+                  type="button"
+                  onClick={() =>
+                    setSelectedBucketIdx((prev) => (prev === idx ? null : idx))
+                  }
+                  aria-pressed={isSelected}
                   title={`${bucket.hour} — ${bucket.total} reqs · 4xx: ${bucket.errors4xx} · 5xx: ${bucket.errors5xx} · p95: ${formatLatencyMs(bucket.p95Ms)}`}
-                  className="flex h-full flex-1 flex-col items-center justify-end gap-1"
+                  className={`flex h-full flex-1 flex-col items-center justify-end gap-1 rounded-lg px-0.5 py-0.5 transition focus:outline-none ${
+                    isSelected ? 'bg-chip/80 ring-1 ring-brand' : 'hover:bg-chip/40'
+                  }`}
                 >
                   <div className="flex h-24 w-full items-end">
                     <div
@@ -153,13 +179,35 @@ export function AdminPerformanceTab({
                     />
                   </div>
                   <span className="text-[10px] font-bold text-muted2">
-                    {idx % 3 === 0 || idx === timeline.length - 1 ? bucket.hour : ''}
+                    {idx % labelStride === 0 || idx === timeline.length - 1
+                      ? bucket.hour
+                      : ''}
                   </span>
-                </div>
+                </button>
               );
             })}
           </div>
         </div>
+
+        {selectedBucket && (
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-line bg-paper px-3.5 py-2 text-xs font-bold">
+            <span className="font-mono text-ink">{selectedBucket.hour}</span>
+            <div className="flex flex-wrap items-center gap-3 text-muted2">
+              <span>
+                <strong className="text-ink">{selectedBucket.total}</strong> reqs
+              </span>
+              <span>
+                p95 <strong className="text-ink">{formatLatencyMs(selectedBucket.p95Ms)}</strong>
+              </span>
+              <span className={selectedBucket.errors4xx > 0 ? 'text-skip' : ''}>
+                4xx: {selectedBucket.errors4xx}
+              </span>
+              <span className={selectedBucket.errors5xx > 0 ? 'text-brand' : ''}>
+                5xx: {selectedBucket.errors5xx}
+              </span>
+            </div>
+          </div>
+        )}
       </section>
 
       {/* Tabelas de rotas */}

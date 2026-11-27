@@ -108,7 +108,11 @@ export function RestTimer({
           <span className="font-display text-lg font-extrabold tabular-nums">
             {mm}:{ss}
           </span>
-          <span className="max-w-[80px] truncate text-xs font-semibold text-on-inverse-muted">
+          <span
+            className={`max-w-[80px] truncate text-xs font-semibold ${
+              left === 0 ? 'text-white/90' : 'text-on-inverse-muted'
+            }`}
+          >
             {label}
           </span>
         </button>

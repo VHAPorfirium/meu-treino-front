@@ -1,11 +1,19 @@
 'use client';
 
-import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import type { Role, UserSummary } from '@/lib/types';
 import { usersApi } from '@/lib/api/endpoints';
 import { ApiError } from '@/lib/api/client';
 import { useAuth } from '@/lib/auth/auth-context';
 import { roleLabel } from '@/lib/auth/storage';
+import { copyText } from '@/lib/clipboard';
 import {
   formatCpfInput,
   generateStrongPassword,
@@ -34,7 +42,7 @@ function roleBadgeStyle(role: Role): string {
     case 'ADMIN':
       return 'bg-gold-bg text-gold';
     case 'RECEPTION':
-      return 'bg-replace-bg text-replace-ink';
+      return 'bg-replace-bg text-replace';
     case 'PERSONAL':
       return 'bg-brand/10 text-brand';
     case 'TRAINEE':
@@ -50,12 +58,17 @@ export function AccountManagementPanel({
   mode,
   headerExtra,
   embedded = false,
+  refreshSignal = 0,
+  onAccountsChanged,
 }: {
   mode: PanelMode;
   headerExtra?: ReactNode;
   embedded?: boolean;
+  refreshSignal?: number;
+  onAccountsChanged?: () => void;
 }) {
-  const { user, linkedProfiles, switchProfile, logout } = useAuth();
+  const { user, linkedProfiles, switchProfile, logout, refreshUserSession } =
+    useAuth();
   const [accounts, setAccounts] = useState<UserSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchText, setSearchText] = useState('');
@@ -74,6 +87,20 @@ export function AccountManagementPanel({
 
   const isAdmin = mode === 'ADMIN';
 
+  const showError = useCallback((message: string | null) => {
+    if (message) setBanner(null);
+    setErrorMessage(message);
+  }, []);
+
+  const showBanner = useCallback(
+    (next: { message: string; copyValue?: string; copyLabel?: string } | null) => {
+      if (next) setErrorMessage(null);
+      setCopiedBanner(false);
+      setBanner(next);
+    },
+    [],
+  );
+
   useEffect(() => {
     setIsDark(readInitialIsDark());
   }, []);
@@ -84,15 +111,15 @@ export function AccountManagementPanel({
       const list = await usersApi.list();
       setAccounts(list);
     } catch (error) {
-      setErrorMessage(describeError(error, 'Não foi possível carregar os cadastros.'));
+      showError(describeError(error, 'Não foi possível carregar os cadastros.'));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [showError]);
 
   useEffect(() => {
     void loadAccounts();
-  }, [loadAccounts]);
+  }, [loadAccounts, refreshSignal]);
 
   function toggleTheme() {
     const next = !isDark;
@@ -103,8 +130,15 @@ export function AccountManagementPanel({
   async function handleSwitch(targetRole: Role) {
     if (switching) return;
     setSwitching(true);
+    showError(null);
     try {
       await switchProfile(targetRole);
+    } catch (err) {
+      showError(
+        err instanceof Error && err.message
+          ? err.message
+          : 'Não foi possível alternar o perfil agora.',
+      );
     } finally {
       setSwitching(false);
     }
@@ -116,15 +150,24 @@ export function AccountManagementPanel({
         .map((item) => (item.id === updated.id ? updated : item))
         .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')),
     );
+    if (updated.id === user?.userId) {
+      refreshUserSession({
+        name: updated.name,
+        username: updated.username,
+      });
+    }
+    onAccountsChanged?.();
   }
 
   async function copyBannerValue(value: string) {
-    try {
-      await navigator.clipboard.writeText(value);
+    const ok = await copyText(value);
+    if (ok) {
       setCopiedBanner(true);
       setTimeout(() => setCopiedBanner(false), 2000);
-    } catch {
-      /* fallback silencioso */
+    } else {
+      setErrorMessage(
+        'Não foi possível copiar automaticamente — selecione o texto acima para copiar.',
+      );
     }
   }
 
@@ -233,8 +276,8 @@ export function AccountManagementPanel({
 
         {banner && (
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-done/40 bg-done-bg p-4 text-sm font-bold text-done-ink">
-            <span>{banner.message}</span>
-            <div className="flex items-center gap-2">
+            <span className="select-text break-words">{banner.message}</span>
+            <div className="flex shrink-0 items-center gap-2">
               {banner.copyValue && (
                 <button
                   type="button"
@@ -262,7 +305,8 @@ export function AccountManagementPanel({
             onCreated={async (created, temporaryPassword) => {
               setIsCreating(false);
               await loadAccounts();
-              setBanner({
+              onAccountsChanged?.();
+              showBanner({
                 message: `Conta criada: ${created.name} (@${created.username} · ${roleLabel(created.role)}). Senha temporária: ${temporaryPassword}`,
                 copyValue: `Acesso Ritmo\nApelido: @${created.username}\nSenha temporária: ${temporaryPassword}`,
                 copyLabel: 'Copiar acesso',
@@ -345,9 +389,9 @@ export function AccountManagementPanel({
                 isSelf={account.id === user?.userId}
                 onUpdated={handleAccountUpdated}
                 onFeedback={(message, copyValue, copyLabel) =>
-                  setBanner({ message, copyValue, copyLabel })
+                  showBanner({ message, copyValue, copyLabel })
                 }
-                onError={setErrorMessage}
+                onError={showError}
               />
             ))}
         </section>
@@ -476,7 +520,7 @@ function CreateAccountForm({
   const [fullName, setFullName] = useState('');
   const [cpf, setCpf] = useState('');
   const [username, setUsername] = useState('');
-  const [usernameTouched, setUsernameTouched] = useState(false);
+  const usernameTouchedRef = useRef(false);
   const [password, setPassword] = useState(() => generateStrongPassword());
   const [showPassword, setShowPassword] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -484,16 +528,16 @@ function CreateAccountForm({
 
   function handleNameChange(value: string) {
     setFullName(value);
-    if (!usernameTouched) {
+    if (!usernameTouchedRef.current) {
       setUsername(suggestUsernameFromName(value));
     }
   }
 
   async function refreshSuggestedUsername() {
-    if (usernameTouched || fullName.trim().length < 2) return;
+    if (usernameTouchedRef.current || fullName.trim().length < 2) return;
     try {
       const res = await usersApi.suggestUsername(fullName.trim());
-      if (!usernameTouched) setUsername(res.username);
+      if (!usernameTouchedRef.current) setUsername(res.username);
     } catch {
       /* mantém sugestão local */
     }
@@ -624,7 +668,7 @@ function CreateAccountForm({
             <input
               value={username}
               onChange={(e) => {
-                setUsernameTouched(true);
+                usernameTouchedRef.current = true;
                 setUsername(e.target.value.toLowerCase().replace(/\s+/g, ''));
               }}
               placeholder="gabriel.silva"
@@ -720,7 +764,8 @@ function AccountRow({
   const [busy, setBusy] = useState(false);
 
   const canEdit = isAdmin || account.role === 'TRAINEE';
-  const canReset = isAdmin || account.role === 'TRAINEE' || account.role === 'PERSONAL';
+  const canReset =
+    !isSelf && (isAdmin || account.role === 'TRAINEE' || account.role === 'PERSONAL');
   const canDeactivate =
     account.active &&
     !isSelf &&
@@ -849,7 +894,7 @@ function AccountRow({
               </span>
             )}
           </div>
-          <p className="mt-0.5 truncate text-xs font-bold text-muted2">
+          <p className="mt-0.5 select-text truncate text-xs font-bold text-muted2">
             @{account.username} · CPF {account.cpfMasked ?? 'não cadastrado'}
           </p>
         </div>
