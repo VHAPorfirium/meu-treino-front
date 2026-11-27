@@ -49,9 +49,11 @@ function describeError(error: unknown, fallback: string) {
 export function AccountManagementPanel({
   mode,
   headerExtra,
+  embedded = false,
 }: {
   mode: PanelMode;
   headerExtra?: ReactNode;
+  embedded?: boolean;
 }) {
   const { user, linkedProfiles, switchProfile, logout } = useAuth();
   const [accounts, setAccounts] = useState<UserSummary[]>([]);
@@ -175,67 +177,17 @@ export function AccountManagementPanel({
     });
   }, [accounts, roleFilter, statusFilter, searchText]);
 
-  return (
-    <div className="min-h-screen w-full max-w-full overflow-x-clip bg-sand">
-      {/* Barra superior */}
-      <header className="safe-top sticky top-0 z-30 border-b border-white/10 bg-inverse pb-3.5 text-on-inverse shadow-md">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 sm:px-6 md:px-8">
-          <div className="flex min-w-0 items-center gap-3">
-            <span className="font-display text-lg font-extrabold tracking-[0.18em] text-brand">
-              RITMO
-            </span>
-            <span className="hidden rounded-full bg-white/10 px-2.5 py-0.5 text-[11px] font-extrabold text-on-inverse sm:inline-block">
-              {isAdmin ? '🛡️ Administração' : '🛎️ Portaria'}
-            </span>
-          </div>
-
-          <div className="flex shrink-0 items-center gap-2">
-            {linkedProfiles.map((p) => (
-              <button
-                key={p.role}
-                type="button"
-                disabled={switching}
-                onClick={() => void handleSwitch(p.role)}
-                className="shrink-0 rounded-full bg-white/10 px-3 py-1.5 text-xs font-extrabold text-on-inverse transition hover:bg-white/15 active:scale-95 disabled:opacity-50"
-              >
-                ⇄ {roleLabel(p.role)}
-              </button>
-            ))}
-            <button
-              type="button"
-              onClick={toggleTheme}
-              aria-label={isDark ? 'Ativar tema claro' : 'Ativar tema escuro'}
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/10 text-sm transition hover:bg-white/15 active:scale-90"
-            >
-              {isDark ? '☀️' : '🌙'}
-            </button>
-            <div className="hidden text-right sm:block">
-              <p className="text-xs font-extrabold leading-tight">{user?.name}</p>
-              <p className="text-[11px] text-on-inverse-muted">@{user?.username}</p>
-            </div>
-            <button
-              type="button"
-              onClick={() => void logout()}
-              className="shrink-0 rounded-full bg-white/10 px-3.5 py-1.5 text-xs font-bold text-on-inverse transition hover:bg-white/15 active:scale-95"
-            >
-              Sair
-            </button>
-          </div>
-        </div>
-      </header>
-
-      {/* Cabeçalho da página */}
-      <div className="border-b border-line bg-paper">
-        <div className="mx-auto flex max-w-6xl flex-wrap items-end justify-between gap-3 px-4 py-5 sm:px-6 sm:py-6 md:px-8">
-          <div className="min-w-0">
-            <p className="text-[13px] font-bold text-muted2">
-              {isAdmin
-                ? 'Gestão completa da plataforma'
-                : 'Cadastro de alunos e suporte operacional'}
+  const bodyContent = (
+    <div className={embedded ? 'space-y-5' : 'mx-auto max-w-6xl space-y-5 p-4 pb-16 sm:p-6 md:p-8'}>
+      {embedded && (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-xs font-extrabold uppercase tracking-wide text-muted2">
+              Gestão de acessos
             </p>
-            <h1 className="font-display text-[26px] font-extrabold leading-tight tracking-tight sm:text-[32px]">
-              {isAdmin ? 'Contas & Sistema' : 'Recepção / Portaria'}
-            </h1>
+            <h2 className="font-display text-xl font-extrabold text-ink">
+              Contas dos 4 perfis (Admin, Portaria, Personal e Alunos)
+            </h2>
           </div>
           <button
             type="button"
@@ -245,31 +197,26 @@ export function AccountManagementPanel({
             }}
             className="rounded-xl bg-brand px-4 py-2.5 text-sm font-extrabold text-white shadow-brand transition active:scale-[0.99]"
           >
-            {isCreating
-              ? 'Fechar formulário'
-              : isAdmin
-                ? '＋ Nova conta'
-                : '＋ Novo aluno'}
+            {isCreating ? 'Fechar formulário' : '＋ Nova conta'}
           </button>
         </div>
+      )}
+
+      {headerExtra}
+
+      {/* KPIs rápidos */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <KpiCard label="Contas visíveis" value={counts.total} />
+        <KpiCard label="Ativas" value={counts.active} tone="done" />
+        <KpiCard label="Desativadas" value={counts.inactive} tone={counts.inactive > 0 ? 'skip' : undefined} />
+        <KpiCard
+          label={isAdmin ? 'Personais ativos' : 'Alunos ativos'}
+          value={
+            accounts.filter((a) => a.active && a.role === (isAdmin ? 'PERSONAL' : 'TRAINEE'))
+              .length
+          }
+        />
       </div>
-
-      <main className="mx-auto max-w-6xl space-y-5 p-4 pb-16 sm:p-6 md:p-8">
-        {headerExtra}
-
-        {/* KPIs rápidos */}
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <KpiCard label="Contas visíveis" value={counts.total} />
-          <KpiCard label="Ativas" value={counts.active} tone="done" />
-          <KpiCard label="Desativadas" value={counts.inactive} tone={counts.inactive > 0 ? 'skip' : undefined} />
-          <KpiCard
-            label={isAdmin ? 'Personais ativos' : 'Alunos ativos'}
-            value={
-              accounts.filter((a) => a.active && a.role === (isAdmin ? 'PERSONAL' : 'TRAINEE'))
-                .length
-            }
-          />
-        </div>
 
         {errorMessage && (
           <div className="flex items-center justify-between gap-3 rounded-2xl border border-brand/30 bg-card p-3.5 text-sm font-semibold text-brand">
@@ -404,7 +351,91 @@ export function AccountManagementPanel({
               />
             ))}
         </section>
-      </main>
+    </div>
+  );
+
+  if (embedded) return bodyContent;
+
+  return (
+    <div className="min-h-screen w-full max-w-full overflow-x-clip bg-sand">
+      {/* Barra superior */}
+      <header className="safe-top sticky top-0 z-30 border-b border-white/10 bg-inverse pb-3.5 text-on-inverse shadow-md">
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 sm:px-6 md:px-8">
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="font-display text-lg font-extrabold tracking-[0.18em] text-brand">
+              RITMO
+            </span>
+            <span className="hidden rounded-full bg-white/10 px-2.5 py-0.5 text-[11px] font-extrabold text-on-inverse sm:inline-block">
+              {isAdmin ? '🛡️ Administração' : '🛎️ Portaria'}
+            </span>
+          </div>
+
+          <div className="flex shrink-0 items-center gap-2">
+            {linkedProfiles.map((p) => (
+              <button
+                key={p.role}
+                type="button"
+                disabled={switching}
+                onClick={() => void handleSwitch(p.role)}
+                className="shrink-0 rounded-full bg-white/10 px-3 py-1.5 text-xs font-extrabold text-on-inverse transition hover:bg-white/15 active:scale-95 disabled:opacity-50"
+              >
+                ⇄ {roleLabel(p.role)}
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={toggleTheme}
+              aria-label={isDark ? 'Ativar tema claro' : 'Ativar tema escuro'}
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/10 text-sm transition hover:bg-white/15 active:scale-90"
+            >
+              {isDark ? '☀️' : '🌙'}
+            </button>
+            <div className="hidden text-right sm:block">
+              <p className="text-xs font-extrabold leading-tight">{user?.name}</p>
+              <p className="text-[11px] text-on-inverse-muted">@{user?.username}</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => void logout()}
+              className="shrink-0 rounded-full bg-white/10 px-3.5 py-1.5 text-xs font-bold text-on-inverse transition hover:bg-white/15 active:scale-95"
+            >
+              Sair
+            </button>
+          </div>
+        </div>
+      </header>
+
+      {/* Cabeçalho da página */}
+      <div className="border-b border-line bg-paper">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-end justify-between gap-3 px-4 py-5 sm:px-6 sm:py-6 md:px-8">
+          <div className="min-w-0">
+            <p className="text-[13px] font-bold text-muted2">
+              {isAdmin
+                ? 'Gestão completa da plataforma'
+                : 'Cadastro de alunos e suporte operacional'}
+            </p>
+            <h1 className="font-display text-[26px] font-extrabold leading-tight tracking-tight sm:text-[32px]">
+              {isAdmin ? 'Contas & Sistema' : 'Recepção / Portaria'}
+            </h1>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setErrorMessage(null);
+              setIsCreating((open) => !open);
+            }}
+            className="rounded-xl bg-brand px-4 py-2.5 text-sm font-extrabold text-white shadow-brand transition active:scale-[0.99]"
+          >
+            {isCreating
+              ? 'Fechar formulário'
+              : isAdmin
+                ? '＋ Nova conta'
+                : '＋ Novo aluno'}
+          </button>
+        </div>
+      </div>
+
+      <main>{bodyContent}</main>
     </div>
   );
 }
