@@ -79,13 +79,16 @@ export default function LoginPage() {
       triggerHaptic('success');
     } catch (err) {
       triggerHaptic('warning');
-      setProfileChoices(null);
+      const isUnauthorized = err instanceof ApiError && err.status === 401;
+      if (!selectedRole || isUnauthorized) {
+        setProfileChoices(null);
+        setPassword('');
+      }
       setError(
         err instanceof ApiError
           ? err.message
           : 'Não foi possível entrar. Tente novamente.',
       );
-      setPassword('');
     } finally {
       setBusy(false);
     }
@@ -94,6 +97,21 @@ export default function LoginPage() {
   function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     void submitCredentials();
+  }
+
+  if (loading || user) {
+    return (
+      <div className="app-shell safe-top safe-bottom items-center justify-center px-5 py-8">
+        <div className="flex flex-col items-center text-center">
+          <div className="font-display text-[32px] font-extrabold uppercase tracking-[0.22em] text-brand">
+            Ritmo
+          </div>
+          <p className="mt-3 text-sm font-semibold text-muted2">
+            Verificando sua sessão…
+          </p>
+        </div>
+      </div>
+    );
   }
 
   const inputClass =

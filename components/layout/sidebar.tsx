@@ -40,6 +40,7 @@ export function Sidebar() {
   const { user, linkedProfiles, switchProfile, logout } = useAuth();
   const [isDark, setIsDark] = useState(false);
   const [switching, setSwitching] = useState(false);
+  const [switchError, setSwitchError] = useState<string | null>(null);
 
   useEffect(() => {
     setIsDark(readInitialIsDark());
@@ -54,8 +55,15 @@ export function Sidebar() {
   async function handleSwitch(targetRole: (typeof linkedProfiles)[number]['role']) {
     if (switching) return;
     setSwitching(true);
+    setSwitchError(null);
     try {
       await switchProfile(targetRole);
+    } catch (err) {
+      setSwitchError(
+        err instanceof Error && err.message
+          ? err.message
+          : 'Não foi possível alternar o perfil agora.',
+      );
     } finally {
       setSwitching(false);
     }
@@ -105,6 +113,22 @@ export function Sidebar() {
         </nav>
 
         <div className="mt-auto space-y-3 border-t border-white/10 pt-4">
+          {switchError && (
+            <div
+              role="alert"
+              className="rounded-xl bg-brand/20 p-2.5 text-[11px] font-semibold text-on-inverse"
+            >
+              <p>{switchError}</p>
+              <button
+                type="button"
+                onClick={() => setSwitchError(null)}
+                className="mt-1 font-extrabold underline"
+              >
+                fechar
+              </button>
+            </div>
+          )}
+
           {linkedProfiles.map((p) => (
             <button
               key={p.role}
@@ -130,7 +154,7 @@ export function Sidebar() {
             </div>
             <button
               type="button"
-              onClick={logout}
+              onClick={() => void logout()}
               className="text-xs font-bold text-on-inverse-muted hover:text-on-inverse"
             >
               Sair
@@ -140,8 +164,8 @@ export function Sidebar() {
       </aside>
 
       {/* Mobile top bar */}
-      <header className="safe-top sticky top-0 z-30 w-full max-w-full bg-inverse px-4 pb-3 text-on-inverse shadow-md md:hidden">
-        <div className="mb-2.5 flex items-center justify-between gap-3">
+      <header className="safe-top sticky top-0 z-30 w-full max-w-full bg-inverse px-4 pb-2.5 text-on-inverse shadow-md md:hidden">
+        <div className="mb-2 flex items-center justify-between gap-2">
           <div className="font-display text-[17px] font-extrabold tracking-[0.16em] text-brand">
             RITMO
           </div>
@@ -152,7 +176,7 @@ export function Sidebar() {
                 type="button"
                 disabled={switching}
                 onClick={() => void handleSwitch(p.role)}
-                className="shrink-0 rounded-full bg-white/10 px-3 py-1.5 text-xs font-bold text-on-inverse transition active:scale-95 disabled:opacity-50"
+                className="shrink-0 rounded-full bg-white/10 px-2.5 py-1.5 text-xs font-bold text-on-inverse transition active:scale-95 disabled:opacity-50"
               >
                 ⇄ {roleLabel(p.role)}
               </button>
@@ -168,21 +192,41 @@ export function Sidebar() {
             </button>
             <button
               type="button"
-              onClick={logout}
-              className="shrink-0 rounded-full bg-white/10 px-3.5 py-1.5 text-xs font-bold text-on-inverse transition active:scale-95"
+              onClick={() => void logout()}
+              className="shrink-0 rounded-full bg-white/10 px-3 py-1.5 text-xs font-bold text-on-inverse transition active:scale-95"
             >
               Sair
             </button>
           </div>
         </div>
-        <nav aria-label="Navegação do painel" className="flex flex-wrap gap-1.5">
+
+        {switchError && (
+          <div
+            role="alert"
+            className="mb-2 flex items-center justify-between gap-2 rounded-xl bg-brand/25 px-3 py-1.5 text-xs font-semibold text-on-inverse"
+          >
+            <span>{switchError}</span>
+            <button
+              type="button"
+              onClick={() => setSwitchError(null)}
+              className="shrink-0 font-extrabold underline"
+            >
+              fechar
+            </button>
+          </div>
+        )}
+
+        <nav
+          aria-label="Navegação do painel"
+          className="no-scrollbar flex flex-nowrap gap-1.5 overflow-x-auto pb-0.5"
+        >
           {NAV.map((n) => {
             const active = isActive(pathname, n.href);
             return (
               <Link
                 key={n.href}
                 href={n.href}
-                className={`rounded-full px-3 py-1 text-xs font-bold transition active:scale-95 ${
+                className={`shrink-0 rounded-full px-3 py-1 text-xs font-bold transition active:scale-95 ${
                   active ? 'bg-brand text-white' : 'bg-white/10 text-on-inverse/80'
                 }`}
               >

@@ -36,8 +36,18 @@ function handleUnauthorized() {
   clearCelebratedAchievements();
   if (!window.location.pathname.startsWith('/login')) {
     window.location.replace('/login');
+    return;
   }
   handlingUnauthorized = false;
+}
+
+function handlePasswordChangeRequired(msg: string) {
+  if (typeof window === 'undefined') return;
+  if (!msg.toLowerCase().includes('troca de senha obrigatória')) return;
+  const p = window.location.pathname;
+  if (!p.startsWith('/trocar-senha') && !p.startsWith('/login')) {
+    window.location.replace('/trocar-senha');
+  }
 }
 
 async function requestRaw<T>(
@@ -74,9 +84,11 @@ async function requestRaw<T>(
     } catch {
       /* ignore */
     }
-    // 401 fora do login = sessão caiu → desloga. (No login, 401 é só "PIN errado".)
+    // 401 fora do login = sessão caiu → desloga. (No login, 401 é só credencial inválida.)
     if (res.status === 401 && !path.startsWith('/auth/login')) {
       handleUnauthorized();
+    } else if (res.status === 403) {
+      handlePasswordChangeRequired(msg);
     }
     throw new ApiError(res.status, msg);
   }
@@ -145,6 +157,8 @@ export const api = {
       }
       if (res.status === 401) {
         handleUnauthorized();
+      } else if (res.status === 403) {
+        handlePasswordChangeRequired(msg);
       }
       throw new ApiError(res.status, msg);
     }
