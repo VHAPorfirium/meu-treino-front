@@ -25,6 +25,8 @@ export default function FotosPage() {
   const [photos, setPhotos] = useState<ProgressPhoto[] | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [photoNote, setPhotoNote] = useState('');
   const [selectedView, setSelectedView] = useState<PhotosView>('comparison');
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -43,10 +45,12 @@ export default function FotosPage() {
     const fileExtension = (photoFile.name.split('.').pop() ?? '').toLowerCase();
     if (!ALLOWED_EXTENSIONS.includes(fileExtension)) {
       setErrorMessage('Formato não suportado (use jpg, png, webp ou heic).');
+      if (fileInputRef.current) fileInputRef.current.value = '';
       return;
     }
     if (photoFile.size > MAXIMUM_PHOTO_SIZE_IN_BYTES) {
       setErrorMessage('Foto muito grande (máx. 15 MB).');
+      if (fileInputRef.current) fileInputRef.current.value = '';
       return;
     }
     setIsUploading(true);
@@ -70,13 +74,17 @@ export default function FotosPage() {
     }
   }
 
-  async function removePhoto(photo: ProgressPhoto) {
-    if (!confirm('Apagar esta foto?')) return;
+  async function confirmRemovePhoto(photo: ProgressPhoto) {
+    setDeletingId(photo.id);
+    setErrorMessage(null);
     try {
       await photosApi.remove(photo.id);
+      setConfirmDeleteId(null);
       setPhotos((currentPhotos) => currentPhotos?.filter((currentPhoto) => currentPhoto.id !== photo.id) ?? null);
     } catch (error) {
       setErrorMessage(error instanceof ApiError ? error.message : 'Não foi possível apagar');
+    } finally {
+      setDeletingId(null);
     }
   }
 
@@ -152,30 +160,58 @@ export default function FotosPage() {
             <section>
               <SectionTitle>Todas as fotos · {photos.length}</SectionTitle>
               <div className={`grid gap-2 ${selectedView === 'timeline' ? 'grid-cols-2' : 'grid-cols-3'}`}>
-                {newestFirstPhotos.map((photo) => (
-                  <figure key={photo.id} className="relative overflow-hidden rounded-2xl bg-chip">
-                    {photo.url ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={photo.url} alt={photo.note ?? 'Foto de progresso'} className="aspect-[3/4] w-full object-cover" />
-                    ) : (
-                      <div className="aspect-[3/4] w-full" />
-                    )}
-                    <figcaption className="absolute inset-x-1.5 bottom-1.5 flex items-center justify-between gap-1">
-                      <span className="truncate rounded-md bg-black/45 px-1.5 py-0.5 text-[10px] font-extrabold text-white">
-                        {formatShortDate(photo.takenAt)}
-                        {selectedView === 'timeline' && photo.note ? ` · ${photo.note}` : ''}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => removePhoto(photo)}
-                        aria-label="Apagar foto"
-                        className="shrink-0 rounded-md bg-black/45 px-1.5 py-0.5 text-[10px] font-extrabold text-white"
-                      >
-                        ✕
-                      </button>
-                    </figcaption>
-                  </figure>
-                ))}
+                {newestFirstPhotos.map((photo) => {
+                  const isConfirming = confirmDeleteId === photo.id;
+                  const isDeleting = deletingId === photo.id;
+                  return (
+                    <figure key={photo.id} className="relative overflow-hidden rounded-2xl bg-chip">
+                      {photo.url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={photo.url} alt={photo.note ?? 'Foto de progresso'} className="aspect-[3/4] w-full object-cover" />
+                      ) : (
+                        <div className="aspect-[3/4] w-full" />
+                      )}
+                      {isConfirming ? (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/75 p-2 text-center">
+                          <p className="text-[11px] font-extrabold text-white">Apagar foto?</p>
+                          <div className="flex gap-1.5">
+                            <button
+                              type="button"
+                              disabled={isDeleting}
+                              onClick={() => setConfirmDeleteId(null)}
+                              className="rounded-lg bg-white/20 px-2.5 py-1 text-[11px] font-extrabold text-white"
+                            >
+                              Não
+                            </button>
+                            <button
+                              type="button"
+                              disabled={isDeleting}
+                              onClick={() => void confirmRemovePhoto(photo)}
+                              className="rounded-lg bg-brand px-2.5 py-1 text-[11px] font-extrabold text-white disabled:opacity-50"
+                            >
+                              {isDeleting ? '…' : 'Sim'}
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <figcaption className="absolute inset-x-1.5 bottom-1.5 flex items-center justify-between gap-1">
+                          <span className="truncate rounded-md bg-black/45 px-1.5 py-0.5 text-[10px] font-extrabold text-white">
+                            {formatShortDate(photo.takenAt)}
+                            {selectedView === 'timeline' && photo.note ? ` · ${photo.note}` : ''}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setConfirmDeleteId(photo.id)}
+                            aria-label="Apagar foto"
+                            className="shrink-0 rounded-md bg-black/45 px-1.5 py-0.5 text-[10px] font-extrabold text-white"
+                          >
+                            ✕
+                          </button>
+                        </figcaption>
+                      )}
+                    </figure>
+                  );
+                })}
               </div>
             </section>
             <p className="text-center text-[11px] text-muted2">

@@ -321,8 +321,12 @@ function WorkoutEditor({
 }) {
   const [name, setName] = useState(detail.name);
   const [busy, setBusy] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
-  useEffect(() => setName(detail.name), [detail.id, detail.name]);
+  useEffect(() => {
+    setName(detail.name);
+    setConfirmDelete(false);
+  }, [detail.id, detail.name]);
 
   async function reload() {
     await onChanged(await workoutsApi.get(detail.id));
@@ -355,11 +359,11 @@ function WorkoutEditor({
   const duplicate = () =>
     run(() => workoutsApi.duplicate(detail.id), 'Não foi possível duplicar');
 
-  async function remove() {
-    if (!confirm(`Excluir o treino "${detail.name}"? Essa ação não pode ser desfeita.`)) return;
+  async function confirmRemove() {
     setBusy(true);
     try {
       await workoutsApi.remove(detail.id);
+      setConfirmDelete(false);
       await onDeleted();
     } catch (e) {
       // 409: tem histórico → orienta a desativar
@@ -479,21 +483,48 @@ function WorkoutEditor({
       </div>
 
       {/* ações */}
-      <div className="flex flex-wrap gap-2 border-t border-line pt-3">
-        <button
-          onClick={duplicate}
-          disabled={busy}
-          className="min-w-[120px] flex-1 rounded-xl bg-chip py-2.5 text-sm font-extrabold text-ink disabled:opacity-50"
-        >
-          Duplicar treino
-        </button>
-        <button
-          onClick={remove}
-          disabled={busy}
-          className="min-w-[120px] flex-1 rounded-xl bg-chip py-2.5 text-sm font-extrabold text-brand disabled:opacity-50"
-        >
-          Excluir treino
-        </button>
+      <div className="space-y-2 border-t border-line pt-3">
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={duplicate}
+            disabled={busy}
+            className="min-w-[120px] flex-1 rounded-xl bg-chip py-2.5 text-sm font-extrabold text-ink disabled:opacity-50"
+          >
+            Duplicar treino
+          </button>
+          <button
+            onClick={() => setConfirmDelete((v) => !v)}
+            disabled={busy}
+            className="min-w-[120px] flex-1 rounded-xl bg-chip py-2.5 text-sm font-extrabold text-brand disabled:opacity-50"
+          >
+            Excluir treino
+          </button>
+        </div>
+        {confirmDelete && (
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-brand/30 bg-paper p-3">
+            <p className="text-xs font-bold text-ink">
+              Excluir &ldquo;{detail.name}&rdquo;? Essa ação não pode ser desfeita.
+            </p>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => setConfirmDelete(false)}
+                className="rounded-lg border border-line px-3 py-1.5 text-xs font-extrabold text-muted"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void confirmRemove()}
+                className="rounded-lg bg-brand px-3.5 py-1.5 text-xs font-extrabold text-white disabled:opacity-50"
+              >
+                {busy ? 'Excluindo…' : 'Sim, excluir'}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

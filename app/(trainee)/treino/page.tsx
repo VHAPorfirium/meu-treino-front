@@ -15,6 +15,7 @@ import {
   workoutsApi,
 } from '@/lib/api/endpoints';
 import { ApiError } from '@/lib/api/client';
+import { copyText } from '@/lib/clipboard';
 import { useAuth } from '@/lib/auth/auth-context';
 import { useCurrentProgram } from '@/lib/programs/use-current-program';
 import { PROGRAM_TYPE_RULES } from '@/lib/programs/program-type-rules';
@@ -76,9 +77,13 @@ export default function TraineeHomePage() {
   } = useCurrentProgram();
 
   const reloadWorkoutsAndProgram = useCallback(() => {
+    setErrorMessage(null);
     workoutsApi
       .today(new Date().getDay())
-      .then(setTodayResponse)
+      .then((res) => {
+        setTodayResponse(res);
+        setErrorMessage(null);
+      })
       .catch(() => setErrorMessage('Sem conexão — não foi possível carregar seus treinos.'));
     workoutsApi
       .mine()
@@ -188,12 +193,12 @@ export default function TraineeHomePage() {
 
   async function copyOwnUsername() {
     if (!user?.username) return;
-    try {
-      await navigator.clipboard.writeText(`@${user.username}`);
+    const ok = await copyText(`@${user.username}`);
+    if (ok) {
       setCopiedHandle(true);
       setTimeout(() => setCopiedHandle(false), 2000);
-    } catch {
-      /* fallback silencioso */
+    } else {
+      setErrorMessage('Não foi possível copiar automaticamente — selecione seu @apelido abaixo.');
     }
   }
 
@@ -336,7 +341,7 @@ export default function TraineeHomePage() {
         )}
         {isLoading && !errorMessage && <p className="py-10 text-center text-muted2">Carregando…</p>}
 
-        {!isLoading && activeWorkouts.length === 0 && (
+        {!isLoading && !errorMessage && activeWorkouts.length === 0 && (
           <div className="py-14 text-center text-muted2">
             <p className="text-4xl">🛌</p>
             <p className="mt-2 font-semibold">Nenhum treino atribuído a você.</p>
@@ -463,7 +468,7 @@ export default function TraineeHomePage() {
                   <p className="mt-0.5 text-xs font-semibold text-muted2">
                     Passe seu apelido ao personal para receber o convite:
                   </p>
-                  <p className="mt-1 font-display text-base font-extrabold text-ink">
+                  <p className="mt-1 select-text font-display text-base font-extrabold text-ink">
                     @{user?.username}
                   </p>
                 </div>

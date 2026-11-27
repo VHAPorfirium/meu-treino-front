@@ -91,6 +91,7 @@ function Row({
   );
   const [rest, setRest] = useState(item.restSeconds != null ? String(item.restSeconds) : '');
   const [busy, setBusy] = useState(false);
+  const [confirmRemove, setConfirmRemove] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const style = { transform: CSS.Transform.toString(transform), transition };
@@ -152,14 +153,14 @@ function Row({
     }
   }
 
-  async function remove() {
-    if (!confirm(`Remover "${nomeExercicio(item.exercise)}" do treino?`)) return;
+  async function executeRemove() {
     setBusy(true);
     setError(null);
     try {
       await onRemove(item.id);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Não foi possível remover');
+      setConfirmRemove(false);
       setBusy(false);
     }
   }
@@ -198,14 +199,17 @@ function Row({
             <div className="flex shrink-0 items-center gap-1.5">
               <button
                 type="button"
-                onClick={() => setEditing(true)}
+                onClick={() => {
+                  setConfirmRemove(false);
+                  setEditing(true);
+                }}
                 className="rounded-lg bg-chip px-2.5 py-1 text-xs font-bold text-ink"
               >
                 Editar
               </button>
               <button
                 type="button"
-                onClick={remove}
+                onClick={() => setConfirmRemove((v) => !v)}
                 disabled={busy}
                 aria-label="Remover exercício"
                 className="rounded-lg bg-chip px-2.5 py-1 text-xs font-bold text-brand disabled:opacity-50"
@@ -216,6 +220,32 @@ function Row({
           </div>
         )}
       </div>
+
+      {confirmRemove && !editing && (
+        <div className="mt-2 flex flex-wrap items-center justify-between gap-2 border-t border-line pt-2 sm:pl-8">
+          <p className="text-xs font-bold text-ink">
+            Remover &ldquo;{nomeExercicio(item.exercise)}&rdquo; deste treino?
+          </p>
+          <div className="flex gap-1.5">
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => setConfirmRemove(false)}
+              className="rounded-lg border border-line px-2.5 py-1 text-xs font-extrabold text-muted"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void executeRemove()}
+              className="rounded-lg bg-brand px-3 py-1 text-xs font-extrabold text-white disabled:opacity-50"
+            >
+              {busy ? '…' : 'Remover'}
+            </button>
+          </div>
+        </div>
+      )}
 
       {editing && (
         <div className="mt-2.5 space-y-2.5 border-t border-line pt-2.5 sm:pl-8">

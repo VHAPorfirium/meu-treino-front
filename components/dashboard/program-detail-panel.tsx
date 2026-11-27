@@ -44,6 +44,8 @@ export function ProgramDetailPanel({
   const [isBusy, setIsBusy] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [traineeIdsToAdd, setTraineeIdsToAdd] = useState<Set<string>>(new Set());
+  const [confirmArchiveId, setConfirmArchiveId] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const programWorkoutIds = new Set(program.workouts.map((workout) => workout.id));
   const currentParticipants = program.assignments.filter(
@@ -85,25 +87,31 @@ export function ProgramDetailPanel({
     }, 'Não foi possível adicionar os alunos');
   }
 
-  function archiveParticipant(assignment: ProgramAssignmentDetail) {
-    if (!window.confirm(`Tirar ${assignment.user.name} de "${program.name}"?`)) return;
+  function confirmArchiveParticipant(assignment: ProgramAssignmentDetail) {
+    setConfirmArchiveId(null);
     void runAction(
       () => programsApi.archiveAssignment(assignment.id),
       'Não foi possível encerrar a participação',
     );
   }
 
-  async function deleteProgram() {
-    if (!window.confirm(`Excluir "${program.name}"? Os treinos continuam existindo.`)) return;
+  async function confirmDeleteProgram() {
     setIsBusy(true);
+    setErrorMessage(null);
     try {
       await programsApi.remove(program.id);
+      setConfirmDelete(false);
       await onDeleted();
     } catch (error) {
       setErrorMessage(describeErrorMessage(error, 'Não foi possível excluir'));
       setIsBusy(false);
     }
   }
+
+  const addTraineesEmptyMessage =
+    traineeOptions && traineeOptions.length === 0
+      ? 'Nenhum aluno vinculado ainda. Vincule alunos na aba Alunos.'
+      : 'Todos os alunos vinculados já estão neste programa.';
 
   return (
     <div className="mt-4 space-y-5 border-t border-line pt-4">
@@ -118,9 +126,15 @@ export function ProgramDetailPanel({
           <ParticipantRow
             key={assignment.id}
             assignment={assignment}
+            programName={program.name}
             hasDeadline={PROGRAM_TYPE_RULES[program.type].hasDeadline}
             disabled={isBusy}
-            onArchive={() => archiveParticipant(assignment)}
+            confirming={confirmArchiveId === assignment.id}
+            onRequestArchive={() =>
+              setConfirmArchiveId((prev) => (prev === assignment.id ? null : assignment.id))
+            }
+            onCancelArchive={() => setConfirmArchiveId(null)}
+            onConfirmArchive={() => confirmArchiveParticipant(assignment)}
           />
         ))}
         {pastParticipants.length > 0 && (
@@ -136,7 +150,7 @@ export function ProgramDetailPanel({
           options={traineesAvailableToAdd}
           selectedIds={traineeIdsToAdd}
           onToggle={(traineeId) => setTraineeIdsToAdd((current) => toggleIdInSet(current, traineeId))}
-          emptyMessage="Todos os alunos já estão neste programa."
+          emptyMessage={addTraineesEmptyMessage}
           disabled={isBusy}
         />
         {traineeIdsToAdd.size > 0 && (
@@ -162,28 +176,62 @@ export function ProgramDetailPanel({
 
       {errorMessage && <p className="text-sm font-semibold text-brand">{errorMessage}</p>}
 
-      <button
-        type="button"
-        disabled={isBusy}
-        onClick={deleteProgram}
-        className="text-sm font-extrabold text-brand underline disabled:opacity-60"
-      >
-        Excluir programa
-      </button>
+      {confirmDelete ? (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-brand/30 bg-paper p-3">
+          <p className="text-xs font-bold text-ink">
+            Excluir &ldquo;{program.name}&rdquo;? Os treinos e medalhas já conquistadas continuam preservados.
+          </p>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              disabled={isBusy}
+              onClick={() => setConfirmDelete(false)}
+              className="rounded-xl border border-line px-3 py-1.5 text-xs font-extrabold text-muted"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              disabled={isBusy}
+              onClick={() => void confirmDeleteProgram()}
+              className="rounded-xl bg-brand px-3.5 py-1.5 text-xs font-extrabold text-white disabled:opacity-60"
+            >
+              {isBusy ? 'Excluindo…' : 'Sim, excluir'}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button
+          type="button"
+          disabled={isBusy}
+          onClick={() => setConfirmDelete(true)}
+          className="text-sm font-extrabold text-brand underline disabled:opacity-60"
+        >
+          Excluir programa
+        </button>
+      )}
     </div>
   );
 }
 
 function ParticipantRow({
   assignment,
+  programName,
   hasDeadline,
   disabled,
-  onArchive,
+  confirming,
+  onRequestArchive,
+  onCancelArchive,
+  onConfirmArchive,
 }: {
   assignment: ProgramAssignmentDetail;
+  programName: string;
   hasDeadline: boolean;
   disabled: boolean;
-  onArchive: () => void;
+  confirming: boolean;
+  onRequestArchive: () => void;
+  onCancelArchive: () => void;
+  onConfirmArchive: () => void;
 }) {
   const startDateLabel = new Date(assignment.startDate).toLocaleDateString('pt-BR');
   return (
@@ -198,7 +246,7 @@ function ParticipantRow({
         <button
           type="button"
           disabled={disabled}
-          onClick={onArchive}
+          onClick={onRequestArchive}
           className="shrink-0 text-xs font-bold text-muted2 underline disabled:opacity-60"
         >
           encerrar
@@ -221,6 +269,31 @@ function ParticipantRow({
             className="h-full rounded-full bg-amber-500"
             style={{ width: `${assignment.progress.progressPercentage}%` }}
           />
+        </div>
+      )}
+      {confirming && (
+        <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 border-t border-line pt-2">
+          <p className="text-xs font-bold text-ink">
+            Tirar {assignment.user.name} de &ldquo;{programName}&rdquo;?
+          </p>
+          <div className="flex gap-1.5">
+            <button
+              type="button"
+              disabled={disabled}
+              onClick={onCancelArchive}
+              className="rounded-lg border border-line px-2.5 py-1 text-xs font-extrabold text-muted"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              disabled={disabled}
+              onClick={onConfirmArchive}
+              className="rounded-lg bg-brand px-3 py-1 text-xs font-extrabold text-white disabled:opacity-60"
+            >
+              Confirmar
+            </button>
+          </div>
         </div>
       )}
     </div>

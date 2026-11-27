@@ -131,7 +131,7 @@ export function ProgramForm({
         options={traineeOptions}
         selectedIds={selectedTraineeIds}
         onToggle={(traineeId) => setSelectedTraineeIds((current) => toggleIdInSet(current, traineeId))}
-        emptyMessage="Nenhum aluno cadastrado."
+        emptyMessage="Nenhum aluno vinculado ainda."
       />
       <p className="text-xs font-semibold text-muted2">
         Quem já estiver em outro programa sai dele e entra neste. Os treinos escolhidos aparecem

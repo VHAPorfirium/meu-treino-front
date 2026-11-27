@@ -65,7 +65,7 @@ export default function TreinosDoAlunoPage() {
         {currentProgram && programTypeRule && programWorkouts.length > 0 && (
           <section>
             {currentProgram.hasDeadline && currentProgram.progress ? (
-              <div className="mb-2.5 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-600 px-4 py-3 text-white">
+              <div className="mb-2.5 rounded-2xl bg-gradient-to-br from-amber-600 to-amber-800 px-4 py-3 text-white">
                 <div className="flex items-center justify-between gap-2">
                   <p className="truncate text-[11px] font-extrabold uppercase tracking-wider opacity-90">
                     {programTypeRule.icon} {programTypeRule.label} · {currentProgram.program.name}

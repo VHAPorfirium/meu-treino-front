@@ -185,16 +185,39 @@ export default function AlunosPage() {
         eyebrow="Carteira do Personal"
         title="Meus Alunos"
         actions={
-          <button
-            type="button"
-            onClick={() => {
-              setErrorMessage(null);
-              setIsLinkingTrainee((isOpen) => !isOpen);
-            }}
-            className="rounded-xl bg-brand px-4 py-2.5 text-sm font-extrabold text-white shadow-brand"
-          >
-            {isLinkingTrainee ? 'Fechar convite' : '＋ Vincular aluno'}
-          </button>
+          <>
+            <button
+              type="button"
+              onClick={() => {
+                setErrorMessage(null);
+                void loadPortfolio().catch((error) =>
+                  setErrorMessage(
+                    describeErrorMessage(
+                      error,
+                      'Não foi possível atualizar sua carteira de alunos.',
+                    ),
+                  ),
+                );
+                programsApi.list().then(setPrograms).catch(() => {});
+                workoutLogsApi.attention().then(setAttentionItems).catch(() => {});
+              }}
+              aria-label="Atualizar lista de alunos e convites"
+              title="Atualizar lista de alunos e convites"
+              className="rounded-xl border border-line bg-card px-3 py-2.5 text-sm font-extrabold text-ink transition active:scale-95"
+            >
+              ↻
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setErrorMessage(null);
+                setIsLinkingTrainee((isOpen) => !isOpen);
+              }}
+              className="rounded-xl bg-brand px-4 py-2.5 text-sm font-extrabold text-white shadow-brand"
+            >
+              {isLinkingTrainee ? 'Fechar convite' : '＋ Vincular aluno'}
+            </button>
+          </>
         }
       />
 
@@ -280,6 +303,11 @@ export default function AlunosPage() {
                   Peça o @apelido do aluno e clique em &ldquo;＋ Vincular aluno&rdquo;.
                 </p>
               </div>
+            )}
+            {trainees.length > 0 && visibleTrainees.length === 0 && (
+              <p className="p-3 text-center text-xs font-bold text-muted2">
+                Nenhum aluno encontrado para &ldquo;{searchText.trim()}&rdquo;.
+              </p>
             )}
             {visibleTrainees.map((trainee) => {
               const traineeStatus = describeTraineeStatus(

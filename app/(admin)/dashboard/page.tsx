@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import type { AttentionItem, ProgressSummary, TrainingProgram } from '@/lib/types';
-import { programsApi, workoutLogsApi } from '@/lib/api/endpoints';
+import { programsApi, usersApi, workoutLogsApi } from '@/lib/api/endpoints';
 import { useAuth } from '@/lib/auth/auth-context';
 import { greetingForHour } from '@/lib/trainee/workout-history';
 import { AttentionPanel } from '@/components/dashboard/attention-panel';
@@ -22,10 +22,15 @@ export default function DashboardHome() {
   const { user } = useAuth();
   const [attentionItems, setAttentionItems] = useState<AttentionItem[] | null>(null);
   const [programs, setPrograms] = useState<TrainingProgram[] | null>(null);
+  const [hasTrainees, setHasTrainees] = useState(true);
 
   useEffect(() => {
     workoutLogsApi.attention().then(setAttentionItems).catch(() => setAttentionItems([]));
     programsApi.list().then(setPrograms).catch(() => setPrograms([]));
+    usersApi
+      .list({ role: 'TRAINEE' })
+      .then((list) => setHasTrainees(list.length > 0))
+      .catch(() => {});
   }, []);
 
   // com um aluno filtrado, os blocos laterais mostram só ele
@@ -202,7 +207,10 @@ export default function DashboardHome() {
               </div>
 
               <div className="min-w-0 space-y-5">
-                <AttentionPanel attentionItems={visibleAttentionItems} />
+                <AttentionPanel
+                  attentionItems={visibleAttentionItems}
+                  hasTrainees={hasTrainees}
+                />
                 <ProgramsInProgressPanel programs={visiblePrograms} />
 
                 <div className="rounded-2xl border border-line bg-card p-4 sm:p-5">

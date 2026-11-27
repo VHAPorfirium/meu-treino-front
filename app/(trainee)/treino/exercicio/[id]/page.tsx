@@ -10,7 +10,8 @@ import { triggerHaptic } from '@/lib/haptics';
 import { SectionTitle } from '@/components/trainee/section-title';
 import { StatTile } from '@/components/trainee/stat-tile';
 
-const STRIPE = 'repeating-linear-gradient(135deg,#EFE7DC 0 8px,#E5DBCE 8px 16px)';
+const STRIPE =
+  'repeating-linear-gradient(135deg,rgb(var(--color-chip)) 0 8px,rgb(var(--color-line)) 8px 16px)';
 const COLLAPSED_STEPS_COUNT = 3;
 
 /** Quebra as instruções em passos (uma linha ou frase por passo). */
