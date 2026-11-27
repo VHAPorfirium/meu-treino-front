@@ -194,12 +194,12 @@ export function AdminOverviewTab({
               {security.topSuspiciousIps24h.map((item) => (
                 <div
                   key={item.ip}
-                  className="flex items-center justify-between gap-2 rounded-xl border border-line bg-paper px-3 py-2"
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-line bg-paper px-3 py-2"
                 >
-                  <span className="font-mono text-xs font-bold text-ink">
+                  <span className="min-w-0 select-text break-all font-mono text-xs font-bold text-ink">
                     {item.ip}
                   </span>
-                  <div className="flex items-center gap-2">
+                  <div className="flex shrink-0 items-center gap-2">
                     <span className="rounded-full bg-skip-bg px-2 py-0.5 text-[11px] font-extrabold text-skip">
                       {item.count} alerta{item.count > 1 ? 's' : ''}
                     </span>
@@ -246,9 +246,11 @@ export function AdminOverviewTab({
           <div className="flex h-44 items-end justify-between gap-2 pt-4">
             {security.loginDaily7d.map((day) => {
               const total = day.success + day.failure + day.locked;
-              const successPct = Math.round((day.success / maxDailyLogins) * 100);
-              const failurePct = Math.round((day.failure / maxDailyLogins) * 100);
-              const lockedPct = Math.round((day.locked / maxDailyLogins) * 100);
+              const barHeightPct =
+                total > 0 ? Math.max(10, Math.round((total / maxDailyLogins) * 100)) : 0;
+              const lockedShare = total > 0 ? (day.locked / total) * 100 : 0;
+              const failureShare = total > 0 ? (day.failure / total) * 100 : 0;
+              const successShare = total > 0 ? (day.success / total) * 100 : 0;
               return (
                 <div
                   key={day.day}
@@ -259,23 +261,30 @@ export function AdminOverviewTab({
                     {total > 0 ? total : ''}
                   </span>
                   <div className="flex h-28 w-full max-w-[36px] flex-col justify-end overflow-hidden rounded-lg bg-chip/60">
-                    {lockedPct > 0 && (
+                    {barHeightPct > 0 && (
                       <div
-                        className="w-full bg-brand"
-                        style={{ height: `${Math.max(6, lockedPct)}%` }}
-                      />
-                    )}
-                    {failurePct > 0 && (
-                      <div
-                        className="w-full bg-skip"
-                        style={{ height: `${Math.max(6, failurePct)}%` }}
-                      />
-                    )}
-                    {successPct > 0 && (
-                      <div
-                        className="w-full bg-done"
-                        style={{ height: `${Math.max(6, successPct)}%` }}
-                      />
+                        className="flex w-full flex-col justify-end overflow-hidden"
+                        style={{ height: `${barHeightPct}%` }}
+                      >
+                        {lockedShare > 0 && (
+                          <div
+                            className="w-full bg-brand"
+                            style={{ height: `${lockedShare}%`, minHeight: 2 }}
+                          />
+                        )}
+                        {failureShare > 0 && (
+                          <div
+                            className="w-full bg-skip"
+                            style={{ height: `${failureShare}%`, minHeight: 2 }}
+                          />
+                        )}
+                        {successShare > 0 && (
+                          <div
+                            className="w-full bg-done"
+                            style={{ height: `${successShare}%`, minHeight: 2 }}
+                          />
+                        )}
+                      </div>
                     )}
                   </div>
                   <span className="text-[11px] font-bold text-muted2">

@@ -424,6 +424,11 @@ export const adminApi = {
     ),
   accessLogsExportUrl: (params: Omit<AdminAccessLogsParams, 'limit' | 'offset'> = {}) =>
     `/api/admin/access-logs/export${buildAccessLogsQueryString(params)}`,
+  downloadAccessLogsCsv: (params: Omit<AdminAccessLogsParams, 'limit' | 'offset'> = {}) =>
+    api.downloadFile(
+      `/admin/access-logs/export${buildAccessLogsQueryString(params)}`,
+      'ritmo-access-logs.csv',
+    ),
 };
 
 

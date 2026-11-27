@@ -50,10 +50,14 @@ export function AccountManagementPanel({
   mode,
   headerExtra,
   embedded = false,
+  refreshSignal = 0,
+  onAccountsChanged,
 }: {
   mode: PanelMode;
   headerExtra?: ReactNode;
   embedded?: boolean;
+  refreshSignal?: number;
+  onAccountsChanged?: () => void;
 }) {
   const { user, linkedProfiles, switchProfile, logout } = useAuth();
   const [accounts, setAccounts] = useState<UserSummary[]>([]);
@@ -92,7 +96,7 @@ export function AccountManagementPanel({
 
   useEffect(() => {
     void loadAccounts();
-  }, [loadAccounts]);
+  }, [loadAccounts, refreshSignal]);
 
   function toggleTheme() {
     const next = !isDark;
@@ -116,6 +120,7 @@ export function AccountManagementPanel({
         .map((item) => (item.id === updated.id ? updated : item))
         .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')),
     );
+    onAccountsChanged?.();
   }
 
   async function copyBannerValue(value: string) {
@@ -262,6 +267,7 @@ export function AccountManagementPanel({
             onCreated={async (created, temporaryPassword) => {
               setIsCreating(false);
               await loadAccounts();
+              onAccountsChanged?.();
               setBanner({
                 message: `Conta criada: ${created.name} (@${created.username} · ${roleLabel(created.role)}). Senha temporária: ${temporaryPassword}`,
                 copyValue: `Acesso Ritmo\nApelido: @${created.username}\nSenha temporária: ${temporaryPassword}`,
