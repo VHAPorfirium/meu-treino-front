@@ -80,6 +80,7 @@ export default function AdminHistoricoPage() {
   async function loadMore() {
     if (loadingMore || !historyEntries) return;
     setLoadingMore(true);
+    setErrorMessage(null);
     try {
       const { items, total } = await workoutLogsApi.historyPage({
         limit: HISTORY_PAGE_SIZE,
@@ -128,9 +129,16 @@ export default function AdminHistoricoPage() {
             type="button"
             onClick={exportCsv}
             disabled={filteredEntries.length === 0}
+            title={
+              hasMore
+                ? `Exporta as ${filteredEntries.length} sessões filtradas já carregadas na tela`
+                : 'Exportar sessões filtradas em CSV'
+            }
             className="rounded-xl bg-chip px-4 py-2.5 text-sm font-extrabold text-ink disabled:opacity-50"
           >
-            ⬇ Exportar CSV
+            {hasMore
+              ? `⬇ Exportar CSV (${filteredEntries.length} carreg.)`
+              : '⬇ Exportar CSV'}
           </button>
         }
       />
@@ -176,7 +184,18 @@ export default function AdminHistoricoPage() {
           )}
         </div>
 
-        {errorMessage && <p className="text-brand-ink">{errorMessage}</p>}
+        {errorMessage && (
+          <div className="flex items-center justify-between gap-2 rounded-2xl border border-line bg-card p-3 text-sm font-semibold text-brand-ink">
+            <span>{errorMessage}</span>
+            <button
+              type="button"
+              onClick={() => setErrorMessage(null)}
+              className="shrink-0 text-xs font-extrabold underline"
+            >
+              fechar
+            </button>
+          </div>
+        )}
         {!historyEntries && !errorMessage && <p className="text-muted2">Carregando…</p>}
 
         {historyEntries && (
@@ -199,7 +218,11 @@ export default function AdminHistoricoPage() {
                   {filteredEntries.length === 0 && (
                     <tr>
                       <td colSpan={8} className="px-4 py-10 text-center text-muted2">
-                        Nenhuma sessão com esses filtros.
+                        {trainees.length === 0 && historyEntries.length === 0
+                          ? 'Nenhum aluno vinculado ainda. Vincule alunos na aba Alunos para acompanhar o histórico.'
+                          : hasMore
+                            ? 'Nenhuma sessão com esses filtros nas páginas carregadas. Clique em "Carregar mais sessões" abaixo para buscar registros mais antigos.'
+                            : 'Nenhuma sessão com esses filtros.'}
                       </td>
                     </tr>
                   )}

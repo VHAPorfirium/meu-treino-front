@@ -41,7 +41,7 @@ export default function TrocarSenhaPage() {
 
     if (!currentPassword) {
       triggerHaptic('warning');
-      setError('Informe sua senha atual (ou PIN anterior).');
+      setError('Informe sua senha atual.');
       return;
     }
 
@@ -115,7 +115,7 @@ export default function TrocarSenhaPage() {
               name="current-password"
               type={showPasswords ? 'text' : 'password'}
               autoComplete="current-password"
-              placeholder="Senha temporária ou PIN antigo"
+              placeholder="Digite sua senha atual ou temporária"
               value={currentPassword}
               disabled={busy}
               onChange={(e) => {

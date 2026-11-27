@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import type { ProgressSummary } from '@/lib/types';
-import { workoutLogsApi } from '@/lib/api/endpoints';
+import { usersApi, workoutLogsApi } from '@/lib/api/endpoints';
 import { PageHead } from '@/components/dashboard/page-head';
 import { FiltroAluno, useNomeAluno } from '@/components/dashboard/filtro-aluno';
 import { BarChart, LineChart } from '@/components/dashboard/charts';
@@ -18,10 +18,18 @@ export default function EvolucaoPage() {
   const [data, setData] = useState<ProgressSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [exercise, setExercise] = useState('');
+  const [hasTrainees, setHasTrainees] = useState(true);
 
   // '' = todos os alunos somados
   const [alunoId, setAlunoId] = useState('');
   const nomeAluno = useNomeAluno(alunoId);
+
+  useEffect(() => {
+    usersApi
+      .list({ role: 'TRAINEE' })
+      .then((list) => setHasTrainees(list.length > 0))
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     let cancelado = false;
@@ -77,6 +85,12 @@ export default function EvolucaoPage() {
       />
       <div className="mx-auto max-w-6xl space-y-5 p-4 sm:p-6 md:p-8">
         <FiltroAluno value={alunoId} onChange={setAlunoId} />
+
+        {!hasTrainees && !error && (
+          <p className="rounded-2xl border border-line bg-card p-4 text-sm font-semibold text-muted2">
+            Nenhum aluno vinculado ainda. Vincule alunos na aba Alunos para acompanhar a frequência e progressão de carga.
+          </p>
+        )}
 
         {error && <p className="text-brand-ink">{error}</p>}
         {!data && !error && <p className="text-muted2">Carregando…</p>}

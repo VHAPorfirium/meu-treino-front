@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import type { AdminOverview } from '@/lib/types';
 import {
   formatLatencyMs,
@@ -15,6 +16,7 @@ export function AdminOverviewTab({
   onInspectIp: (ip: string) => void;
 }) {
   const { database, cache, http, academy, security } = overview;
+  const [selectedDayKey, setSelectedDayKey] = useState<string | null>(null);
   const completedRatePct =
     academy.sessions.last30Days > 0
       ? Math.round(
@@ -27,6 +29,8 @@ export function AdminOverviewTab({
     1,
     ...security.loginDaily7d.map((d) => d.success + d.failure + d.locked),
   );
+  const selectedDay =
+    security.loginDaily7d.find((d) => d.day === selectedDayKey) ?? null;
 
   return (
     <div className="space-y-5">
@@ -251,16 +255,30 @@ export function AdminOverviewTab({
               const lockedShare = total > 0 ? (day.locked / total) * 100 : 0;
               const failureShare = total > 0 ? (day.failure / total) * 100 : 0;
               const successShare = total > 0 ? (day.success / total) * 100 : 0;
+              const isSelected = selectedDayKey === day.day;
+              const label = `${formatShortBrDay(day.day)}: ${day.success} OK, ${day.failure} falha, ${day.locked} bloqueio`;
               return (
-                <div
+                <button
                   key={day.day}
-                  title={`${formatShortBrDay(day.day)}: ${day.success} OK · ${day.failure} falha · ${day.locked} bloqueio`}
-                  className="flex h-full flex-1 flex-col items-center justify-end gap-1.5"
+                  type="button"
+                  aria-label={label}
+                  aria-pressed={isSelected}
+                  title={label}
+                  onClick={() =>
+                    setSelectedDayKey((prev) => (prev === day.day ? null : day.day))
+                  }
+                  className="group flex h-full flex-1 flex-col items-center justify-end gap-1.5 rounded-xl py-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand"
                 >
                   <span className="text-[10px] font-extrabold text-muted2">
                     {total > 0 ? total : ''}
                   </span>
-                  <div className="flex h-28 w-full max-w-[36px] flex-col justify-end overflow-hidden rounded-lg bg-chip/60">
+                  <div
+                    className={`flex h-28 w-full max-w-[36px] flex-col justify-end overflow-hidden rounded-lg transition ${
+                      isSelected
+                        ? 'bg-chip ring-2 ring-brand'
+                        : 'bg-chip/60 group-hover:bg-chip'
+                    }`}
+                  >
                     {barHeightPct > 0 && (
                       <div
                         className="flex w-full flex-col justify-end overflow-hidden"
@@ -287,13 +305,32 @@ export function AdminOverviewTab({
                       </div>
                     )}
                   </div>
-                  <span className="text-[11px] font-bold text-muted2">
+                  <span
+                    className={`text-[11px] font-bold ${
+                      isSelected ? 'text-brand-ink' : 'text-muted2'
+                    }`}
+                  >
                     {formatShortBrDay(day.day)}
                   </span>
-                </div>
+                </button>
               );
             })}
           </div>
+
+          {selectedDay ? (
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-line bg-paper px-3 py-2 text-xs font-bold">
+              <span className="text-ink">{formatShortBrDay(selectedDay.day)}</span>
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="text-done-ink">{selectedDay.success} OK</span>
+                <span className="text-skip">{selectedDay.failure} falha{selectedDay.failure === 1 ? '' : 's'}</span>
+                <span className="text-brand-ink">{selectedDay.locked} bloqueio{selectedDay.locked === 1 ? '' : 's'}</span>
+              </div>
+            </div>
+          ) : (
+            <p className="mt-2 text-center text-[11px] font-semibold text-muted2">
+              Toque em um dia para ver o detalhamento de logins.
+            </p>
+          )}
         </section>
       </div>
     </div>

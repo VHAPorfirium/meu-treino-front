@@ -291,7 +291,10 @@ function RouteTable({
                   <span className="shrink-0 rounded-md bg-chip px-1.5 py-0.5 font-mono text-[10px] font-extrabold text-ink">
                     {r.method}
                   </span>
-                  <span className="truncate font-mono text-xs font-bold text-ink">
+                  <span
+                    title={r.route}
+                    className="select-text truncate font-mono text-xs font-bold text-ink"
+                  >
                     {r.route}
                   </span>
                 </div>

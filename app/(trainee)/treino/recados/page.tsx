@@ -88,7 +88,7 @@ export default function RecadosPage() {
                 <div key={note.id} className="mb-3">
                   {isUnread && <p className="mb-1 ml-1 text-[11px] font-extrabold uppercase tracking-wider text-brand-ink">● Novo</p>}
                   <div
-                    className={`max-w-[88%] whitespace-pre-wrap rounded-[18px] rounded-bl-md border bg-card px-3.5 py-2.5 text-[14.5px] font-semibold leading-snug text-ink ${
+                    className={`max-w-[88%] select-text whitespace-pre-wrap rounded-[18px] rounded-bl-md border bg-card px-3.5 py-2.5 text-[14.5px] font-semibold leading-snug text-ink ${
                       isUnread ? 'border-brand shadow-[0_0_0_3px_rgba(238,78,34,0.12)]' : 'border-line'
                     }`}
                   >

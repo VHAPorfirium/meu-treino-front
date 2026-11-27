@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import type { HistoryEntry, ProgramAchievement } from '@/lib/types';
 import { programsApi, workoutLogsApi } from '@/lib/api/endpoints';
+import { ApiError } from '@/lib/api/client';
 import { useCurrentProgram } from '@/lib/programs/use-current-program';
 import { PROGRAM_TYPE_RULES } from '@/lib/programs/program-type-rules';
 import { buildAchievementTitle } from '@/lib/programs/achievement-summary';
@@ -30,19 +31,27 @@ function formatMonthYear(isoDate: string | null): string {
 /** Aba "Conquistas": medalhas dos desafios/mesociclos concluídos e a próxima em andamento. */
 export default function ConquistasPage() {
   const [achievements, setAchievements] = useState<ProgramAchievement[] | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [historyEntries, setHistoryEntries] = useState<HistoryEntry[]>([]);
   const [selectedAchievement, setSelectedAchievement] = useState<ProgramAchievement | null>(null);
   const { currentProgram, loadCurrentProgram } = useCurrentProgram();
 
   useEffect(() => {
     let cancelled = false;
+    setErrorMessage(null);
     programsApi
       .achievements()
       .then((list) => {
         if (!cancelled) setAchievements(list);
       })
-      .catch(() => {
-        if (!cancelled) setAchievements([]);
+      .catch((error) => {
+        if (!cancelled) {
+          setErrorMessage(
+            error instanceof ApiError
+              ? error.message
+              : 'Sem conexão — não foi possível carregar suas conquistas.',
+          );
+        }
       });
 
     (async () => {
@@ -82,7 +91,7 @@ export default function ConquistasPage() {
           <StatTile
             value={averageEvolution == null ? '–' : `${averageEvolution >= 0 ? '+' : ''}${averageEvolution}%`}
             label="carga média"
-            valueClassName={averageEvolution != null && averageEvolution > 0 ? '!text-done' : ''}
+            valueClassName={averageEvolution != null && averageEvolution > 0 ? '!text-done-ink' : ''}
           />
         </div>
 
@@ -108,8 +117,15 @@ export default function ConquistasPage() {
 
         <section>
           <SectionTitle>Medalhas</SectionTitle>
-          {achievements === null && <p className="py-6 text-center text-muted2">Carregando…</p>}
-          {achievements?.length === 0 && !nextMedalProgram && (
+          {errorMessage && (
+            <p className="rounded-2xl border border-line bg-card p-3 text-center text-sm font-semibold text-brand-ink">
+              {errorMessage}
+            </p>
+          )}
+          {achievements === null && !errorMessage && (
+            <p className="py-6 text-center text-muted2">Carregando…</p>
+          )}
+          {achievements?.length === 0 && !errorMessage && !nextMedalProgram && (
             <div className="py-10 text-center text-muted2">
               <p className="text-4xl">🏆</p>
               <p className="mt-2 font-semibold">Nenhuma medalha ainda.</p>

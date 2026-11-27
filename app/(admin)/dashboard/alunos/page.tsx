@@ -23,6 +23,7 @@ import {
   workoutsApi,
 } from '@/lib/api/endpoints';
 import { ApiError } from '@/lib/api/client';
+import { limpar as limparCache } from '@/lib/api/cache-modulo';
 import { normalizeUsername } from '@/lib/auth/credentials';
 import { PROGRAM_TYPE_RULES } from '@/lib/programs/program-type-rules';
 import {
@@ -98,6 +99,7 @@ function describeTraineeStatus(
 /** Carteira do Personal: alunos vinculados, convites por @apelido e acompanhamento. */
 export default function AlunosPage() {
   const [trainees, setTrainees] = useState<UserSummary[]>([]);
+  const [loadingPortfolio, setLoadingPortfolio] = useState(true);
   const [sentLinks, setSentLinks] = useState<TrainerTraineeLink[]>([]);
   const [programs, setPrograms] = useState<TrainingProgram[]>([]);
   const [attentionItems, setAttentionItems] = useState<AttentionItem[]>([]);
@@ -108,37 +110,52 @@ export default function AlunosPage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successBanner, setSuccessBanner] = useState<string | null>(null);
 
+  const showError = useCallback((message: string | null) => {
+    setErrorMessage(message);
+    if (message) setSuccessBanner(null);
+  }, []);
+
+  const showSuccess = useCallback((message: string | null) => {
+    setSuccessBanner(message);
+    if (message) setErrorMessage(null);
+  }, []);
+
   const loadPortfolio = useCallback(async (traineeIdToSelect?: string) => {
-    const [loadedTrainees, loadedLinks] = await Promise.all([
-      usersApi.list({ role: 'TRAINEE' }),
-      linksApi.sent().catch(() => [] as TrainerTraineeLink[]),
-    ]);
-    setTrainees(loadedTrainees);
-    setSentLinks(loadedLinks);
-    const requestedTraineeId =
-      traineeIdToSelect ??
-      (typeof window !== 'undefined'
-        ? new URLSearchParams(window.location.search).get('aluno') ?? undefined
-        : undefined);
-    setSelectedTrainee((current) => {
-      const targetId = requestedTraineeId ?? current?.id;
-      return (
-        loadedTrainees.find((trainee) => trainee.id === targetId) ??
-        loadedTrainees[0] ??
-        null
-      );
-    });
+    setLoadingPortfolio(true);
+    try {
+      const [loadedTrainees, loadedLinks] = await Promise.all([
+        usersApi.list({ role: 'TRAINEE' }),
+        linksApi.sent().catch(() => [] as TrainerTraineeLink[]),
+      ]);
+      setTrainees(loadedTrainees);
+      setSentLinks(loadedLinks);
+      const requestedTraineeId =
+        traineeIdToSelect ??
+        (typeof window !== 'undefined'
+          ? new URLSearchParams(window.location.search).get('aluno') ?? undefined
+          : undefined);
+      setSelectedTrainee((current) => {
+        const targetId = requestedTraineeId ?? current?.id;
+        return (
+          loadedTrainees.find((trainee) => trainee.id === targetId) ??
+          loadedTrainees[0] ??
+          null
+        );
+      });
+    } finally {
+      setLoadingPortfolio(false);
+    }
   }, []);
 
   useEffect(() => {
     loadPortfolio().catch((error) =>
-      setErrorMessage(
+      showError(
         describeErrorMessage(error, 'Não foi possível carregar sua carteira de alunos.'),
       ),
     );
     programsApi.list().then(setPrograms).catch(() => {});
     workoutLogsApi.attention().then(setAttentionItems).catch(() => {});
-  }, [loadPortfolio]);
+  }, [loadPortfolio, showError]);
 
   const pendingLinks = useMemo(
     () => sentLinks.filter((link) => link.status === 'PENDING'),
@@ -157,15 +174,16 @@ export default function AlunosPage() {
 
   async function cancelPendingInvite(link: TrainerTraineeLink) {
     setCancelingLinkId(link.id);
-    setErrorMessage(null);
+    showError(null);
     try {
       await linksApi.end(link.id);
-      setSuccessBanner(
+      showSuccess(
         `Convite para ${link.trainee?.name ?? 'aluno'} cancelado.`,
       );
+      limparCache('users:');
       await loadPortfolio();
     } catch (error) {
-      setErrorMessage(
+      showError(
         describeErrorMessage(error, 'Não foi possível cancelar o convite.'),
       );
     } finally {
@@ -190,9 +208,12 @@ export default function AlunosPage() {
             <button
               type="button"
               onClick={() => {
-                setErrorMessage(null);
+                showError(null);
+                showSuccess(null);
+                // Invalida o cache de 60s de usuários para refletir novos alunos aceitos na hora
+                limparCache('users:');
                 void loadPortfolio().catch((error) =>
-                  setErrorMessage(
+                  showError(
                     describeErrorMessage(
                       error,
                       'Não foi possível atualizar sua carteira de alunos.',
@@ -211,7 +232,7 @@ export default function AlunosPage() {
             <button
               type="button"
               onClick={() => {
-                setErrorMessage(null);
+                showError(null);
                 setIsLinkingTrainee((isOpen) => !isOpen);
               }}
               className="rounded-xl bg-brand px-4 py-2.5 text-sm font-extrabold text-white shadow-brand"
@@ -246,9 +267,10 @@ export default function AlunosPage() {
             onCancel={() => setIsLinkingTrainee(false)}
             onRequested={async (createdLink) => {
               setIsLinkingTrainee(false);
-              setSuccessBanner(
+              showSuccess(
                 `Convite enviado para ${createdLink.trainee?.name ?? 'o aluno'} (@${createdLink.trainee?.username ?? ''}). Aguarde a aceitação no app dele.`,
               );
+              limparCache('users:');
               await loadPortfolio();
             }}
           />
@@ -295,7 +317,12 @@ export default function AlunosPage() {
               placeholder="🔍 Buscar por nome ou @apelido"
               className="mb-2 w-full rounded-xl border border-line bg-paper px-3 py-2 text-sm font-semibold text-ink placeholder:text-muted2 focus:border-brand focus:outline-none"
             />
-            {trainees.length === 0 && (
+            {loadingPortfolio && trainees.length === 0 && (
+              <p className="p-4 text-center text-xs font-bold text-muted2">
+                Carregando alunos…
+              </p>
+            )}
+            {!loadingPortfolio && !errorMessage && trainees.length === 0 && (
               <div className="space-y-2 p-3 text-center">
                 <p className="text-sm font-bold text-muted2">
                   Nenhum aluno vinculado ainda.
@@ -351,9 +378,10 @@ export default function AlunosPage() {
               trainee={selectedTrainee}
               activeLink={activeLinkByTraineeId.get(selectedTrainee.id) ?? null}
               onLinkEnded={async (endedName) => {
-                setSuccessBanner(
+                showSuccess(
                   `Vínculo com ${endedName} encerrado. Os treinos e o histórico dele foram preservados.`,
                 );
+                limparCache('users:');
                 await loadPortfolio();
                 programsApi.list().then(setPrograms).catch(() => {});
                 workoutLogsApi.attention().then(setAttentionItems).catch(() => {});
@@ -761,7 +789,7 @@ function TraineeProfile({
                     : 'não lido'}
                 </span>
               </div>
-              <p className="whitespace-pre-wrap text-[15px] text-ink">
+              <p className="select-text whitespace-pre-wrap text-[15px] text-ink">
                 {note.text}
               </p>
             </div>

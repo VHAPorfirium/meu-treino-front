@@ -422,8 +422,6 @@ export const adminApi = {
     api.get<import('../types').AdminAccessLogPage>(
       `/admin/access-logs${buildAccessLogsQueryString(params)}`,
     ),
-  accessLogsExportUrl: (params: Omit<AdminAccessLogsParams, 'limit' | 'offset'> = {}) =>
-    `/api/admin/access-logs/export${buildAccessLogsQueryString(params)}`,
   downloadAccessLogsCsv: (params: Omit<AdminAccessLogsParams, 'limit' | 'offset'> = {}) =>
     api.downloadFile(
       `/admin/access-logs/export${buildAccessLogsQueryString(params)}`,

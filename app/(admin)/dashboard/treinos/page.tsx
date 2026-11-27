@@ -35,6 +35,7 @@ function msg(e: unknown, fallback: string) {
 
 export default function TreinosPage() {
   const [workouts, setWorkouts] = useState<Workout[]>([]);
+  const [loadingWorkouts, setLoadingWorkouts] = useState(true);
   const [detail, setDetail] = useState<WorkoutDetail | null>(null);
   const [creating, setCreating] = useState(false);
   const [creatingBusy, setCreatingBusy] = useState(false);
@@ -57,7 +58,11 @@ export default function TreinosPage() {
   });
 
   const refresh = useCallback(async () => {
-    setWorkouts(await workoutsApi.list());
+    try {
+      setWorkouts(await workoutsApi.list());
+    } finally {
+      setLoadingWorkouts(false);
+    }
   }, []);
 
   useEffect(() => {
@@ -67,6 +72,7 @@ export default function TreinosPage() {
   async function createWorkout() {
     if (!name.trim() || creatingBusy) return;
     setCreatingBusy(true);
+    setError(null);
     try {
       const w = await workoutsApi.create({
         name: name.trim(),
@@ -91,6 +97,7 @@ export default function TreinosPage() {
   }
 
   async function openDetail(id: string) {
+    setError(null);
     try {
       setDetail(await workoutsApi.get(id));
     } catch (e) {
@@ -237,7 +244,10 @@ export default function TreinosPage() {
               );
             })}
 
-            {workouts.length === 0 && !creating && !error && (
+            {loadingWorkouts && workouts.length === 0 && !error && (
+              <p className="py-10 text-center text-muted2">Carregando treinos…</p>
+            )}
+            {!loadingWorkouts && workouts.length === 0 && !creating && !error && (
               <p className="py-10 text-center text-muted2">Nenhum treino criado ainda.</p>
             )}
             {workouts.length > 0 && visibleWorkouts.length === 0 && (

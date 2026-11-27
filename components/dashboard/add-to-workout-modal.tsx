@@ -34,7 +34,13 @@ export function AddToWorkoutModal({
     workoutsApi
       .list()
       .then(setWorkouts)
-      .catch(() => setWorkouts([]));
+      .catch((error) =>
+        setErrorMessage(
+          error instanceof ApiError
+            ? error.message
+            : 'Não foi possível carregar seus treinos.',
+        ),
+      );
   }, []);
 
   async function confirmAddition() {
@@ -108,8 +114,8 @@ export function AddToWorkoutModal({
 
         <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 pb-4">
           <div className="space-y-1.5">
-            {workouts === null && <p className="text-sm text-muted2">Carregando treinos…</p>}
-            {workouts?.length === 0 && <p className="text-sm text-muted2">Crie um treino primeiro.</p>}
+            {workouts === null && !errorMessage && <p className="text-sm text-muted2">Carregando treinos…</p>}
+            {workouts?.length === 0 && !errorMessage && <p className="text-sm text-muted2">Crie um treino primeiro.</p>}
             {workouts?.map((workout) => (
               <button
                 key={workout.id}

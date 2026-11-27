@@ -8,15 +8,22 @@ import { TraineeAvatar } from './trainee-avatar';
 export function AttentionPanel({
   attentionItems,
   hasTrainees = true,
+  errorMessage = null,
 }: {
   attentionItems: AttentionItem[] | null;
   hasTrainees?: boolean;
+  errorMessage?: string | null;
 }) {
   return (
     <div className="rounded-2xl border border-line bg-card p-5">
       <h2 className="mb-3 text-base font-extrabold">⚠️ Precisa de atenção</h2>
-      {attentionItems === null && <p className="text-sm text-muted2">Carregando…</p>}
-      {attentionItems?.length === 0 && (
+      {errorMessage && (
+        <p className="text-sm font-semibold text-brand-ink">{errorMessage}</p>
+      )}
+      {!errorMessage && attentionItems === null && (
+        <p className="text-sm text-muted2">Carregando…</p>
+      )}
+      {!errorMessage && attentionItems?.length === 0 && (
         <p className="text-sm text-muted2">
           {hasTrainees
             ? 'Tudo certo: todo mundo treinando em dia 💪'

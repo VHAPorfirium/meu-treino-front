@@ -377,7 +377,7 @@ export function ExerciseCard({
           variant="done"
           active={status === 'DONE'}
           disabled={disabled || saving}
-          className="flex-1 py-3 text-sm font-extrabold"
+          className="flex-1 whitespace-nowrap px-2 py-3 text-sm font-extrabold"
           onClick={() => {
             setReplaced(null);
             setOpen(true);
@@ -390,7 +390,7 @@ export function ExerciseCard({
           variant="skip"
           active={status === 'SKIPPED'}
           disabled={disabled || saving}
-          className="flex-1 py-3 text-sm font-extrabold"
+          className="flex-1 whitespace-nowrap px-2 py-3 text-sm font-extrabold"
           onClick={() => {
             unlockAudio();
             triggerHaptic('light');
@@ -403,7 +403,7 @@ export function ExerciseCard({
           variant="replace"
           active={status === 'REPLACED'}
           disabled={disabled || saving}
-          className="flex-1 py-3 text-sm font-extrabold"
+          className="flex-1 whitespace-nowrap px-2 py-3 text-sm font-extrabold"
           onClick={() => {
             unlockAudio();
             triggerHaptic('light');
