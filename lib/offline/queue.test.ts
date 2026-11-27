@@ -2,8 +2,9 @@ import 'fake-indexeddb/auto';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AuthUser } from '../types';
 
-const { mockReplay, mockGetUser } = vi.hoisted(() => ({
+const { mockReplay, mockNotifyUnauthorized, mockGetUser } = vi.hoisted(() => ({
   mockReplay: vi.fn(),
+  mockNotifyUnauthorized: vi.fn(),
   mockGetUser: vi.fn<() => AuthUser | null>(),
 }));
 
@@ -19,6 +20,7 @@ vi.mock('../api/client', () => {
   return {
     ApiError,
     replay: mockReplay,
+    notifyUnauthorized: mockNotifyUnauthorized,
   };
 });
 
@@ -105,8 +107,14 @@ describe('lib/offline/queue', () => {
     expect(await pendingCount()).toBe(0);
   });
 
-  it('preserva operações no IndexedDB em HTTP 401 e 503, e descarta apenas 4xx definitivos', async () => {
-    // 401 no enqueueAndSend também enfileira para não perder o último clique antes do relogin
+  it('preserva operações no IndexedDB em HTTP 401 (antes do redirect) e 503, e descarta apenas 4xx definitivos', async () => {
+    // 401 no enqueueAndSend usa deferUnauthorizedRedirect e só chama notifyUnauthorized DEPOIS do commit no IDB
+    let pendingWhenRedirected = -1;
+    mockNotifyUnauthorized.mockImplementationOnce(() => {
+      void pendingCount().then((n) => {
+        pendingWhenRedirected = n;
+      });
+    });
     mockReplay.mockRejectedValueOnce(new ApiError(401, 'Não autenticado'));
     const queuedOn401 = await enqueueAndSend({
       method: 'PATCH',
@@ -115,12 +123,21 @@ describe('lib/offline/queue', () => {
       key: 'patch:log-1:we-1',
     });
     expect(queuedOn401).toEqual({ queued: true });
+    expect(mockReplay).toHaveBeenLastCalledWith(
+      'PATCH',
+      '/workout-logs/log-1/exercises/we-1',
+      { loadUsed: 40 },
+      { deferUnauthorizedRedirect: true },
+    );
+    expect(mockNotifyUnauthorized).toHaveBeenCalledTimes(1);
     expect(await pendingCount()).toBe(1);
+    await vi.waitFor(() => expect(pendingWhenRedirected).toBe(1));
 
-    // 401 no flush para sem deletar a operação
+    // 401 no flush para sem deletar a operação e só então chama notifyUnauthorized
     mockReplay.mockRejectedValueOnce(new ApiError(401, 'Não autenticado'));
     const flush401 = await flush();
     expect(flush401).toEqual({ sent: 0, left: 1 });
+    expect(mockNotifyUnauthorized).toHaveBeenCalledTimes(2);
 
     // 503 no flush preserva a operação e incrementa tries
     mockReplay.mockRejectedValueOnce(new ApiError(503, 'Indisponível'));

@@ -41,6 +41,11 @@ function handleUnauthorized() {
   handlingUnauthorized = false;
 }
 
+/** Aciona o fluxo padrão de sessão expirada (401) após o chamador concluir persistência local. */
+export function notifyUnauthorized() {
+  handleUnauthorized();
+}
+
 function handlePasswordChangeRequired(msg: string) {
   if (typeof window === 'undefined') return;
   if (!msg.toLowerCase().includes('troca de senha obrigatória')) return;
@@ -50,9 +55,19 @@ function handlePasswordChangeRequired(msg: string) {
   }
 }
 
+export interface RequestControlOptions {
+  /**
+   * Quando `true`, não redireciona para `/login` imediatamente em HTTP 401;
+   * o chamador (ex.: fila offline) conclui a gravação no IndexedDB e chama
+   * `notifyUnauthorized()` em seguida.
+   */
+  deferUnauthorizedRedirect?: boolean;
+}
+
 async function requestRaw<T>(
   path: string,
   options: RequestInit = {},
+  control: RequestControlOptions = {},
 ): Promise<{ data: T; headers: Headers }> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
@@ -85,7 +100,11 @@ async function requestRaw<T>(
       /* ignore */
     }
     // 401 fora do login = sessão caiu → desloga. (No login, 401 é só credencial inválida.)
-    if (res.status === 401 && !path.startsWith('/auth/login')) {
+    if (
+      res.status === 401 &&
+      !path.startsWith('/auth/login') &&
+      !control.deferUnauthorizedRedirect
+    ) {
       handleUnauthorized();
     } else if (res.status === 403) {
       handlePasswordChangeRequired(msg);
@@ -103,8 +122,12 @@ async function requestRaw<T>(
   }
 }
 
-async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const { data } = await requestRaw<T>(path, options);
+async function request<T>(
+  path: string,
+  options: RequestInit = {},
+  control: RequestControlOptions = {},
+): Promise<T> {
+  const { data } = await requestRaw<T>(path, options, control);
   return data;
 }
 
@@ -179,9 +202,18 @@ export const api = {
 };
 
 /** Reexecuta uma operação gravada na fila offline (lib/offline/queue). */
-export function replay<T>(method: string, path: string, body?: unknown) {
-  return request<T>(path, {
-    method,
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
+export function replay<T>(
+  method: string,
+  path: string,
+  body?: unknown,
+  control?: RequestControlOptions,
+) {
+  return request<T>(
+    path,
+    {
+      method,
+      body: body === undefined ? undefined : JSON.stringify(body),
+    },
+    control,
+  );
 }
