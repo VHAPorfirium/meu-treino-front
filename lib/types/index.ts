@@ -492,3 +492,156 @@ export interface AttentionItem {
   description: string;
   daysWithoutTraining: number | null;
 }
+
+// ── Observabilidade & Auditoria (/admin — v2.1) ─────────────────────────────
+
+export interface RouteMetricSummary {
+  method: string;
+  route: string;
+  count: number;
+  errorCount: number;
+  errorRatePct: number;
+  avgMs: number;
+  p50Ms: number;
+  p95Ms: number;
+  p99Ms: number;
+}
+
+export interface HourlyTrafficBucket {
+  hour: string;
+  total: number;
+  errors4xx: number;
+  errors5xx: number;
+  p95Ms: number;
+}
+
+export interface HttpMetricsSnapshot {
+  windowMinutes: number;
+  uptimeSeconds: number;
+  startedAt: string;
+  nodeVersion: string;
+  memory: {
+    rssMb: number;
+    heapUsedMb: number;
+    heapTotalMb: number;
+    externalMb: number;
+  };
+  requests: {
+    total: number;
+    lifetimeTotal: number;
+    perMinute: number;
+    status2xx: number;
+    status3xx: number;
+    status4xx: number;
+    status5xx: number;
+    errorRatePct: number;
+    clientErrorRatePct: number;
+  };
+  latencyMs: {
+    avg: number;
+    p50: number;
+    p95: number;
+    p99: number;
+    max: number;
+  };
+  timeline: HourlyTrafficBucket[];
+  topRoutes: RouteMetricSummary[];
+  slowestRoutes: RouteMetricSummary[];
+}
+
+export interface AdminOverview {
+  generatedAt: string;
+  externalGrafanaUrl: string | null;
+  database: {
+    status: 'ok' | 'degraded';
+    latencyMs: number;
+    tableCount: number;
+    migrationsApplied: number;
+    migrationsPendingOrFailed: number;
+  };
+  cache: {
+    enabled: boolean;
+    entradas: number;
+    hits: number;
+    misses: number;
+    taxaAcerto: number;
+    emVoo: number;
+  };
+  http: HttpMetricsSnapshot;
+  academy: {
+    users: {
+      total: number;
+      active: number;
+      inactive: number;
+      byRole: Record<Role, number>;
+      activeByRole: Record<Role, number>;
+    };
+    links: {
+      active: number;
+      pending: number;
+      traineesWithoutTrainer: number;
+    };
+    sessions: {
+      today: number;
+      last7Days: number;
+      last30Days: number;
+      completedLast30Days: number;
+    };
+  };
+  security: {
+    last24h: {
+      totalEvents: number;
+      loginSuccess: number;
+      loginFailure: number;
+      loginLocked: number;
+      authzDenied: number;
+      rateLimitExceeded: number;
+      profileSwitched: number;
+      passwordResets: number;
+    };
+    loginDaily7d: {
+      day: string;
+      success: number;
+      failure: number;
+      locked: number;
+    }[];
+    topSuspiciousIps24h: {
+      ip: string;
+      count: number;
+    }[];
+  };
+}
+
+export interface AdminAccessLogUser {
+  id: string;
+  name: string;
+  username: string;
+  role: Role;
+}
+
+export interface AdminAccessLogItem {
+  id: string;
+  event: string;
+  userId: string | null;
+  actorUserId: string | null;
+  identifierMasked: string | null;
+  ip: string;
+  userAgent: string | null;
+  method: string | null;
+  path: string | null;
+  statusCode: number | null;
+  reason: string | null;
+  requestId: string | null;
+  durationMs: number | null;
+  createdAt: string;
+  user: AdminAccessLogUser | null;
+  actor: AdminAccessLogUser | null;
+}
+
+export interface AdminAccessLogPage {
+  items: AdminAccessLogItem[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+

@@ -388,3 +388,42 @@ export const healthApi = {
   cache: () => api.get<HealthCacheSummary>('/health/cache'),
 };
 
+export interface AdminAccessLogsParams {
+  event?: string;
+  userId?: string;
+  ip?: string;
+  search?: string;
+  from?: string;
+  to?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export function buildAccessLogsQueryString(params: AdminAccessLogsParams = {}): string {
+  const q = new URLSearchParams();
+  if (params.event) q.set('event', params.event);
+  if (params.userId) q.set('userId', params.userId);
+  if (params.ip) q.set('ip', params.ip.trim());
+  if (params.search) q.set('search', params.search.trim());
+  if (params.from) q.set('from', params.from);
+  if (params.to) q.set('to', params.to);
+  if (params.limit !== undefined) q.set('limit', String(params.limit));
+  if (params.offset !== undefined) q.set('offset', String(params.offset));
+  const qs = q.toString();
+  return qs ? `?${qs}` : '';
+}
+
+export const adminApi = {
+  overview: (windowMinutes = 1440) =>
+    api.get<import('../types').AdminOverview>(
+      `/admin/overview?windowMinutes=${encodeURIComponent(String(windowMinutes))}`,
+    ),
+  accessLogs: (params: AdminAccessLogsParams = {}) =>
+    api.get<import('../types').AdminAccessLogPage>(
+      `/admin/access-logs${buildAccessLogsQueryString(params)}`,
+    ),
+  accessLogsExportUrl: (params: Omit<AdminAccessLogsParams, 'limit' | 'offset'> = {}) =>
+    `/api/admin/access-logs/export${buildAccessLogsQueryString(params)}`,
+};
+
+
