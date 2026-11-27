@@ -126,7 +126,7 @@ export function AddToWorkoutModal({
                     {workout._count ? ` · ${workout._count.exercises} exercícios` : ''}
                   </span>
                 </span>
-                {selectedWorkoutId === workout.id && <span className="font-extrabold text-brand">✓</span>}
+                {selectedWorkoutId === workout.id && <span className="font-extrabold text-brand-ink">✓</span>}
               </button>
             ))}
           </div>
@@ -152,7 +152,7 @@ export function AddToWorkoutModal({
               {exerciseMode === 'TIME' ? 'medir por séries e repetições' : 'medir por tempo'}
             </button>
           </div>
-          {errorMessage && <p className="text-sm font-semibold text-brand">{errorMessage}</p>}
+          {errorMessage && <p className="text-sm font-semibold text-brand-ink">{errorMessage}</p>}
         </div>
 
         <div className="border-t border-line p-4 pb-[calc(env(safe-area-inset-bottom,0px)+16px)]">

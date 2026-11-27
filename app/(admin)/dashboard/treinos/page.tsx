@@ -115,7 +115,7 @@ export default function TreinosPage() {
 
       <div className="mx-auto max-w-6xl space-y-3 p-4 sm:p-6 md:p-8">
         {error && (
-          <div className="rounded-2xl border border-line bg-card p-3 text-sm font-semibold text-brand">
+          <div className="rounded-2xl border border-line bg-card p-3 text-sm font-semibold text-brand-ink">
             {error}{' '}
             <button onClick={() => setError(null)} className="ml-2 underline">
               fechar
@@ -495,7 +495,7 @@ function WorkoutEditor({
           <button
             onClick={() => setConfirmDelete((v) => !v)}
             disabled={busy}
-            className="min-w-[120px] flex-1 rounded-xl bg-chip py-2.5 text-sm font-extrabold text-brand disabled:opacity-50"
+            className="min-w-[120px] flex-1 rounded-xl bg-chip py-2.5 text-sm font-extrabold text-brand-ink disabled:opacity-50"
           >
             Excluir treino
           </button>
@@ -703,7 +703,7 @@ function AddExerciseModal({
             </div>
           )}
 
-          {error && <p className="text-sm font-semibold text-brand">{error}</p>}
+          {error && <p className="text-sm font-semibold text-brand-ink">{error}</p>}
 
           <div className="flex items-center gap-2">
             <span className="text-xs font-bold text-muted2">

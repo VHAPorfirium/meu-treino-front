@@ -24,9 +24,9 @@ export function ProgramHeroCard({
       <button
         type="button"
         onClick={onOpenAchievement}
-        className="block w-full rounded-3xl bg-gradient-to-br from-amber-600 to-amber-800 p-4 text-left text-white shadow-soft"
+        className="block w-full rounded-3xl bg-gradient-to-br from-amber-700 to-amber-900 p-4 text-left text-white shadow-soft"
       >
-        <p className="text-[11px] font-extrabold uppercase tracking-wider opacity-90">
+        <p className="text-[11px] font-extrabold uppercase tracking-wider text-amber-50">
           🏆 {programTypeRule.label} concluído
         </p>
         <p className="font-display text-[22px] font-extrabold leading-tight">{currentProgram.program.name}</p>
@@ -36,8 +36,8 @@ export function ProgramHeroCard({
   }
 
   return (
-    <div className="rounded-3xl bg-gradient-to-br from-amber-600 to-amber-800 p-4 text-white shadow-soft">
-      <p className="text-[11px] font-extrabold uppercase tracking-wider opacity-90">
+    <div className="rounded-3xl bg-gradient-to-br from-amber-700 to-amber-900 p-4 text-white shadow-soft">
+      <p className="text-[11px] font-extrabold uppercase tracking-wider text-amber-50">
         {programTypeRule.icon} {currentProgram.program.name}
       </p>
       {progress && (
@@ -71,7 +71,7 @@ export function ProgramHeroCard({
           <RecommendedWorkoutAction recommendedWorkout={recommendedWorkout} variant="on-gold" />
         </>
       ) : (
-        <p className="text-sm font-bold opacity-90">Nenhum treino neste programa ainda.</p>
+        <p className="text-sm font-bold text-amber-50">Nenhum treino neste programa ainda.</p>
       )}
     </div>
   );

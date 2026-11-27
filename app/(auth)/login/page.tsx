@@ -155,14 +155,14 @@ export default function LoginPage() {
                     {profile.name} · @{profile.username}
                   </span>
                 </span>
-                <span className="text-base font-extrabold text-brand">→</span>
+                <span className="text-base font-extrabold text-brand-ink">→</span>
               </button>
             ))}
 
             {error && (
               <p
                 role="alert"
-                className="rounded-xl border border-brand/30 bg-brand/10 px-3.5 py-2.5 text-sm font-semibold text-brand"
+                className="rounded-xl border border-brand/30 bg-brand/10 px-3.5 py-2.5 text-sm font-semibold text-brand-ink"
               >
                 {error}
               </p>
@@ -252,7 +252,7 @@ export default function LoginPage() {
             {error && (
               <p
                 role="alert"
-                className="rounded-xl border border-brand/30 bg-brand/10 px-3.5 py-2.5 text-sm font-semibold text-brand animate-shake"
+                className="rounded-xl border border-brand/30 bg-brand/10 px-3.5 py-2.5 text-sm font-semibold text-brand-ink animate-shake"
               >
                 {error}
               </p>

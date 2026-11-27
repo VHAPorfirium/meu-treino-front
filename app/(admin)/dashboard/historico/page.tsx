@@ -176,7 +176,7 @@ export default function AdminHistoricoPage() {
           )}
         </div>
 
-        {errorMessage && <p className="text-brand">{errorMessage}</p>}
+        {errorMessage && <p className="text-brand-ink">{errorMessage}</p>}
         {!historyEntries && !errorMessage && <p className="text-muted2">Carregando…</p>}
 
         {historyEntries && (

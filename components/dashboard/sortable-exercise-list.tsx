@@ -212,7 +212,7 @@ function Row({
                 onClick={() => setConfirmRemove((v) => !v)}
                 disabled={busy}
                 aria-label="Remover exercício"
-                className="rounded-lg bg-chip px-2.5 py-1 text-xs font-bold text-brand disabled:opacity-50"
+                className="rounded-lg bg-chip px-2.5 py-1 text-xs font-bold text-brand-ink disabled:opacity-50"
               >
                 ✕
               </button>
@@ -292,7 +292,7 @@ function Row({
           </div>
         </div>
       )}
-      {error && <p className="mt-1.5 text-xs font-semibold text-brand sm:pl-8">{error}</p>}
+      {error && <p className="mt-1.5 text-xs font-semibold text-brand-ink sm:pl-8">{error}</p>}
     </div>
   );
 }

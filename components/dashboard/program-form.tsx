@@ -139,7 +139,7 @@ export function ProgramForm({
       </p>
 
       {validationMessage && (
-        <p className="text-sm font-semibold text-brand">{validationMessage}</p>
+        <p className="text-sm font-semibold text-brand-ink">{validationMessage}</p>
       )}
 
       <div className="flex gap-2">

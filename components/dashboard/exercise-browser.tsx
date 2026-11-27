@@ -267,7 +267,7 @@ export function ExerciseBrowser({
 
       {!loading && error && (
         <div className="my-4 rounded-2xl border border-line bg-card p-4 text-center">
-          <p className="text-sm font-extrabold text-brand">
+          <p className="text-sm font-extrabold text-brand-ink">
             Não foi possível carregar o catálogo.
           </p>
           <p className="mt-1 text-xs font-semibold text-muted2">{error}</p>

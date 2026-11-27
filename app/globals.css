@@ -18,18 +18,21 @@
   --color-ink: 25 21 18;
   --color-ink2: 51 41 31;
   --color-muted: 94 83 72;
-  --color-muted2: 138 126 114;
+  --color-muted2: 110 99 88;
   --color-faint: 169 156 143;
 
   --color-line: 233 224 214;
   --color-line2: 227 218 208;
   --color-line3: 220 210 198;
 
+  /* Texto/badges/alertas da marca com contraste WCAG AA (>= 4.5:1) sobre papel/card/chip/brand-10 */
+  --color-brand-ink: 193 59 20;
+
   --color-done: 30 122 79;
   --color-done-bg: 227 240 231;
   --color-done-ink: 20 96 60;
 
-  --color-skip: 176 110 0;
+  --color-skip: 148 86 0;
   --color-skip-bg: 251 235 210;
 
   --color-replace: 91 63 191;
@@ -69,6 +72,8 @@
     --color-line: 44 44 46;
     --color-line2: 58 58 60;
     --color-line3: 72 72 74;
+
+    --color-brand-ink: 255 114 71;
 
     --color-done: 48 209 88;
     --color-done-bg: 19 46 27;
@@ -111,6 +116,8 @@
   --color-line: 44 44 46;
   --color-line2: 58 58 60;
   --color-line3: 72 72 74;
+
+  --color-brand-ink: 255 114 71;
 
   --color-done: 48 209 88;
   --color-done-bg: 19 46 27;

@@ -78,7 +78,7 @@ export default function EvolucaoPage() {
       <div className="mx-auto max-w-6xl space-y-5 p-4 sm:p-6 md:p-8">
         <FiltroAluno value={alunoId} onChange={setAlunoId} />
 
-        {error && <p className="text-brand">{error}</p>}
+        {error && <p className="text-brand-ink">{error}</p>}
         {!data && !error && <p className="text-muted2">Carregando…</p>}
 
         {data && (

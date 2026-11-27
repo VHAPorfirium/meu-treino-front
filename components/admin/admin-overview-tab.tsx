@@ -206,7 +206,7 @@ export function AdminOverviewTab({
                     <button
                       type="button"
                       onClick={() => onInspectIp(item.ip)}
-                      className="text-xs font-extrabold text-brand hover:underline"
+                      className="text-xs font-extrabold text-brand-ink hover:underline"
                     >
                       Ver logs →
                     </button>
@@ -345,7 +345,7 @@ function MetricTile({
       : tone === 'skip'
         ? 'text-skip'
         : tone === 'brand'
-          ? 'text-brand'
+          ? 'text-brand-ink'
           : 'text-ink';
   return (
     <div className="rounded-xl border border-line bg-paper px-3 py-2.5">

@@ -35,7 +35,7 @@ export function BottomNav({
               href={it.href}
               onClick={() => triggerHaptic('light')}
               className={`flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 px-1 py-2 text-[11px] font-extrabold transition active:scale-95 ${
-                active ? 'text-brand' : 'text-muted2'
+                active ? 'text-brand-ink' : 'text-muted2'
               }`}
             >
               <span className={`text-xl transition-transform ${active ? 'scale-110' : ''}`}>

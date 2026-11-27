@@ -32,6 +32,7 @@ import {
 import { PageHead } from '@/components/dashboard/page-head';
 import { TraineeAvatar } from '@/components/dashboard/trainee-avatar';
 import { StatTile } from '@/components/trainee/stat-tile';
+import { ProgressPhotoImage } from '@/components/ui/progress-photo-image';
 
 type ProfileTab = 'summary' | 'workouts' | 'notes' | 'photos' | 'achievements';
 
@@ -223,7 +224,7 @@ export default function AlunosPage() {
 
       <div className="mx-auto max-w-6xl space-y-4 p-4 sm:p-6 md:p-8">
         {errorMessage && (
-          <p className="rounded-2xl border border-line bg-card p-3 text-sm font-semibold text-brand">
+          <p className="rounded-2xl border border-line bg-card p-3 text-sm font-semibold text-brand-ink">
             {errorMessage}{' '}
             <button onClick={() => setErrorMessage(null)} className="ml-2 underline">
               fechar
@@ -453,7 +454,7 @@ function LinkTraineeForm({
       </div>
 
       {formError && (
-        <p className="text-sm font-semibold text-brand">{formError}</p>
+        <p className="text-sm font-semibold text-brand-ink">{formError}</p>
       )}
     </div>
   );
@@ -630,7 +631,7 @@ function TraineeProfile({
       </div>
 
       {errorMessage && (
-        <p className="mb-3 text-sm font-semibold text-brand">{errorMessage}</p>
+        <p className="mb-3 text-sm font-semibold text-brand-ink">{errorMessage}</p>
       )}
 
       {selectedTab === 'summary' && (
@@ -781,16 +782,12 @@ function TraineeProfile({
                 key={photo.id}
                 className="overflow-hidden rounded-2xl border border-line"
               >
-                {photo.url ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={photo.url}
-                    alt={photo.note ?? 'Foto de progresso'}
-                    className="aspect-[3/4] w-full object-cover"
-                  />
-                ) : (
-                  <div className="aspect-[3/4] w-full bg-chip" />
-                )}
+                <ProgressPhotoImage
+                  src={photo.url}
+                  storagePath={photo.path}
+                  alt={photo.note ?? 'Foto de progresso'}
+                  className="aspect-[3/4] w-full object-cover"
+                />
                 <figcaption className="p-2.5">
                   <p className="text-xs font-extrabold">
                     {formatDay(photo.takenAt)}

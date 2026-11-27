@@ -159,7 +159,7 @@ export default function HistoricoPage() {
 
         <section>
           <SectionTitle>Sessões</SectionTitle>
-          {errorMessage && <p className="py-8 text-center text-brand">{errorMessage}</p>}
+          {errorMessage && <p className="py-8 text-center text-brand-ink">{errorMessage}</p>}
           {!historyEntries && !errorMessage && <p className="py-8 text-center text-muted2">Carregando…</p>}
           {historyEntries && entriesOfMonth.length === 0 && (
             <p className="py-6 text-center text-sm font-semibold text-muted2">
@@ -233,7 +233,7 @@ function MonthCalendar({
           : openDayKeys.has(calendarDayKey)
             ? 'bg-done-bg text-done'
             : calendarDayKey === todayDayKey
-              ? 'border-2 border-brand text-brand'
+              ? 'border-2 border-brand text-brand-ink'
               : 'bg-chip text-muted2';
         return (
           <span

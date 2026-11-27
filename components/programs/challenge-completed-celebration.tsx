@@ -48,7 +48,7 @@ export function ChallengeCompletedCelebration({
       role="dialog"
       aria-modal="true"
       aria-label="Conquista desbloqueada"
-      className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden bg-black/80 p-6"
+      className="safe-top safe-bottom fixed inset-0 z-50 flex items-center justify-center overflow-hidden bg-black/80 p-5"
     >
       <div aria-hidden className="pointer-events-none absolute inset-0">
         {CONFETTI_PIECES.map((confettiPiece, pieceIndex) => (
@@ -66,7 +66,7 @@ export function ChallengeCompletedCelebration({
         ))}
       </div>
 
-      <div className="relative w-full max-w-sm rounded-3xl bg-card p-6 text-center shadow-soft">
+      <div className="relative max-h-[90dvh] w-full max-w-sm overflow-y-auto rounded-3xl bg-card p-6 text-center shadow-soft">
         <p className="text-7xl">🥇</p>
         <p className="mt-3 text-[11px] font-extrabold uppercase tracking-wider text-gold">
           Conquista desbloqueada
@@ -94,12 +94,12 @@ export function ChallengeCompletedCelebration({
           type="button"
           disabled={isSharing}
           onClick={handleShare}
-          className="mt-5 w-full rounded-2xl bg-gradient-to-br from-amber-600 to-amber-800 py-3.5 text-[16px] font-extrabold text-white disabled:opacity-60"
+          className="mt-5 w-full rounded-2xl bg-gradient-to-br from-amber-700 to-amber-900 py-3.5 text-[16px] font-extrabold text-white disabled:opacity-60"
         >
           {isSharing ? 'Gerando card…' : 'Compartilhar conquista'}
         </button>
         {shareErrorMessage && (
-          <p className="mt-2 text-xs font-semibold text-brand">{shareErrorMessage}</p>
+          <p className="mt-2 text-xs font-semibold text-brand-ink">{shareErrorMessage}</p>
         )}
         <button type="button" onClick={onClose} className="mt-3 w-full py-2 text-sm font-extrabold text-muted">
           Fechar

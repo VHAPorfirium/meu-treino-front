@@ -33,7 +33,7 @@ export function WeekStrip({
                 isCompleted
                   ? 'bg-done text-on-done'
                   : isToday
-                    ? 'border-[2.5px] border-brand text-brand'
+                    ? 'border-[2.5px] border-brand text-brand-ink'
                     : 'bg-chip text-muted2'
               }`}
               aria-label={isCompleted ? 'Treino concluído' : undefined}

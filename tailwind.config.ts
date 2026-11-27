@@ -34,6 +34,7 @@ const config: Config = {
         brand: {
           DEFAULT: '#EE4E22',
           700: '#C13B14',
+          ink: 'rgb(var(--color-brand-ink) / <alpha-value>)',
         },
         // estados
         done: {

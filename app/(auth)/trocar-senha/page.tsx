@@ -134,7 +134,7 @@ export default function TrocarSenhaPage() {
               <button
                 type="button"
                 onClick={() => setShowPasswords((v) => !v)}
-                className="text-xs font-extrabold text-brand hover:underline"
+                className="text-xs font-extrabold text-brand-ink hover:underline"
               >
                 {showPasswords ? 'Ocultar senhas' : 'Mostrar senhas'}
               </button>
@@ -185,7 +185,7 @@ export default function TrocarSenhaPage() {
           {error && (
             <p
               role="alert"
-              className="rounded-xl border border-brand/30 bg-brand/10 px-3.5 py-2.5 text-sm font-semibold text-brand animate-shake"
+              className="rounded-xl border border-brand/30 bg-brand/10 px-3.5 py-2.5 text-sm font-semibold text-brand-ink animate-shake"
             >
               {error}
             </p>
@@ -214,7 +214,7 @@ export default function TrocarSenhaPage() {
             <button
               type="button"
               onClick={() => void logout()}
-              className="text-xs font-extrabold text-muted2 hover:text-brand"
+              className="text-xs font-extrabold text-muted2 hover:text-brand-ink"
             >
               Sair da conta
             </button>

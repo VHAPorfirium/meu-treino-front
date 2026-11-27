@@ -114,7 +114,7 @@ export default function ExercicioDetailPage() {
       </header>
 
       <div className="space-y-4 p-5 pb-28">
-        {errorMessage && <p className="py-10 text-center text-brand">{errorMessage}</p>}
+        {errorMessage && <p className="py-10 text-center text-brand-ink">{errorMessage}</p>}
         {!exercise && !errorMessage && <p className="py-10 text-center text-muted2">Carregando…</p>}
 
         {exercise && (
@@ -174,14 +174,14 @@ export default function ExercicioDetailPage() {
                 <div className="space-y-1.5 rounded-2xl border border-line bg-card p-4 text-sm font-semibold leading-relaxed text-ink2">
                   {visibleSteps.map((instructionStep, stepIndex) => (
                     <p key={stepIndex}>
-                      <span className="font-extrabold text-brand">{stepIndex + 1}.</span> {instructionStep}
+                      <span className="font-extrabold text-brand-ink">{stepIndex + 1}.</span> {instructionStep}
                     </p>
                   ))}
                   {instructionSteps.length > COLLAPSED_STEPS_COUNT && (
                     <button
                       type="button"
                       onClick={() => setAreAllStepsVisible((isVisible) => !isVisible)}
-                      className="text-sm font-extrabold text-brand"
+                      className="text-sm font-extrabold text-brand-ink"
                     >
                       {areAllStepsVisible ? 'ver menos' : 'ver mais'}
                     </button>

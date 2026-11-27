@@ -122,7 +122,7 @@ export default function DashboardHome() {
         {/* filtro por aluno — '' mostra todo mundo somado */}
         <FiltroAluno value={alunoId} onChange={setAlunoId} />
 
-        {error && <p className="text-brand">{error}</p>}
+        {error && <p className="text-brand-ink">{error}</p>}
         {!data && !error && <p className="text-muted2">Carregando…</p>}
 
         {data && (

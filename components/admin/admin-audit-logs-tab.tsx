@@ -21,7 +21,7 @@ function eventBadgeClasses(tone: EventTone): string {
     case 'done':
       return 'bg-done-bg text-done';
     case 'brand':
-      return 'bg-brand/10 text-brand';
+      return 'bg-brand/10 text-brand-ink';
     case 'skip':
       return 'bg-skip-bg text-skip';
     case 'neutral':
@@ -258,7 +258,7 @@ export function AdminAuditLogsTab({
       </section>
 
       {error && (
-        <p className="rounded-2xl border border-brand/30 bg-card p-3.5 text-sm font-semibold text-brand">
+        <p className="rounded-2xl border border-brand/30 bg-card p-3.5 text-sm font-semibold text-brand-ink">
           {error}
         </p>
       )}

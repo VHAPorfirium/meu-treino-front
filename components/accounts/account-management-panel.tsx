@@ -44,7 +44,7 @@ function roleBadgeStyle(role: Role): string {
     case 'RECEPTION':
       return 'bg-replace-bg text-replace';
     case 'PERSONAL':
-      return 'bg-brand/10 text-brand';
+      return 'bg-brand/10 text-brand-ink';
     case 'TRAINEE':
       return 'bg-chip text-muted';
   }
@@ -262,7 +262,7 @@ export function AccountManagementPanel({
       </div>
 
         {errorMessage && (
-          <div className="flex items-center justify-between gap-3 rounded-2xl border border-brand/30 bg-card p-3.5 text-sm font-semibold text-brand">
+          <div className="flex items-center justify-between gap-3 rounded-2xl border border-brand/30 bg-card p-3.5 text-sm font-semibold text-brand-ink">
             <span>{errorMessage}</span>
             <button
               type="button"
@@ -609,7 +609,7 @@ function CreateAccountForm({
                 onClick={() => setRole(opt.value)}
                 className={`flex items-center justify-center gap-1.5 rounded-xl border px-3 py-2.5 text-xs font-extrabold transition ${
                   role === opt.value
-                    ? 'border-brand bg-brand/10 text-brand'
+                    ? 'border-brand bg-brand/10 text-brand-ink'
                     : 'border-line bg-paper text-muted hover:text-ink'
                 }`}
               >
@@ -689,7 +689,7 @@ function CreateAccountForm({
               <button
                 type="button"
                 onClick={() => setPassword(generateStrongPassword())}
-                className="text-xs font-extrabold text-brand hover:underline"
+                className="text-xs font-extrabold text-brand-ink hover:underline"
               >
                 Gerar nova
               </button>
@@ -718,7 +718,7 @@ function CreateAccountForm({
         </div>
       </div>
 
-      {formError && <p className="text-sm font-semibold text-brand">{formError}</p>}
+      {formError && <p className="text-sm font-semibold text-brand-ink">{formError}</p>}
 
       <div className="flex gap-2 pt-1">
         <button
@@ -1021,7 +1021,7 @@ function AccountRow({
             <button
               type="button"
               onClick={() => setResetPassword(generateStrongPassword())}
-              className="text-xs font-extrabold text-brand hover:underline"
+              className="text-xs font-extrabold text-brand-ink hover:underline"
             >
               Gerar outra
             </button>

@@ -273,7 +273,7 @@ export default function TraineeHomePage() {
             key={link.id}
             className="space-y-2.5 rounded-2xl border-2 border-brand bg-card p-4 shadow-soft"
           >
-            <p className="text-[11px] font-extrabold uppercase tracking-wide text-brand">
+            <p className="text-[11px] font-extrabold uppercase tracking-wide text-brand-ink">
               🤝 Convite de vínculo
             </p>
             <p className="text-sm font-extrabold text-ink">
@@ -335,7 +335,7 @@ export default function TraineeHomePage() {
         <WeekStrip completedDayKeys={completedDayKeys} />
 
         {errorMessage && (
-          <p className="rounded-2xl border border-line bg-card p-3 text-center text-sm font-semibold text-brand">
+          <p className="rounded-2xl border border-line bg-card p-3 text-center text-sm font-semibold text-brand-ink">
             {errorMessage}
           </p>
         )}
@@ -518,7 +518,7 @@ function ProgramTabContent({
         <div>
           <SectionTitle
             action={
-              <Link href="/treino/meus" className="text-[12.5px] font-extrabold text-brand">
+              <Link href="/treino/meus" className="text-[12.5px] font-extrabold text-brand-ink">
                 Ver tudo
               </Link>
             }
@@ -568,7 +568,7 @@ function ContinuousContent({
         <div>
           <SectionTitle
             action={
-              <Link href="/treino/meus" className="text-[12.5px] font-extrabold text-brand">
+              <Link href="/treino/meus" className="text-[12.5px] font-extrabold text-brand-ink">
                 Ver todos
               </Link>
             }

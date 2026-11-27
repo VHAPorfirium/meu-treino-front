@@ -79,11 +79,11 @@ export function AssigneeSelect({
         })}
       </div>
       {value.length === 0 && trainees && trainees.length > 0 && (
-        <p className="mt-1.5 text-xs font-semibold text-brand">
+        <p className="mt-1.5 text-xs font-semibold text-brand-ink">
           Sem destinatário: nenhum aluno vê este treino.
         </p>
       )}
-      {error && <p className="mt-1.5 text-xs font-semibold text-brand">{error}</p>}
+      {error && <p className="mt-1.5 text-xs font-semibold text-brand-ink">{error}</p>}
     </div>
   );
 }
